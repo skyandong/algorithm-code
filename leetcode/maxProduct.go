@@ -4,32 +4,26 @@ package leetcode
 // https://leetcode.cn/problems/maximum-product-subarray/
 func maxProduct(nums []int) int {
 	maxNum, minNegative, indexNegative := 0, 0, -1
+	temp := 1
 	for i := 0; i < len(nums); i++ {
-		if nums[i] == 0 && indexNegative > 0 && minNegative/nums[indexNegative] > maxNum {
+		if temp *= nums[i]; temp > maxNum {
+			maxNum = temp
+		}
+		if nums[i] < 0 && indexNegative = -1 {
 
-			maxNum = minNegative / nums[indexNegative]
-		} else if nums[i] < 0 {
-			if minNegative == 0 {
-				indexNegative = i
-				minNegative = nums[i]
-			} else if minNegative < 0 {
-				indexNegative = -1
-				num := minNegative * nums[i]
-				minNegative = 0
-				if maxNum > 0 {
-					maxNum *= num
-				} else {
-					maxNum = num
-				}
+		}
+		if nums[i] == 0 {
+			if maxNum > 0 {
+				// 啥也不用做哦
 			}
-		} else {
-			if maxNum == 0 {
-				maxNum = nums[i]
-			} else if minNegative < 0 {
-				minNegative *= nums[i]
-			} else {
-				maxNum *= nums[i]
+			// 寻找左数组乘积最大数组
+			if temp < 0 {
+				// 要看负数数量是否 > 1 呢
+				// 是：   比较 [0:firt] 的乘积和[end:0]的乘积谁更小
+				// 否：   比较 [0:first] 的乘积 [first + 1:0]的乘积谁更大
 			}
+
+			// 将前后 index 为 -1
 		}
 	}
 	return maxNum
