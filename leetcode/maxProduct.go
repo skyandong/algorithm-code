@@ -3,36 +3,26 @@ package leetcode
 // 乘积最大子数组
 // https://leetcode.cn/problems/maximum-product-subarray/
 func maxProduct(nums []int) int {
-	maxNum, temp := 0, 1
-	firstNegativeNum, endNegativeNum := 0, 0
-	for i := 0; i < len(nums); i++ {
-		if nums[i] != 0 {
-			if temp *= nums[i]; temp > maxNum {
-				endNegativeNum = 0
-				maxNum = temp
-			}
-		}
-		if temp < 0 {
-			endNegativeNum *= nums[i]
-			if nums[i] < 0 {
-				if firstNegativeNum == 0 {
-					firstNegativeNum = temp
-				} else {
-					endNegativeNum = nums[i]
-				}
-			}
-		}
-
-		if (nums[i] == 0 || i == len(nums)-1) && temp < 0 {
-			if endNegativeNum == 0 {
-				if i > 1 && temp/firstNegativeNum > maxNum {
-					maxNum = temp / firstNegativeNum
-				}
-			} else if firstNegativeNum > endNegativeNum {
-				maxNum = temp / firstNegativeNum
-			}
-			temp, firstNegativeNum, endNegativeNum = 1, 0, 0
-		}
+	maxF, minF, ans := nums[0], nums[0], nums[0]
+	for i := 1; i < len(nums); i++ {
+		mx, mn := maxF, minF
+		maxF = max(mx*nums[i], max(nums[i], mn*nums[i]))
+		minF = min(mn*nums[i], min(nums[i], mx*nums[i]))
+		ans = max(maxF, ans)
 	}
-	return maxNum
+	return ans
+}
+
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }
