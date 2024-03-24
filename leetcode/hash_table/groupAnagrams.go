@@ -1,29 +1,50 @@
 package hashtable
 
-import "sort"
+import (
+	"sort"
+)
 
 // 字母异位词分组
 // https://leetcode.cn/problems/group-anagrams/
 func groupAnagrams(strs []string) [][]string {
-	if len(strs) == 0 {
-		return [][]string{{""}}
-
+	if len(strs) == 1 {
+		return [][]string{{strs[0]}}
 	}
 
-	res := make([][]string, 0, len(strs))
-	strMap := make(map[string]int, len(strs))
+	strMap := make(map[string][]string, len(strs))
 	for _, str := range strs {
-		b := []byte(str)
-		sort.Slice(b, func(i, j int) bool {
-			return b[i] < b[j]
+		byteSlice := []byte(str)
+		sort.Slice(byteSlice, func(i, j int) bool {
+			return byteSlice[i] < byteSlice[j]
 		})
-		index, ok := strMap[string(b)]
-		if !ok {
-			res = append(res, []string{str})
-			strMap[string(b)] = len(res) - 1
-		} else {
-			res[index] = append(res[index], str)
-		}
+		sortedStr := string(byteSlice)
+		strMap[sortedStr] = append(strMap[sortedStr], str)
+	}
+
+	res := make([][]string, 0, len(strMap))
+	for _, strSlice := range strMap {
+		res = append(res, strSlice)
 	}
 	return res
 }
+
+// func groupAnagrams(strs []string) [][]string {
+// 	if len(strs) == 1 {
+// 		return [][]string{{strs[0]}}
+// 	}
+
+// 	strMap := make(map[[26]byte][]string, len(strs))
+// 	for _, str := range strs {
+// 		alphabet := [26]byte{}
+// 		for i := 0; i < len(str); i++ {
+// 			alphabet[str[i]-'a']++
+// 		}
+// 		strMap[alphabet] = append(strMap[alphabet], str)
+// 	}
+
+// 	res := make([][]string, 0, len(strs))
+// 	for _, strSlice := range strMap {
+// 		res = append(res, strSlice)
+// 	}
+// 	return res
+// }

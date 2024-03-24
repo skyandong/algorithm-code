@@ -2,14 +2,14 @@ package hashtable
 
 // TwoSum 两数之和
 // https://leetcode-cn.com/problems/two-sum
-func TwoSum(nums []int, target int) (res []int) {
-	mymap := make(map[int]int)
-	for index1 := 0; index1 < len(nums); index1++ {
-		if index2, ok := mymap[nums[index1]]; ok {
-			res = append(res, index2, index1)
-			break
+func twoSum(nums []int, target int) []int {
+	missingIndexMap := make(map[int]int)
+	for key, num := range nums {
+		if value, ok := missingIndexMap[num]; ok {
+			return []int{value, key}
 		}
-		mymap[target-nums[index1]] = index1
+		// 将缺失值映射到它们在切片中的索引位置
+		missingIndexMap[target-num] = key
 	}
-	return res
+	return []int{}
 }
