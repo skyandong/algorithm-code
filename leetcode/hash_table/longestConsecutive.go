@@ -3,36 +3,30 @@ package hashtable
 // 最长连续序列
 // https://leetcode.cn/problems/longest-consecutive-sequence
 func longestConsecutive(nums []int) int {
-	myMap := make(map[int]bool, len(nums))
-
-	for i := range nums {
-		myMap[nums[i]] = false
+	// 将所有元素存入一个集合中
+	numSet := make(map[int]bool, len(nums))
+	for _, num := range nums {
+		numSet[num] = true
 	}
 
-	var maxLen int
-	for key, val := range myMap {
-		if val {
-			continue
-		}
-		temp := 1
-		for i := key - 1; ; i-- {
-			if _, ok := myMap[i]; !ok {
-				break
+	maxLen := 0
+	// 遍历集合中的每个元素
+	for num := range numSet {
+		// 如果当前元素的前一个元素不存在于集合中，则当前元素是一个连续序列的起点
+		if !numSet[num-1] {
+			currentLen, currentNum := 1, num
+
+			// 计算以当前元素为起点的连续序列的长度
+			for numSet[currentNum+1] {
+				currentNum++
+				currentLen++
 			}
-			temp++
-			myMap[i] = true
-		}
-		for i := key + 1; ; i++ {
-			if _, ok := myMap[i]; !ok {
-				break
+
+			// 更新最大长度
+			if currentLen > maxLen {
+				maxLen = currentLen
 			}
-			temp++
-			myMap[i] = true
-		}
-		if maxLen < temp {
-			maxLen = temp
 		}
 	}
-
 	return maxLen
 }

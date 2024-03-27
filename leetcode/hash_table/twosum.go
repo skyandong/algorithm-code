@@ -3,13 +3,19 @@ package hashtable
 // TwoSum 两数之和
 // https://leetcode-cn.com/problems/two-sum
 func twoSum(nums []int, target int) []int {
-	missingIndexMap := make(map[int]int)
-	for key, num := range nums {
-		if value, ok := missingIndexMap[num]; ok {
-			return []int{value, key}
+	// 新建 map 用于存储每个数值对应的索引位置
+	numIndexMap := make(map[int]int, len(nums))
+	for index, num := range nums {
+		// 计算目标值与当前值的差值
+		complement := target - num
+
+		// 如果差值在 map 中存在，说明找到了两个数值的和为 target
+		if complementIndex, ok := numIndexMap[complement]; ok {
+			return []int{complementIndex, index}
 		}
-		// 将缺失值映射到它们在切片中的索引位置
-		missingIndexMap[target-num] = key
+
+		// 将当前值和其下标存入 map
+		numIndexMap[num] = index
 	}
 	return []int{}
 }

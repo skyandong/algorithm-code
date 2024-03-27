@@ -1,9 +1,8 @@
 package hashtable
 
 import (
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestLongestConsecutive(t *testing.T) {
