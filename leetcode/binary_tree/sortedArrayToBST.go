@@ -3,7 +3,7 @@ package binarytree
 // 将有序数组转换为二叉搜索树
 // https://leetcode.cn/problems/convert-sorted-array-to-binary-search-tree/description/
 func build(head *TreeNode, left, right int, nums []int) *TreeNode {
-	if left > right{
+	if left > right {
 		return nil
 	}
 	mid := (left + right) / 2
@@ -45,5 +45,3 @@ func sortedArrayToBST(nums []int) *TreeNode {
 // 		Right: buildBST(nums, mid+1, right),
 // 	}
 // }
-
-
