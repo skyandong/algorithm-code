@@ -36,7 +36,7 @@ func TestCopyRandomList(t *testing.T) {
 
 	assert.Equal(t, 10, copied.Next.Next.Next.Val)
 	assert.Equal(t, 11, copied.Next.Next.Next.Random.Val)
-	
+
 	assert.Equal(t, 1, copied.Next.Next.Next.Next.Val)
 	assert.Equal(t, 7, copied.Next.Next.Next.Next.Random.Val)
 
