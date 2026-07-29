@@ -1,3 +1,34 @@
+/*
+# RESP 协议与 Pipelining
+
+## RESP 是什么
+RESP(REdis Serialization Protocol)是 Redis 客户端和服务端之间的 TCP 线协议。
+文本格式,人能读,用首字节区分类型:
+
+	+ Simple String   →  +OK\r\n
+	- Error           →  -ERR unknown command\r\n
+	: Integer         →  :1000\r\n
+	$ Bulk String     →  $5\r\nhello\r\n          (带长度,二进制安全)
+	* Array           →  *3\r\n$3\r\nSET\r\n...   (命令就是字符串数组)
+
+SET name redis 在协议层的真实字节:
+
+	*3\r\n$3\r\nSET\r\n$4\r\nname\r\n$5\r\nredis\r\n
+
+## 为什么 Pipelining 能省 RTT
+Pipelining 不是协议特性,是客户端用法:
+把 N 条命令的字节拼好一次 write(),再一次性 read() 所有回包。
+服务端按序执行、按序回包,客户端按序解析。
+省的就是那 N-1 次网络往返。
+
+	逐条:  write → flush → read | write → flush → read | ...   N 次 RTT
+	pipeline: write×N → flush → read×N                          1 次 RTT
+
+## 实验
+本文件对比 10000 次 SET:
+- 逐条:每条 write+flush+read
+- pipeline:攒齐后一次 flush,再一次性读所有回包
+*/
 package main
 
 import (
