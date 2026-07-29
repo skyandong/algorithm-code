@@ -5,3 +5,13 @@
 go-code
 
 .DS_Store
+
+# binary
+cmd.exe
+
+# self-signed certs
+*.pem
+*.key
+
+# ent generated binary
+entc
