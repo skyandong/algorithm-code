@@ -1,0 +1,643 @@
+# Go 并发编程：名家博客 & 实战代码汇总
+
+> 本文档整理了 Go 社区最具影响力人物在 Goroutine/并发编程方面的**可编程实战内容**（非纯概念），附带博客地址和经典代码。
+
+---
+
+## 目录
+
+1. [Dave Cheney](#1-dave-cheney)
+2. [William Kennedy (Ardan Labs)](#2-william-kennedy-ardan-labs)
+3. [smallnest / 鸟窝](#3-smallnest--鸟窝-colobu)
+4. [谢孟军 / Asta Xie](#4-谢孟军--asta-xie)
+5. [无闻 / Unknwon](#5-无闻--unknwon)
+6. [Go 官方博客](#6-go-官方博客)
+
+---
+
+## 1. Dave Cheney
+
+- **博客**: [https://dave.cheney.net](https://dave.cheney.net)
+- **身份**: Go 社区全球最有影响力的博主之一，前 Go 贡献者
+- **代表作**: Practical Go, High Performance Go
+
+### 1.1 Channel Axioms（Channel 四大公理）
+
+> 原文: https://dave.cheney.net/2014/03/19/channel-axioms
+
+Dave Cheney 总结了 channel 的四个核心行为，每个 Go 程序员必须牢记：
+
+| 公理 | 行为 |
+|------|------|
+| **向 nil channel 发送** | 永久阻塞 |
+| **从 nil channel 接收** | 永久阻塞 |
+| **向已关闭 channel 发送** | panic |
+| **从已关闭 channel 接收** | 立即返回零值 |
+
+**实战代码：向 nil channel 发送 → deadlock**
+
+```go
+package main
+
+func main() {
+    var c chan string
+    c <- "let's get started" // deadlock
+}
+```
+
+**实战代码：向已关闭 channel 发送 → panic**
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    c := make(chan int, 100)
+    for i := 0; i < 10; i++ {
+        go func() {
+            for j := 0; j < 10; j++ {
+                c <- j
+            }
+            close(c) // 多个 goroutine 都可能 close → panic!
+        }()
+    }
+    for i := range c {
+        fmt.Println(i)
+    }
+}
+```
+
+> 💡 为什么没有 `isClosed(c)` 函数？因为检查完到发送之间有 race condition —— 你检查完别人可能刚好关了。
+
+**实战代码：读关闭 channel → 返回零值**
+
+```go
+c := make(chan int, 3)
+c <- 1
+c <- 2
+c <- 3
+close(c)
+for i := 0; i < 4; i++ {
+    fmt.Printf("%d ", <-c) // 输出: 1 2 3 0
+}
+```
+
+### 1.2 Curious Channels（Channel 的高级玩法）
+
+> 原文: https://dave.cheney.net/2013/04/30/curious-channels
+
+两条重要属性：
+- **关闭的 channel 永远不会阻塞**（接收端）
+- **nil channel 永远阻塞**（发送和接收都阻塞）
+
+**实战模式 1：用 close(ch) 广播停止信号给 N 个 goroutine**
+
+```go
+package main
+
+import (
+    "fmt"
+    "sync"
+    "time"
+)
+
+func main() {
+    const n = 100
+    finish := make(chan struct{}) // chan struct{} 表示"只关心信号，不关心值"
+    var done sync.WaitGroup
+
+    for i := 0; i < n; i++ {
+        done.Add(1)
+        go func() {
+            select {
+            case <-time.After(1 * time.Hour):
+            case <-finish: // close(finish) 后立即就绪，100 个 goroutine 同时收到信号
+            }
+            done.Done()
+        }()
+    }
+
+    t0 := time.Now()
+    close(finish) // 广播：所有人立即退出
+    done.Wait()
+    fmt.Printf("Waited %v for %d goroutines to stop\n", time.Since(t0), n)
+    // 输出: Waited 231.385µs for 100 goroutines to stop
+}
+```
+
+**实战模式 2：用 nil channel 实现优雅的多路等待**
+
+```go
+// ❌ 错误写法：会死循环
+func WaitMany(a, b chan bool) {
+    var aclosed, bclosed bool
+    for !aclosed || !bclosed {
+        select {
+        case <-a:
+            aclosed = true // a 关闭后，case <-a 永远就绪 → 无限循环
+        case <-b:
+            bclosed = true
+        }
+    }
+}
+
+// ✅ 正确写法：用 nil channel 禁用已关闭的 case
+func WaitMany(a, b chan bool) {
+    for a != nil || b != nil {
+        select {
+        case <-a:
+            a = nil // 设为 nil 后，该 case 被忽略
+        case <-b:
+            b = nil
+        }
+    }
+}
+
+func main() {
+    a, b := make(chan bool), make(chan bool)
+    go func() {
+        close(a)
+        close(b)
+    }()
+    WaitMany(a, b)
+}
+```
+
+### 1.3 Never start a goroutine without knowing how it will stop
+
+> 原文: https://dave.cheney.net/2016/12/22/never-start-a-goroutine-without-knowing-how-it-will-stop
+
+**核心原则**：每次写 `go` 关键字，你必须知道这个 goroutine 何时、如何退出。
+
+```go
+// ❌ 泄漏：ch 如果不关闭，这个 goroutine 永远不会退出
+ch := someFunction()
+go func() {
+    for range ch { }
+}()
+
+// ✅ 好设计：调用者控制生命周期（Leave concurrency to the caller）
+func processJobs(jobs <-chan Job) {
+    for job := range jobs {  // 不启动 goroutine，由调用者决定并发
+        job.Process()
+    }
+}
+// 调用者决定是否并发：
+// go processJobs(jobs)   ← 调用者决定
+//   processJobs(jobs)    ← 或者同步执行
+```
+
+### 1.4 Practical Go 中的并发实战模式
+
+> 原文: https://dave.cheney.net/practical-go
+
+**模式 1：goroutine 优雅关闭（完整可运行）**
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "net/http"
+)
+
+func serve(addr string, handler http.Handler, stop <-chan struct{}) error {
+    s := http.Server{Addr: addr, Handler: handler}
+    go func() {
+        <-stop           // 等待停止信号
+        s.Shutdown(context.Background())
+    }()
+    return s.ListenAndServe()
+}
+
+func serveApp(stop <-chan struct{}) error {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Fprintln(w, "Hello, GopherCon!")
+    })
+    return serve("0.0.0.0:8080", mux, stop)
+}
+
+func serveDebug(stop <-chan struct{}) error {
+    return serve("127.0.0.1:8001", http.DefaultServeMux, stop)
+}
+
+func main() {
+    done := make(chan error, 2)
+    stop := make(chan struct{})
+
+    go func() { done <- serveDebug(stop) }()
+    go func() { done <- serveApp(stop) }()
+
+    var stopped bool
+    for i := 0; i < cap(done); i++ {
+        if err := <-done; err != nil {
+            fmt.Println("error:", err)
+        }
+        if !stopped {
+            stopped = true
+            close(stop) // 通知所有 goroutine 优雅退出
+        }
+    }
+}
+```
+
+**模式 2：`for{}` 空转 vs `select{}`**
+
+```go
+// ❌ CPU 空转，浪费一个核心
+for {}
+
+// ✅ 永久阻塞，不消耗 CPU
+select {}
+```
+
+---
+
+## 2. William Kennedy (Ardan Labs)
+
+- **博客**: [https://www.ardanlabs.com/blog/](https://www.ardanlabs.com/blog/)
+- **身份**: *Ultimate Go* 作者，全球 Go 培训第一人
+- **GitHub**: [https://github.com/ardanlabs](https://github.com/ardanlabs)
+
+### 2.1 Concurrency, Goroutines and GOMAXPROCS（并发 vs 并行）
+
+> 原文: https://www.ardanlabs.com/blog/2014/01/concurrency-goroutines-and-gomaxprocs.html
+
+**实战演示：GOMAXPROCS=1（并发但非并行）**
+
+```go
+package main
+
+import (
+    "fmt"
+    "runtime"
+    "sync"
+)
+
+func main() {
+    runtime.GOMAXPROCS(1) // 只有一个逻辑处理器
+    var wg sync.WaitGroup
+    wg.Add(2)
+
+    go func() {
+        defer wg.Done()
+        for char := 'a'; char < 'a'+26; char++ {
+            fmt.Printf("%c ", char)
+        }
+    }()
+
+    go func() {
+        defer wg.Done()
+        for number := 1; number < 27; number++ {
+            fmt.Printf("%d ", number)
+        }
+    }()
+
+    wg.Wait()
+    // 输出: a b c d ... z 1 2 3 ... 26
+    // 第一个 goroutine 先跑完，第二个才能开始
+}
+```
+
+**加入 `time.Sleep` 触发调度切换**
+
+```go
+import "time"
+
+// 把第一个 goroutine 改成这样：
+go func() {
+    defer wg.Done()
+    time.Sleep(1 * time.Microsecond) // 触发调度
+    for char := 'a'; char < 'a'+26; char++ {
+        fmt.Printf("%c ", char)
+    }
+}()
+// 输出: 1 2 3 ... 26 a b c d ... z
+// 数字 goroutine 先运行
+```
+
+**GOMAXPROCS=2（真正并行）**
+
+```go
+runtime.GOMAXPROCS(2)
+// 输出随机交错: a b 1 2 3 4 c d e f 5 g h 6 i 7 j ...
+// 每次运行结果不同！
+```
+
+### 2.2 核心学习资源
+
+| 资源 | 地址 |
+|------|------|
+| Ultimate Go 培训 | https://www.ardanlabs.com/training/ |
+| Go 调度器追踪 | https://www.ardanlabs.com/blog/2015/02/scheduler-tracing-in-go.html |
+| Kubernetes Memory Limits + Go | https://www.ardanlabs.com/blog/2024/02/kubernetes-memory-limits-go.html |
+| GC 三部曲 | Part I / II / III on blog |
+
+---
+
+## 3. smallnest / 鸟窝 (colobu)
+
+- **博客**: [https://colobu.com](https://colobu.com)
+- **GitHub**: [https://github.com/smallnest](https://github.com/smallnest)
+- **身份**: rpcx 作者，百度网络监控技术专家
+
+### 3.1 Go 并发编程小测验（13 题，经典！）
+
+> 原文: https://colobu.com/2019/04/28/go-concurrency-quizzes/
+
+已在 `notes/golang/goroutine-interview.md` 中收录，这里补充一道额外的：
+
+**题 11 - 自定义 Map 并发问题**
+
+```go
+package main
+
+import "sync"
+
+type Map struct {
+    m map[int]int
+    sync.Mutex
+}
+
+func (m *Map) Get(key int) (int, bool) {
+    m.Lock()
+    defer m.Unlock()
+    i, ok := m.m[key]
+    return i, ok
+}
+
+func (m *Map) Put(key, value int) {
+    m.Lock()
+    defer m.Unlock()
+    m.m[key] = value
+}
+
+func (m *Map) Len() int {
+    return len(m.m) // ❌ 没加锁！
+}
+
+func main() {
+    var wg sync.WaitGroup
+    wg.Add(2)
+    m := Map{m: make(map[int]int)}
+    go func() {
+        for i := 0; i < 10000000; i++ {
+            m.Put(i, i) // 加了锁
+        }
+        wg.Done()
+    }()
+    go func() {
+        for i := 0; i < 10000000; i++ {
+            m.Len() // 没加锁！→ data race
+        }
+        wg.Done()
+    }()
+    wg.Wait()
+}
+// 答案: C - 可运行，有并发问题（data race）
+```
+
+### 3.2 鸟窝其他 Go 并发相关文章
+
+| 文章 | 地址 |
+|------|------|
+| 扫描全国公网 IP 需要多久（实战并发网络编程） | https://colobu.com/2025/01/27/how-long-to-scan-all-IPs-of-cn/ |
+| 使用 eBPF 跟踪 rpcx 微服务 | https://colobu.com/2022/05/22/use-ebpf-to-trace-rpcx-microservices/ |
+| Go 实验特性详解 | https://colobu.com/2026/06/21/go-experimental-features-explained/ |
+
+---
+
+## 4. 谢孟军 / Asta Xie
+
+- **GitHub**: [https://github.com/astaxie](https://github.com/astaxie)
+- **代表作**: beego (最知名的 Go Web 框架之一), 《Go Web 编程》
+- **《Go Web 编程》在线版**: https://github.com/astaxie/build-web-application-with-golang
+
+### 4.1 并发章节实战代码
+
+> 原文: https://github.com/astaxie/build-web-application-with-golang/blob/master/zh/02.7.md
+
+**goroutine 基础示例**
+
+```go
+package main
+
+import (
+    "fmt"
+    "runtime"
+)
+
+func say(s string) {
+    for i := 0; i < 5; i++ {
+        runtime.Gosched() // 让出时间片
+        fmt.Println(s)
+    }
+}
+
+func main() {
+    go say("world") // 新 goroutine
+    say("hello")    // 当前 goroutine
+}
+// 输出（GOMAXPROCS=1 时）:
+// hello
+// world
+// hello
+// world
+// ...
+```
+
+**channel 求和示例**
+
+```go
+package main
+
+import "fmt"
+
+func sum(a []int, c chan int) {
+    total := 0
+    for _, v := range a {
+        total += v
+    }
+    c <- total
+}
+
+func main() {
+    a := []int{7, 2, 8, -9, 4, 0}
+    c := make(chan int)
+    go sum(a[:len(a)/2], c)
+    go sum(a[len(a)/2:], c)
+    x, y := <-c, <-c
+    fmt.Println(x, y, x+y) // 输出: -5 17 12
+}
+```
+
+**Fibonacci + channel + close + range**
+
+```go
+package main
+
+import "fmt"
+
+func fibonacci(n int, c chan int) {
+    x, y := 1, 1
+    for i := 0; i < n; i++ {
+        c <- x
+        x, y = y, x+y
+    }
+    close(c) // 生产者关闭 channel
+}
+
+func main() {
+    c := make(chan int, 10)
+    go fibonacci(cap(c), c)
+    for i := range c { // range 自动在 close 后退出
+        fmt.Println(i)
+    }
+}
+```
+
+**select + 超时模式**
+
+```go
+package main
+
+import (
+    "fmt"
+    "time"
+)
+
+func main() {
+    c := make(chan int)
+    o := make(chan bool)
+
+    go func() {
+        for {
+            select {
+            case v := <-c:
+                fmt.Println(v)
+            case <-time.After(5 * time.Second):
+                fmt.Println("timeout")
+                o <- true
+                return
+            }
+        }
+    }()
+
+    <-o
+}
+```
+
+### 4.2 beego 中的并发设计
+
+- **GitHub**: https://github.com/beego/beego
+- beego 的任务队列模块（`beego/task`）是基于 goroutine 实现的定时任务系统，是学习 goroutine 在 Web 框架中应用的绝佳案例。
+
+---
+
+## 5. 无闻 / Unknwon
+
+- **GitHub**: [https://github.com/unknwon](https://github.com/unknwon)
+- **代表作**: Gogs (Go 实现的 Git 服务，衍生出 Gitea), 《Go 编程基础》
+- **《Go 编程基础》**: https://github.com/unknwon/go-fundamental-programming
+
+### 5.1 第 14 课：并发 concurrency
+
+> 课程大纲（47 分钟）:
+> - `[00:00]` 知识回顾
+> - `[03:17]` 初窥 goroutine
+> - `[08:45]` channel 概述
+> - `[20:20]` 多个 goroutine 打印
+> - `[29:00]` select 概述
+> - `[47:17]` 课堂作业布置
+
+**视频资源**:
+- 哔哩哔哩: https://www.bilibili.com/video/BV15h41187nx/
+- 网易云课堂: http://study.163.com/course/courseLearn.htm?courseId=306002#/learn/video?lessonId=421025
+
+### 5.2 推荐链接（来自课程）
+
+| 资源 | 链接 |
+|------|------|
+| Rob Pike - Concurrency Is Not Parallelism | http://vimeo.com/49718712 |
+| Go 语言_并发篇 | http://www.cnblogs.com/yjf512/archive/2012/06/06/2537712.html |
+| goroutine 背后的系统知识 | http://www.sizeofvoid.net/goroutine-under-the-hood/ |
+| Advanced Go Concurrency Patterns | （优酷视频） |
+| `runtime.Gosched` 详解 | https://stackoverflow.com/questions/13107958/what-exactly-does-runtime-gosched-do |
+
+---
+
+## 6. Go 官方博客
+
+Go 官方博客的并发系列是**最权威的第一手资料**：
+
+| 文章 | 地址 | 作者 |
+|------|------|------|
+| Concurrency is not parallelism | https://go.dev/blog/waza-talk (视频) | Rob Pike |
+| Go Concurrency Patterns: Pipelines and cancellation | https://go.dev/blog/pipelines | Sameer Ajmani |
+| Go Concurrency Patterns: Context | https://go.dev/blog/context | Sameer Ajmani |
+| Go Concurrency Patterns: Timing out, moving on | https://go.dev/blog/concurrency-timeouts | Andrew Gerrand |
+| Advanced Go Concurrency Patterns | https://go.dev/blog/io2013-talk-concurrency | Sameer Ajmani |
+| Share Memory By Communicating | https://go.dev/blog/codelab-share | Andrew Gerrand |
+| Race Detector | https://go.dev/blog/race-detector | Dmitry Vyukov |
+
+### 6.1 Pipelines 模式（来自官方博客）
+
+```go
+package main
+
+import "fmt"
+
+// 典型的三阶段 pipeline: gen → sq → print
+func gen(nums ...int) <-chan int {
+    out := make(chan int)
+    go func() {
+        for _, n := range nums {
+            out <- n
+        }
+        close(out)
+    }()
+    return out
+}
+
+func sq(in <-chan int) <-chan int {
+    out := make(chan int)
+    go func() {
+        for n := range in {
+            out <- n * n
+        }
+        close(out)
+    }()
+    return out
+}
+
+func main() {
+    for n := range sq(sq(gen(2, 3))) {
+        fmt.Println(n) // 16, 81
+    }
+}
+```
+
+---
+
+## 总结：按学习路径推荐
+
+| 阶段 | 内容 | 来源 |
+|------|------|------|
+| **入门** | goroutine 基础 + channel 简单使用 | 无闻《Go 编程基础》第14课, 谢孟军《Go Web 编程》2.7 |
+| **进阶** | Channel Axioms, nil/closed channel 模式 | Dave Cheney: Channel Axioms + Curious Channels |
+| **面试** | 20 道并发题目（编程+选择+简答） | 鸟窝: Go 并发编程小测验, interview-go → `goroutine-interview.md` |
+| **深入** | goroutine 生命周期, 优雅关闭, Pipeline | Dave Cheney: Practical Go, Go 官方博客 Pipelines |
+| **底层** | GOMAXPROCS, 调度器, 内存模型 | William Kennedy: Concurrency, Goroutines and GOMAXPROCS |
+
+> 💡 `select` 超时陷阱：`time.After` 在 for 循环中每次迭代都分配新 timer，会导致内存泄漏。生产环境应使用 `time.NewTimer` + `Reset`。
+>
+> ```go
+> // ❌ 循环中使用 time.After —— 每次迭代都创建新 timer，GC 前不释放
+> for { select { case <-time.After(5*time.Second): ... } }
+> // ✅ 用 time.NewTimer + Reset
+> timer := time.NewTimer(5 * time.Second)
+> for { select { case <-timer.C: ... }; timer.Reset(5 * time.Second) }
+> ```
