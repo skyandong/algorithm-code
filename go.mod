@@ -2,16 +2,11 @@ module github.com/skyandong/go-code
 
 go 1.26
 
-require (
-	ariga.io/atlas v0.36.2-0.20250730182955-2c6300d0a3e1
-	entgo.io/ent v0.14.6
-	github.com/go-sql-driver/mysql v1.10.0
-	github.com/stretchr/testify v1.8.4
-	gorm.io/driver/mysql v1.6.0
-	gorm.io/gorm v1.31.2
-)
+require github.com/stretchr/testify v1.11.1
 
 require (
+	ariga.io/atlas v0.36.2-0.20250730182955-2c6300d0a3e1 // indirect
+	entgo.io/ent v0.14.6 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
@@ -22,6 +17,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
+	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.18.1 // indirect
@@ -48,4 +44,6 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gorm.io/driver/mysql v1.6.0 // indirect
+	gorm.io/gorm v1.31.2 // indirect
 )

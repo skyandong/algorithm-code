@@ -1,5 +1,7 @@
 package backtracking
 
+// 子集
+// https://leetcode.cn/problems/subsets/description/
 func subsets(nums []int) [][]int {
 	var res [][]int
 	backtrack(nums, []int{}, &res, 0)

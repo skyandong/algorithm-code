@@ -1,5 +1,7 @@
 package binarysearch
 
+// 搜索插入位置
+// https://leetcode.cn/problems/search-insert-position/description/
 func searchInsert(nums []int, target int) int {
 	ret, left, right := -1, 0, len(nums)-1
 	for mid := (left + right) >> 1; left < right; {

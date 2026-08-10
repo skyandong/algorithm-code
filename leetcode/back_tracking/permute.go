@@ -1,7 +1,9 @@
 package backtracking
 
+// 全排列
+// https://leetcode.cn/problems/permutations/description/
 func permute(nums []int) [][]int {
-	res := [][]int{}
+	res := make([][]int, 0)
 	use := make([]bool, len(nums))
 	backtrackPermute(nums, []int{}, &res, use)
 	return res

@@ -1,5 +1,7 @@
 package backtracking
 
+// 组合总和
+// https://leetcode.cn/problems/combination-sum/description/
 func combinationSum(candidates []int, target int) [][]int {
 	numMap := make(map[int]bool)
 	for _, data := range candidates {
