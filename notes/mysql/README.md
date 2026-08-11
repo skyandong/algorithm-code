@@ -23,6 +23,7 @@ go run ./experiments/ index       # 索引：EXPLAIN 验证覆盖索引、最左
 go run ./experiments/ transaction # 事务：RC/RR 可见性、幻读、快照读 vs 当前读、转账原子性
 go run ./experiments/ lock        # 锁：X锁互斥、死锁复现、间隙锁、无索引表锁、SKIP LOCKED
 go run ./experiments/ log         # 日志：Redo Log 写入量、Binlog 格式、慢查询日志
+go run ./experiments/ aggregate   # 聚合查询：COUNT/SUM/AVG、HAVING、RANK 窗口、ROLLUP、找茬错题对比
 ```
 
 ---

@@ -13,7 +13,7 @@ import (
 func main() {
 	dsn := os.Getenv("MYSQL_DSN")
 	if dsn == "" {
-		dsn = "root:password@tcp(127.0.0.1:3306)/test?charset=utf8mb4&parseTime=True&loc=Local"
+		dsn = "root:123456@tcp(127.0.0.1:3306)/test?charset=utf8mb4&parseTime=True&loc=Local"
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -37,7 +37,9 @@ func main() {
 		RunLockExperiments(db)
 	case "log":
 		RunLogExperiments(db)
+	case "aggregate":
+		RunAggregateExperiments(db)
 	default:
-		fmt.Println("用法: go run ./experiments/ [index|transaction|lock|log]")
+		fmt.Println("用法: go run ./experiments/ [index|transaction|lock|log|aggregate]")
 	}
 }
