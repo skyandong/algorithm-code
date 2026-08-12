@@ -19,10 +19,10 @@
 
 | 隔离级别 | 脏读 | 不可重复读 | 幻读 | 实现 |
 |----------|------|-----------|------|------|
-| READ UNCOMMITTED | ✗ | ✗ | ✗ | 直接读最新数据 |
-| READ COMMITTED | ✓ | ✗ | ✗ | MVCC，每次查询生成新 ReadView |
-| REPEATABLE READ（默认） | ✓ | ✓ | 部分解决 | MVCC，事务首次查询时生成 ReadView，复用 |
-| SERIALIZABLE | ✓ | ✓ | ✓ | 所有操作加排他锁 |
+| READ UNCOMMITTED（读未提交） | ✗ | ✗ | ✗ | 直接读最新数据 |
+| READ COMMITTED（读已提交） | ✓ | ✗ | ✗ | MVCC，每次查询生成新 ReadView |
+| REPEATABLE READ（可重复读，默认） | ✓ | ✓ | 部分解决 | MVCC，事务首次查询时生成 ReadView，复用 |
+| SERIALIZABLE（串行化） | ✓ | ✓ | ✓ | 所有操作加排他锁 |
 
 **三种并发问题：**
 - **脏读**：读到其他事务未提交的数据

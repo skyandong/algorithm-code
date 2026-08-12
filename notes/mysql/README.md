@@ -11,6 +11,9 @@
 5. [日志体系](05-日志体系.md) — Redo/Undo/Binlog、WAL、环形日志、两阶段提交、崩溃恢复、主从延迟
 6. [Online DDL](06-Online-DDL.md) — MDL 锁雪崩、各版本演进、Row Log 膨胀、Instant DDL、原子 DDL、gh-ost vs pt-osc
 7. [MySQL 8.0 新特性](07-MySQL8新特性.md) — 窗口函数、CTE、自增持久化、utf8mb4
+8. [聚合查询练习](08-聚合查询练习.md) — GROUP BY、HAVING、窗口函数、ROLLUP、找茬错题对比（含 MySQL 8 真实报错）
+9. [JOIN 原理与驱动表](09-JOIN原理与驱动表.md) — Nested Loop 三变体、驱动表选择、Hash Join、SQL 字段级注释
+10. [WHERE 与 HAVING](10-WHERE与HAVING.md) — 执行顺序、聚合过滤边界、Error 1054 报错、别名特例、速查表
 
 ---
 
@@ -23,7 +26,6 @@ go run ./experiments/ index       # 索引：EXPLAIN 验证覆盖索引、最左
 go run ./experiments/ transaction # 事务：RC/RR 可见性、幻读、快照读 vs 当前读、转账原子性
 go run ./experiments/ lock        # 锁：X锁互斥、死锁复现、间隙锁、无索引表锁、SKIP LOCKED
 go run ./experiments/ log         # 日志：Redo Log 写入量、Binlog 格式、慢查询日志
-go run ./experiments/ aggregate   # 聚合查询：COUNT/SUM/AVG、HAVING、RANK 窗口、ROLLUP、找茬错题对比
 ```
 
 ---
