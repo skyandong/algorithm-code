@@ -14,6 +14,7 @@
 8. [聚合查询练习](08-聚合查询练习.md) — GROUP BY、HAVING、窗口函数、ROLLUP、找茬错题对比（含 MySQL 8 真实报错）
 9. [JOIN 原理与驱动表](09-JOIN原理与驱动表.md) — Nested Loop 三变体、驱动表选择、Hash Join、SQL 字段级注释
 10. [WHERE 与 HAVING](10-WHERE与HAVING.md) — 执行顺序、聚合过滤边界、Error 1054 报错、别名特例、速查表
+11. [面试一口答](面试一口答.md) — 考前速刷：30+ 条必须"张口就来"的核心点、高频三连问
 
 ---
 
