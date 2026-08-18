@@ -38,7 +38,7 @@ func TestLowestCommonAncestor(t *testing.T) {
 	//assert.Equal(t, 1, lowestCommonAncestor(root, n0, n8).Val)
 
 	// 一深一浅分属两侧: LCA(7,8)=3
-	assert.Equal(t, 3, lowestCommonAncestor(root, n6, n7).Val)
+	assert.Equal(t, 3, lowestCommonAncestor(root, n7, n8).Val)
 
 	// 根节点自身作为 p,q 在子树中: LCA(3,1)=3
 	assert.Equal(t, 3, lowestCommonAncestor(root, root, n1).Val)

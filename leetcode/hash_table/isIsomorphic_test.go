@@ -11,5 +11,5 @@ func TestIsIsomorphic(t *testing.T) {
 
 	assert.False(t, isIsomorphic("foo", "bar"))
 
-	assert.False(t, isIsomorphic("paper", "title"))
+	assert.True(t, isIsomorphic("paper", "title"))
 }

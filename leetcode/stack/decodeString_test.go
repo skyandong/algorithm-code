@@ -7,7 +7,7 @@ import (
 )
 
 func TestDecodeString(t *testing.T) {
-	assert.Equal(t, "aaabcbc", "3[a]2[bc]")
+	assert.Equal(t, "aaabcbc", decodeString("3[a]2[bc]"))
 
 	assert.Equal(t, "accaccacc", decodeString("3[a2[c]"))
 
