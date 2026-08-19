@@ -502,3 +502,23 @@ sync.Once：只执行一次初始化，并在完成后发布结果
 > 不要使用普通变量在 goroutine 之间传递状态。必须通过 mutex、channel、atomic、WaitGroup 或其他同步机制建立明确的 happens-before 关系。
 
 重排、CPU 缓存和编译器优化是理解可见性问题的模型；真正的修复方式是使用 Go 提供的同步原语，而不是依赖某种机器、编译器或运行时表现。
+
+---
+
+## 实验
+
+对应代码：[experiments/01_memory_visibility.go](experiments/01_memory_visibility.go)
+
+```bash
+cd notes/golang
+go run ./experiments/ visibility        # 常规运行
+go run -race ./experiments/ visibility  # 观察 DATA RACE 报告
+```
+
+实验内容：
+1. data race 演示：普通变量跨 goroutine 传递状态，-race 下报 `WARNING: DATA RACE`
+2. atomic 发布状态：`Store`/`Load` 建立 happens-before
+3. channel 发布：`close(done)` 通知完成，关闭前的写入可见
+4. mutex 同步：`Unlock` happens-before 之后的 `Lock`，同时保证互斥与可见性
+5. 错误的双重检查 Once：外层无锁读 `done` 是 data race（-race 可复现）
+6. 正确的 `sync.Once`：初始化只执行一次，且完成后对所有人可见

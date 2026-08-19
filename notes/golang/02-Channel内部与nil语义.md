@@ -1220,3 +1220,22 @@ closed：
 最准确的一句话是：
 
 > `close` 不是销毁 channel，而是把 `hchan.closed` 置为 1，并唤醒等待者；之后禁止发送，允许接收者把缓冲区中的数据排空，排空后接收零值。`ch = nil` 只是让某个变量暂时不再指向 channel，常用于动态禁用 `select` 分支；只要保存原 channel 引用，就可以重新启用该分支。
+
+---
+
+## 实验
+
+对应代码：[experiments/02_channel.go](experiments/02_channel.go)
+
+```bash
+cd notes/golang
+go run ./experiments/ channel
+```
+
+实验内容：
+1. nil channel 接收 case 永不就绪：`select` + timeout 兜底
+2. nil channel 发送 case 配合 `default`：非阻塞操作立即失败
+3. 用 `ch = nil` 禁用 / 恢复 `select` 分支
+4. 已关闭 channel 的接收：先排空缓冲区（ok=true），再返回零值（ok=false）
+5. 阻塞中的接收者被 `close` 唤醒：得到零值 + `ok=false`
+6. 阻塞中的发送者在 `close` 后 panic（recover 演示）

@@ -1485,3 +1485,25 @@ runtime 源码参考：
 ```
 
 nil channel 是另一种状态：向 nil channel 发送或接收会永久阻塞，而 `close(nil)` 会 panic。
+
+---
+
+## 实验
+
+对应代码：[experiments/03_goroutine_interview.go](experiments/03_goroutine_interview.go)
+
+```bash
+cd notes/golang
+go run ./experiments/ interview
+```
+
+实验内容（编程手写题 1-6 全部可运行）：
+1. 题1：Goroutine + Channel 基础 — 生产者/消费者，发送方负责 `close`
+2. 题2：阻塞读并发安全 Map — `Out` 唤醒所有等待者，`Rd` 支持超时返回 nil
+3. 题3：高并发 IP 限流 — 100 IP × 1000 并发，三分钟窗口，期望输出 `success: 100`
+4. 题4：定时调用 + panic 恢复 — `recover` 必须在同一 goroutine 内
+5. 题5：`WaitGroup` 支持 `WaitTimeout` — 超时返回 true，调用方负责取消
+6. 题6：多协程查询切片 + context 取消 — 找到即取消其他 worker（含超时路径演示）
+7. 题19（选择题演示）：闭包与 range 变量 — `Incr` 作用于值副本，`Print` 打印 0~9 各一次顺序不定
+
+选择题（题 7-19）多为故意写错的代码，可作为"运行观察"练习：死锁类题（7/8/11）不要直接跑，可先阅读解析再对照；`-race` 可复现题 10/17/18 的 data race。
