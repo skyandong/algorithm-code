@@ -22,8 +22,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-const brokers = "localhost:9092"
-
 // --- 事件定义 ---
 
 type OrderEvent struct {
@@ -51,7 +49,8 @@ type NotificationEvent struct {
 	CreatedAt int64  `json:"created_at"`
 }
 
-func main() {
+// RunPipeline 运行案例6：多 Topic 流水线（Ctrl+C 退出）。
+func RunPipeline() {
 	fmt.Println("=== 案例6：多 Topic 流水线 ===")
 	fmt.Println("流程：下单 → 支付 → 通知 → 审计")
 	fmt.Println()

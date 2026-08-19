@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	brokers     = "localhost:9092"
 	topicDebit  = "account-debit"
 	topicCredit = "account-credit"
 	topicAudit  = "account-audit"
 	transactID  = "transfer-service-1"
 )
 
-func main() {
+// RunExactlyOnce 运行案例3：幂等生产者 + 事务（EOS）。
+func RunExactlyOnce() {
 	fmt.Println("=== 案例3：Exactly-Once 语义 ===")
 	idempotentProduce()
 	transactionalProduce()

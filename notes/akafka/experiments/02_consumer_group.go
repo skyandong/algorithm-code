@@ -16,20 +16,20 @@ import (
 )
 
 const (
-	brokers   = "localhost:9092"
-	topic     = "demo-basic"
-	groupID   = "demo-group-1"
-	batchSize = 10 // 每次最多拉取并处理的消息数
+	topicBasic2 = topicBasic // 复用共享 Topic（demo-basic）
+	groupIDDemo = "demo-group-1"
+	batchSize   = 10 // 每次最多拉取并处理的消息数
 )
 
-func main() {
+// RunConsumerGroup 运行案例2：消费者组（Ctrl+C 退出）。
+func RunConsumerGroup() {
 	fmt.Println("=== 案例2：消费者组 ===")
-	fmt.Printf("消费 topic=%s group=%s\n\n", topic, groupID)
+	fmt.Printf("消费 topic=%s group=%s\n\n", topicBasic2, groupIDDemo)
 
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers),
-		kgo.ConsumerGroup(groupID),
-		kgo.ConsumeTopics(topic),
+		kgo.ConsumerGroup(groupIDDemo),
+		kgo.ConsumeTopics(topicBasic2),
 		// 关闭自动提交，由业务代码手动控制 offset
 		kgo.DisableAutoCommit(),
 		// 从最早的消息开始消费（首次加入组时）

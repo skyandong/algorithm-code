@@ -49,24 +49,24 @@ lag:
 
 run-01:
 	@echo "=== 运行案例1：生产者基础 ==="
-	cd 01-producer-basic && $(GO) run main.go
+	$(GO) run ./experiments/ basic
 
 run-02:
 	@echo "=== 运行案例2：消费者组（Ctrl+C 退出）==="
-	cd 02-consumer-group && $(GO) run main.go
+	$(GO) run ./experiments/ group
 
 run-03:
 	@echo "=== 运行案例3：Exactly-Once ==="
-	cd 03-exactly-once && $(GO) run main.go
+	$(GO) run ./experiments/ eos
 
 run-04:
 	@echo "=== 运行案例4：死信队列（Ctrl+C 退出）==="
-	cd 04-dead-letter && $(GO) run main.go
+	$(GO) run ./experiments/ dlq
 
 run-05:
 	@echo "=== 运行案例5：消费积压监控（Ctrl+C 退出）==="
-	cd 05-consumer-lag && $(GO) run main.go
+	$(GO) run ./experiments/ lag
 
 run-06:
 	@echo "=== 运行案例6：多 Topic 流水线（Ctrl+C 退出）==="
-	cd 06-pipeline && $(GO) run main.go
+	$(GO) run ./experiments/ pipeline

@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	brokers           = "localhost:9092"
 	pollInterval      = 5 * time.Second
 	lagAlertThreshold = 100
 )
@@ -33,7 +32,8 @@ type LagInfo struct {
 	Lag          int64
 }
 
-func main() {
+// RunConsumerLag 运行案例5：消费积压监控（Ctrl+C 退出）。
+func RunConsumerLag() {
 	fmt.Println("=== 案例5：消费积压监控 ===")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -191,7 +191,7 @@ func produceMessages(ctx context.Context) {
 		case <-ticker.C:
 			seq++
 			client.Produce(ctx, &kgo.Record{
-				Topic: "demo-basic",
+				Topic: topicBasic,
 				Key:   []byte(fmt.Sprintf("msg-%05d", seq)),
 				Value: []byte(fmt.Sprintf(`{"seq":%d}`, seq)),
 			}, nil)
@@ -203,7 +203,7 @@ func slowConsumer(ctx context.Context) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers),
 		kgo.ConsumerGroup("lag-demo-group"),
-		kgo.ConsumeTopics("demo-basic"),
+		kgo.ConsumeTopics(topicBasic),
 		kgo.DisableAutoCommit(),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
 	)

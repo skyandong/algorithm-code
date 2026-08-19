@@ -14,12 +14,11 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-const (
-	brokers = "localhost:9092"
-	topic   = "demo-basic"
-)
+// topicBasic 案例1/2/5 共享的 Topic（brokers 常量见 main.go）
+const topicBasic = "demo-basic"
 
-func main() {
+// RunProducerBasic 运行案例1：同步/异步/批量发送。
+func RunProducerBasic() {
 	fmt.Println("=== 案例1：生产者基础 ===")
 	syncProduce()
 	asyncProduce()
@@ -45,7 +44,7 @@ func syncProduce() {
 	ctx := context.Background()
 	for i := 0; i < 5; i++ {
 		record := &kgo.Record{
-			Topic: topic,
+			Topic: topicBasic,
 			Key:   []byte("order-" + strconv.Itoa(i)),
 			Value: []byte(fmt.Sprintf(`{"id":%d,"event":"created","ts":%d}`, i, time.Now().UnixMilli())),
 		}
@@ -87,7 +86,7 @@ func asyncProduce() {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		record := &kgo.Record{
-			Topic: topic,
+			Topic: topicBasic,
 			Key:   []byte("event-" + strconv.Itoa(i)),
 			Value: []byte(fmt.Sprintf(`{"seq":%d,"data":"async-demo"}`, i)),
 		}
@@ -127,7 +126,7 @@ func batchProduce() {
 	records := make([]*kgo.Record, 20)
 	for i := range records {
 		records[i] = &kgo.Record{
-			Topic: topic,
+			Topic: topicBasic,
 			Key:   []byte(fmt.Sprintf("batch-key-%02d", i)),
 			Value: []byte(fmt.Sprintf(`{"batch_seq":%d}`, i)),
 		}

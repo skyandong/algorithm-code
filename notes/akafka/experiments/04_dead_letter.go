@@ -19,11 +19,10 @@ import (
 )
 
 const (
-	brokers        = "localhost:9092"
-	topicOrders    = "orders"
-	topicDLQ       = "orders-dlq" // Dead Letter Queue
-	groupID        = "order-processor"
-	maxRetries     = 3
+	topicOrders   = "orders"
+	topicDLQ      = "orders-dlq" // Dead Letter Queue
+	groupIDOrders = "order-processor"
+	maxRetries    = 3
 )
 
 // MessageEnvelope 带重试元数据的消息包装
@@ -35,7 +34,8 @@ type MessageEnvelope struct {
 	Payload       []byte    `json:"payload"`
 }
 
-func main() {
+// RunDeadLetter 运行案例4：死信队列（Ctrl+C 退出）。
+func RunDeadLetter() {
 	fmt.Println("=== 案例4：死信队列 ===")
 
 	// 先往 orders topic 发几条测试消息
@@ -86,7 +86,7 @@ func produceOrders() {
 func runOrderConsumer(ctx context.Context) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers),
-		kgo.ConsumerGroup(groupID),
+		kgo.ConsumerGroup(groupIDOrders),
 		kgo.ConsumeTopics(topicOrders),
 		kgo.DisableAutoCommit(),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
