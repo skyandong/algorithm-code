@@ -81,7 +81,7 @@
 //   - MQ 异步重试:删除失败时发消息重试,保证最终一致
 //   - Canal 订阅 binlog:监听 DB 变更异步刷缓存,业务代码无侵入
 
-package experiments
+package main
 
 import (
 	"context"
@@ -103,13 +103,13 @@ import (
 func ExpCachePenetration(ctx context.Context) {
 	fmt.Println("=== 实验15: 缓存穿透 —— 空值缓存 ===")
 
-	Rdb.Del(ctx, "user:99999")
+	rdb.Del(ctx, "user:99999")
 
 	var dbHits int64
 
 	// 模拟查询函数:先查缓存,缓存没有查 DB,DB 也没有则缓存空值
 	query := func() string {
-		val, err := Rdb.Get(ctx, "user:99999").Result()
+		val, err := rdb.Get(ctx, "user:99999").Result()
 		if err == nil {
 			return val // 缓存命中
 		}
@@ -118,7 +118,7 @@ func ExpCachePenetration(ctx context.Context) {
 		dbResult := "" // DB 里也不存在
 		if dbResult == "" {
 			// 缓存空值,TTL 30s 防止内存浪费
-			Rdb.Set(ctx, "user:99999", "NULL", 30*time.Second)
+			rdb.Set(ctx, "user:99999", "NULL", 30*time.Second)
 			return "NULL"
 		}
 		return dbResult
@@ -135,7 +135,7 @@ func ExpCachePenetration(ctx context.Context) {
 	fmt.Printf("  实际打到 DB 的次数: %d\n", atomic.LoadInt64(&dbHits))
 	fmt.Println("  结论: 空值缓存后只有第一次穿透,后续全部命中缓存\n")
 
-	Rdb.Del(ctx, "user:99999")
+	rdb.Del(ctx, "user:99999")
 }
 
 // ExpCacheBreakdown 实验16: 缓存击穿 —— 互斥锁保护
@@ -154,15 +154,15 @@ func ExpCacheBreakdown(ctx context.Context) {
 	var dbHitsNoLock, dbHitsWithLock int64
 
 	// 无锁版本:key 过期后 100 个并发全打到 DB
-	Rdb.Del(ctx, key)
+	rdb.Del(ctx, key)
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 		wg.Go(func() {
-			if _, err := Rdb.Get(ctx, key).Result(); err != nil {
+			if _, err := rdb.Get(ctx, key).Result(); err != nil {
 				// 缓存未命中,直接查 DB
 				atomic.AddInt64(&dbHitsNoLock, 1)
 				time.Sleep(5 * time.Millisecond) // 模拟 DB 查询
-				Rdb.Set(ctx, key, "value", 10*time.Second)
+				rdb.Set(ctx, key, "value", 10*time.Second)
 			}
 		})
 	}
@@ -170,22 +170,22 @@ func ExpCacheBreakdown(ctx context.Context) {
 	fmt.Printf("  无互斥锁: %d 次请求打到 DB\n", atomic.LoadInt64(&dbHitsNoLock))
 
 	// 有锁版本:用 SET NX 做分布式互斥锁
-	Rdb.Del(ctx, key, lockKey)
+	rdb.Del(ctx, key, lockKey)
 	for i := 0; i < 100; i++ {
 		wg.Go(func() {
-			if _, err := Rdb.Get(ctx, key).Result(); err != nil {
+			if _, err := rdb.Get(ctx, key).Result(); err != nil {
 				// 抢锁
-				ok, _ := Rdb.SetNX(ctx, lockKey, "1", 3*time.Second).Result()
+				ok, _ := rdb.SetNX(ctx, lockKey, "1", 3*time.Second).Result()
 				if ok {
 					// 抢到锁,查 DB 并回填
 					atomic.AddInt64(&dbHitsWithLock, 1)
 					time.Sleep(5 * time.Millisecond)
-					Rdb.Set(ctx, key, "value", 10*time.Second)
-					Rdb.Del(ctx, lockKey)
+					rdb.Set(ctx, key, "value", 10*time.Second)
+					rdb.Del(ctx, lockKey)
 				} else {
 					// 未抢到锁,等待后重试
 					time.Sleep(10 * time.Millisecond)
-					Rdb.Get(ctx, key)
+					rdb.Get(ctx, key)
 				}
 			}
 		})
@@ -194,12 +194,12 @@ func ExpCacheBreakdown(ctx context.Context) {
 	fmt.Printf("  有互斥锁: %d 次请求打到 DB\n", atomic.LoadInt64(&dbHitsWithLock))
 	fmt.Println("  结论: 互斥锁把击穿从 N 次 DB 查询降到 1 次\n")
 
-	Rdb.Del(ctx, key, lockKey)
+	rdb.Del(ctx, key, lockKey)
 
 	// singleflight 版本
 	var dbHitsSF int64
 	var sfg singleflight.Group
-	Rdb.Del(ctx, key)
+	rdb.Del(ctx, key)
 
 	for i := 0; i < 100; i++ {
 		wg.Go(func() {
@@ -208,7 +208,7 @@ func ExpCacheBreakdown(ctx context.Context) {
 				atomic.AddInt64(&dbHitsSF, 1)
 				time.Sleep(5 * time.Millisecond) // 模拟 DB 查询
 				val := "value"
-				Rdb.Set(ctx, key, val, 10*time.Second)
+				rdb.Set(ctx, key, val, 10*time.Second)
 				return val, nil
 			})
 		})
@@ -219,7 +219,7 @@ func ExpCacheBreakdown(ctx context.Context) {
 	fmt.Println("    互斥锁    抢不到锁需要重试,逻辑自己控制")
 	fmt.Println("    singleflight 等待者直接拿到结果,无需重试,代码更干净\n")
 
-	Rdb.Del(ctx, key)
+	rdb.Del(ctx, key)
 }
 
 // ExpCacheAvalanche 实验17: 缓存雪崩 —— 统一过期 vs 随机过期
@@ -237,13 +237,13 @@ func ExpCacheAvalanche(ctx context.Context) {
 
 	// 统一过期:所有 key 同一个 TTL
 	for i := 0; i < n; i++ {
-		Rdb.Set(ctx, fmt.Sprintf("avalanche:uniform:%d", i), i, 2*time.Second)
+		rdb.Set(ctx, fmt.Sprintf("avalanche:uniform:%d", i), i, 2*time.Second)
 	}
 
 	// 随机过期:TTL 在 2~4 秒之间随机
 	for i := 0; i < n; i++ {
 		jitter := time.Duration(i%2000) * time.Millisecond
-		Rdb.Set(ctx, fmt.Sprintf("avalanche:random:%d", i), i, 2*time.Second+jitter)
+		rdb.Set(ctx, fmt.Sprintf("avalanche:random:%d", i), i, 2*time.Second+jitter)
 	}
 
 	// 等统一过期的 key 全部过期
@@ -252,10 +252,10 @@ func ExpCacheAvalanche(ctx context.Context) {
 	// 查询命中率
 	hitUniform, hitRandom := 0, 0
 	for i := 0; i < n; i++ {
-		if _, err := Rdb.Get(ctx, fmt.Sprintf("avalanche:uniform:%d", i)).Result(); err == nil {
+		if _, err := rdb.Get(ctx, fmt.Sprintf("avalanche:uniform:%d", i)).Result(); err == nil {
 			hitUniform++
 		}
-		if _, err := Rdb.Get(ctx, fmt.Sprintf("avalanche:random:%d", i)).Result(); err == nil {
+		if _, err := rdb.Get(ctx, fmt.Sprintf("avalanche:random:%d", i)).Result(); err == nil {
 			hitRandom++
 		}
 	}
@@ -269,8 +269,8 @@ func ExpCacheAvalanche(ctx context.Context) {
 
 	// 清理
 	for i := 0; i < n; i++ {
-		Rdb.Del(ctx, fmt.Sprintf("avalanche:uniform:%d", i))
-		Rdb.Del(ctx, fmt.Sprintf("avalanche:random:%d", i))
+		rdb.Del(ctx, fmt.Sprintf("avalanche:uniform:%d", i))
+		rdb.Del(ctx, fmt.Sprintf("avalanche:random:%d", i))
 	}
 }
 
@@ -289,7 +289,7 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 	const key = "user:1:name"
 
 	// 初始状态:缓存和 DB 都是旧值
-	Rdb.Set(ctx, key, "old_value", time.Minute)
+	rdb.Set(ctx, key, "old_value", time.Minute)
 	dbValue := "old_value"
 
 	var wg sync.WaitGroup
@@ -297,13 +297,13 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 	// 写线程:延迟双删
 	wg.Go(func() {
 		// 第一次删缓存
-		Rdb.Del(ctx, key)
+		rdb.Del(ctx, key)
 		// 更新 DB
 		time.Sleep(5 * time.Millisecond)
 		dbValue = "new_value"
 		// sleep 后第二次删缓存(等读线程可能的回填完成)
 		time.Sleep(50 * time.Millisecond)
-		Rdb.Del(ctx, key)
+		rdb.Del(ctx, key)
 	})
 
 	// 读线程:在写线程删缓存后、更新 DB 前读取,把旧值回填
@@ -334,12 +334,12 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 	// 从根本上消除主从延迟导致的窗口期。
 	wg.Go(func() {
 		time.Sleep(2 * time.Millisecond) // 模拟"刚好"在写线程删缓存后、更新 DB 前进来
-		val, err := Rdb.Get(ctx, key).Result()
+		val, err := rdb.Get(ctx, key).Result()
 		if err != nil {
 			// 缓存 miss(主动删除或自然过期都会走到这里)
 			// 此时 DB 还是旧值,读线程拿到旧值回填
 			val = dbValue
-			Rdb.Set(ctx, key, val, time.Minute)
+			rdb.Set(ctx, key, val, time.Minute)
 		}
 		fmt.Printf("  读线程回填值: %s  (此时 DB 还是旧值,已造成脏缓存)\n", val)
 	})
@@ -348,7 +348,7 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 
 	// 双删后再读
 	time.Sleep(10 * time.Millisecond)
-	final, err := Rdb.Get(ctx, key).Result()
+	final, err := rdb.Get(ctx, key).Result()
 	if err != nil {
 		final = "(已删除,下次读会从 DB 取到新值)"
 	}
@@ -356,7 +356,7 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 	fmt.Printf("  DB 当前值:    %s\n", dbValue)
 	fmt.Println("  结论: 延迟双删消除了读线程回填旧值的窗口期\n")
 
-	Rdb.Del(ctx, key)
+	rdb.Del(ctx, key)
 }
 
 // bloomKey 用于存储 BF bitmap 的 Redis key
@@ -381,7 +381,7 @@ func bloomHash(item string, k int) []int64 {
 // bloomAdd 把一个 item 写入 BF
 func bloomAdd(ctx context.Context, item string) {
 	for _, pos := range bloomHash(item, 4) {
-		Rdb.SetBit(ctx, bloomKey, pos, 1)
+		rdb.SetBit(ctx, bloomKey, pos, 1)
 	}
 }
 
@@ -389,7 +389,7 @@ func bloomAdd(ctx context.Context, item string) {
 // 返回 true = 可能存在(有假阳性);返回 false = 一定不存在
 func bloomExists(ctx context.Context, item string) bool {
 	for _, pos := range bloomHash(item, 4) {
-		if Rdb.GetBit(ctx, bloomKey, pos).Val() == 0 {
+		if rdb.GetBit(ctx, bloomKey, pos).Val() == 0 {
 			return false
 		}
 	}
@@ -421,7 +421,7 @@ func ExpBloomFilter(ctx context.Context) {
 	fmt.Println("=== 实验19: 布隆过滤器(Redis bitmap 手撸) ===")
 	fmt.Printf("  bitmap 大小: %d bits = %d KB,哈希函数数量: 4\n\n", bloomSize, bloomSize/8/1024)
 
-	Rdb.Del(ctx, bloomKey)
+	rdb.Del(ctx, bloomKey)
 
 	// 预加载 10000 个合法 key(模拟系统启动时加载 DB 存量数据)
 	const total = 10000
@@ -430,7 +430,7 @@ func ExpBloomFilter(ctx context.Context) {
 	}
 
 	// 查 BF 实际占用内存
-	mem, _ := Rdb.MemoryUsage(ctx, bloomKey).Result()
+	mem, _ := rdb.MemoryUsage(ctx, bloomKey).Result()
 	fmt.Printf("  加载 %d 个合法 key 后 BF 内存: %d KB\n", total, mem/1024)
 
 	// 验证合法 key:全部应该返回存在(无假阴性)
@@ -459,5 +459,5 @@ func ExpBloomFilter(ctx context.Context) {
 	fmt.Println("  - 不支持删除:删一个 key 的 bit 会影响其他 key")
 	fmt.Printf("  - 内存极省:%d KB 存了 %d 个 key\n\n", mem/1024, total)
 
-	Rdb.Del(ctx, bloomKey)
+	rdb.Del(ctx, bloomKey)
 }

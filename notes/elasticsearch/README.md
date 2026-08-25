@@ -35,13 +35,7 @@ docker pull docker.elastic.co/elasticsearch/elasticsearch:8.13.0
 ### 运行代码
 
 ```bash
-# 全部跑
-go run .
-
-# 只跑某一节
-go run . mapping    # 第一节：Mapping 与 CRUD
-go run . fulltext   # 第二节：全文检索与聚合
-go run . bulk       # 第三节：写入优化与深分页
+go run ./experiments/
 ```
 
 ---

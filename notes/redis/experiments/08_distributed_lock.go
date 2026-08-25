@@ -79,7 +79,7 @@
 //   - 强一致要求:ZooKeeper / etcd(基于 Paxos/Raft,有 fencing token)
 //   - 不建议 Redlock:实现复杂,边界情况多,收益有限
 
-package experiments
+package main
 
 import (
 	"context"
@@ -103,7 +103,7 @@ end`
 // tryLock 尝试获取锁,返回 token 和是否成功
 func tryLock(ctx context.Context, key string, ttl time.Duration) (string, bool) {
 	token := uuid.New().String()
-	ok, err := Rdb.SetNX(ctx, key, token, ttl).Result()
+	ok, err := rdb.SetNX(ctx, key, token, ttl).Result()
 	if err != nil || !ok {
 		return "", false
 	}
@@ -112,7 +112,7 @@ func tryLock(ctx context.Context, key string, ttl time.Duration) (string, bool) 
 
 // releaseLock 用 Lua 原子释放锁
 func releaseLock(ctx context.Context, key, token string) bool {
-	result, _ := Rdb.Eval(ctx, lockScript, []string{key}, token).Int()
+	result, _ := rdb.Eval(ctx, lockScript, []string{key}, token).Int()
 	return result == 1
 }
 
@@ -130,7 +130,7 @@ func ExpBasicLock(ctx context.Context) {
 	fmt.Println("=== 实验27: 分布式锁基础实现 ===")
 
 	const lockKey = "dlock:basic"
-	Rdb.Del(ctx, lockKey)
+	rdb.Del(ctx, lockKey)
 
 	// 加锁
 	token, ok := tryLock(ctx, lockKey, 30*time.Second)
@@ -152,7 +152,7 @@ func ExpBasicLock(ctx context.Context) {
 	_, ok3 := tryLock(ctx, lockKey, 30*time.Second)
 	fmt.Printf("  释放后重新加锁: %v\n\n", ok3)
 
-	Rdb.Del(ctx, lockKey)
+	rdb.Del(ctx, lockKey)
 }
 
 // ExpLockMutex 实验28: 分布式锁保证互斥 —— 并发场景验证
@@ -167,24 +167,24 @@ func ExpLockMutex(ctx context.Context) {
 
 	const lockKey = "dlock:mutex"
 	const n = 100
-	Rdb.Del(ctx, lockKey)
-	Rdb.Set(ctx, "dlock:counter", 0, 0)
+	rdb.Del(ctx, lockKey)
+	rdb.Set(ctx, "dlock:counter", 0, 0)
 
 	// 无锁版本:并发读改写,结果不确定
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
 		wg.Go(func() {
-			val, _ := Rdb.Get(ctx, "dlock:counter").Int()
+			val, _ := rdb.Get(ctx, "dlock:counter").Int()
 			time.Sleep(time.Microsecond) // 模拟业务耗时,放大竞态
-			Rdb.Set(ctx, "dlock:counter", val+1, 0)
+			rdb.Set(ctx, "dlock:counter", val+1, 0)
 		})
 	}
 	wg.Wait()
-	noLockResult, _ := Rdb.Get(ctx, "dlock:counter").Int()
+	noLockResult, _ := rdb.Get(ctx, "dlock:counter").Int()
 	fmt.Printf("  无锁并发 %d 次 +1,结果: %d  (期望100,丢失更新导致偏小)\n", n, noLockResult)
 
 	// 有锁版本:每次操作前加锁
-	Rdb.Set(ctx, "dlock:counter", 0, 0)
+	rdb.Set(ctx, "dlock:counter", 0, 0)
 	var failCount int64
 	for i := 0; i < n; i++ {
 		wg.Go(func() {
@@ -195,20 +195,20 @@ func ExpLockMutex(ctx context.Context) {
 					time.Sleep(time.Millisecond)
 					continue
 				}
-				val, _ := Rdb.Get(ctx, "dlock:counter").Int()
+				val, _ := rdb.Get(ctx, "dlock:counter").Int()
 				time.Sleep(time.Microsecond)
-				Rdb.Set(ctx, "dlock:counter", val+1, 0)
+				rdb.Set(ctx, "dlock:counter", val+1, 0)
 				releaseLock(ctx, lockKey, token)
 				return
 			}
 		})
 	}
 	wg.Wait()
-	lockResult, _ := Rdb.Get(ctx, "dlock:counter").Int()
+	lockResult, _ := rdb.Get(ctx, "dlock:counter").Int()
 	fmt.Printf("  有锁并发 %d 次 +1,结果: %d  (期望100,锁保证串行)\n", n, lockResult)
 	fmt.Printf("  抢锁失败重试次数: %d\n\n", failCount)
 
-	Rdb.Del(ctx, lockKey, "dlock:counter")
+	rdb.Del(ctx, lockKey, "dlock:counter")
 }
 
 // ExpLockExpiry 实验29: 锁超时与 watchdog 续期
@@ -224,7 +224,7 @@ func ExpLockExpiry(ctx context.Context) {
 	fmt.Println("=== 实验29: 锁超时 + watchdog 续期 ===")
 
 	const lockKey = "dlock:expiry"
-	Rdb.Del(ctx, lockKey)
+	rdb.Del(ctx, lockKey)
 
 	// TTL 过短的问题:TTL=100ms,但业务需要 300ms
 	token, _ := tryLock(ctx, lockKey, 100*time.Millisecond)
@@ -242,7 +242,7 @@ func ExpLockExpiry(ctx context.Context) {
 	fmt.Printf("  原客户端释放锁: %v  ← 失败,锁已被其他人持有\n\n", released)
 
 	// watchdog 续期方案
-	Rdb.Del(ctx, lockKey)
+	rdb.Del(ctx, lockKey)
 	token3, _ := tryLock(ctx, lockKey, 300*time.Millisecond)
 	fmt.Printf("  watchdog 方案: 加锁 TTL=300ms\n")
 
@@ -258,7 +258,7 @@ func ExpLockExpiry(ctx context.Context) {
 			select {
 			case <-ticker.C:
 				// 续期:重置 TTL
-				Rdb.PExpire(ctx, lockKey, 300*time.Millisecond)
+				rdb.PExpire(ctx, lockKey, 300*time.Millisecond)
 				fmt.Println("  watchdog: 续期一次")
 			case <-done:
 				return
@@ -272,7 +272,7 @@ func ExpLockExpiry(ctx context.Context) {
 	wg.Wait()
 
 	// 验证锁还在
-	val, _ := Rdb.Get(ctx, lockKey).Result()
+	val, _ := rdb.Get(ctx, lockKey).Result()
 	fmt.Printf("  业务完成(350ms后)锁还在: %v\n", val == token3)
 
 	// 业务完成,主动释放
@@ -280,5 +280,5 @@ func ExpLockExpiry(ctx context.Context) {
 	fmt.Printf("  主动释放锁: %v\n\n", released)
 
 	releaseLock(ctx, lockKey, token2)
-	Rdb.Del(ctx, lockKey)
+	rdb.Del(ctx, lockKey)
 }

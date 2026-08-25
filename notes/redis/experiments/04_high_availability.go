@@ -130,4 +130,4 @@
 //	集群        数据量超单机上限或写入 QPS 超单机瓶颈时才上
 //	            集群带来的复杂性(槽迁移、hash tag、客户端改造)不可忽视
 
-package experiments
+package main

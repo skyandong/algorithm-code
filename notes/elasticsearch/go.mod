@@ -1,6 +1,6 @@
 module aes
 
-go 1.22
+go 1.26.3
 
 require github.com/elastic/go-elasticsearch/v8 v8.13.1
 

@@ -62,7 +62,7 @@
 //	部分 key 不能淘汰      volatile-lru(不设 TTL 的 key 永不淘汰)
 //	兜底保证服务可用       noeviction + 监控告警
 
-package experiments
+package main
 
 import (
 	"context"
@@ -87,10 +87,10 @@ func ExpLazyDelete(ctx context.Context) {
 	// 写入 1000 个 100ms 过期的 key
 	const n = 1000
 	for i := 0; i < n; i++ {
-		Rdb.Set(ctx, fmt.Sprintf("lazy:%d", i), i, 100*time.Millisecond)
+		rdb.Set(ctx, fmt.Sprintf("lazy:%d", i), i, 100*time.Millisecond)
 	}
 
-	info, _ := Rdb.Info(ctx, "keyspace").Result()
+	info, _ := rdb.Info(ctx, "keyspace").Result()
 	fmt.Printf("  写入后 keyspace:\n")
 	for _, line := range strings.Split(info, "\r\n") {
 		if strings.HasPrefix(line, "db") {
@@ -102,7 +102,7 @@ func ExpLazyDelete(ctx context.Context) {
 	time.Sleep(200 * time.Millisecond)
 
 	// 过期后立即查:定期删除可能还没扫到,内存未必释放
-	info, _ = Rdb.Info(ctx, "keyspace").Result()
+	info, _ = rdb.Info(ctx, "keyspace").Result()
 	fmt.Printf("  过期 200ms 后 keyspace(定期删除可能未扫到):\n")
 	hasDB := false
 	for _, line := range strings.Split(info, "\r\n") {
@@ -116,7 +116,7 @@ func ExpLazyDelete(ctx context.Context) {
 	}
 
 	// 惰性删除:访问过期 key 立即触发删除
-	val, err := Rdb.Get(ctx, "lazy:1").Result()
+	val, err := rdb.Get(ctx, "lazy:1").Result()
 	if err != nil {
 		fmt.Println("  访问过期 key:nil ← 惰性删除触发,该 key 已被删除")
 	} else {
@@ -140,7 +140,7 @@ func ExpDelVsUnlink(ctx context.Context) {
 
 	// 构造大 Hash
 	build := func(key string) {
-		pipe := Rdb.Pipeline()
+		pipe := rdb.Pipeline()
 		for i := 0; i < fields; i += 1000 {
 			for j := i; j < i+1000 && j < fields; j++ {
 				pipe.HSet(ctx, key, fmt.Sprintf("f%d", j), j)
@@ -152,18 +152,18 @@ func ExpDelVsUnlink(ctx context.Context) {
 	build("big:del")
 	build("big:unlink")
 
-	mem, _ := Rdb.MemoryUsage(ctx, "big:del").Result()
+	mem, _ := rdb.MemoryUsage(ctx, "big:del").Result()
 	fmt.Printf("  大 Hash(%d 字段)内存: %d KB\n\n", fields, mem/1024)
 
 	// DEL
 	start := time.Now()
-	Rdb.Del(ctx, "big:del")
+	rdb.Del(ctx, "big:del")
 	delDur := time.Since(start)
 	fmt.Printf("  DEL    耗时: %v  (主线程同步释放,期间阻塞所有命令)\n", delDur)
 
 	// UNLINK
 	start = time.Now()
-	Rdb.Unlink(ctx, "big:unlink")
+	rdb.Unlink(ctx, "big:unlink")
 	unlinkDur := time.Since(start)
 	fmt.Printf("  UNLINK 耗时: %v  (主线程只解除引用,后台异步释放)\n", unlinkDur)
 
@@ -182,7 +182,7 @@ func ExpEvictionPolicy(ctx context.Context) {
 	fmt.Println("=== 实验22: 淘汰策略 LRU vs LFU ===")
 
 	// 检查 maxmemory 是否配置
-	cfg, _ := Rdb.ConfigGet(ctx, "maxmemory").Result()
+	cfg, _ := rdb.ConfigGet(ctx, "maxmemory").Result()
 	maxmem := cfg["maxmemory"]
 	if maxmem == "0" {
 		fmt.Println("  maxmemory=0(未限制),跳过淘汰实验")
@@ -192,25 +192,25 @@ func ExpEvictionPolicy(ctx context.Context) {
 	}
 
 	// 查当前策略
-	policyCfg, _ := Rdb.ConfigGet(ctx, "maxmemory-policy").Result()
+	policyCfg, _ := rdb.ConfigGet(ctx, "maxmemory-policy").Result()
 	fmt.Printf("  当前策略: %s  maxmemory: %s\n\n", policyCfg["maxmemory-policy"], maxmem)
 
 	// 写入 100 个 key
 	for i := 0; i < 100; i++ {
-		Rdb.Set(ctx, fmt.Sprintf("evict:%d", i), i, 0)
+		rdb.Set(ctx, fmt.Sprintf("evict:%d", i), i, 0)
 	}
 
 	// 模拟热点访问:key 0~9 高频访问
 	for round := 0; round < 50; round++ {
 		for i := 0; i < 10; i++ {
-			Rdb.Get(ctx, fmt.Sprintf("evict:%d", i))
+			rdb.Get(ctx, fmt.Sprintf("evict:%d", i))
 		}
 	}
 
 	// 查 LFU 频率(需要 LFU 策略才有意义)
 	fmt.Println("  热点 key(evict:0~4) 的 OBJECT FREQ:")
 	for i := 0; i < 5; i++ {
-		freq, err := Rdb.Do(ctx, "OBJECT", "FREQ", fmt.Sprintf("evict:%d", i)).Int64()
+		freq, err := rdb.Do(ctx, "OBJECT", "FREQ", fmt.Sprintf("evict:%d", i)).Int64()
 		if err != nil {
 			fmt.Printf("    evict:%d  (需要 LFU 策略才能查频率)\n", i)
 			break
@@ -228,6 +228,6 @@ func ExpEvictionPolicy(ctx context.Context) {
 
 	// 清理
 	for i := 0; i < 100; i++ {
-		Rdb.Del(ctx, fmt.Sprintf("evict:%d", i))
+		rdb.Del(ctx, fmt.Sprintf("evict:%d", i))
 	}
 }

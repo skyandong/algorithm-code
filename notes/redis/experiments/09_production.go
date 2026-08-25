@@ -89,7 +89,7 @@
 //	INFO memory           → 内存是否接近 maxmemory(触发淘汰)
 //	查 OS                 → THP / swap / CPU 未隔离
 
-package experiments
+package main
 
 import (
 	"context"
@@ -111,7 +111,7 @@ func ExpKeysVsScan(ctx context.Context) {
 
 	// 写入测试数据
 	const n = 10000
-	pipe := Rdb.Pipeline()
+	pipe := rdb.Pipeline()
 	for i := 0; i < n; i++ {
 		pipe.Set(ctx, fmt.Sprintf("scan:key:%d", i), i, time.Minute)
 	}
@@ -119,7 +119,7 @@ func ExpKeysVsScan(ctx context.Context) {
 
 	// KEYS:一次扫全库
 	start := time.Now()
-	keys, _ := Rdb.Keys(ctx, "scan:key:*").Result()
+	keys, _ := rdb.Keys(ctx, "scan:key:*").Result()
 	keysDur := time.Since(start)
 	fmt.Printf("  KEYS scan:key:*  返回 %d 个,耗时 %v  ← 阻塞主线程\n", len(keys), keysDur)
 
@@ -131,7 +131,7 @@ func ExpKeysVsScan(ctx context.Context) {
 	for {
 		var batch []string
 		var err error
-		batch, cursor, err = Rdb.Scan(ctx, cursor, "scan:key:*", 100).Result()
+		batch, cursor, err = rdb.Scan(ctx, cursor, "scan:key:*", 100).Result()
 		if err != nil {
 			break
 		}
@@ -147,7 +147,7 @@ func ExpKeysVsScan(ctx context.Context) {
 	fmt.Println("  结论: KEYS 阻塞主线程,生产严禁;SCAN 渐进式,每次只处理少量 key\n")
 
 	// 清理
-	pipe = Rdb.Pipeline()
+	pipe = rdb.Pipeline()
 	for i := 0; i < n; i++ {
 		pipe.Del(ctx, fmt.Sprintf("scan:key:%d", i))
 	}
@@ -165,14 +165,14 @@ func ExpSlowlog(ctx context.Context) {
 	fmt.Println("=== 实验31: slowlog 慢查询 ===")
 
 	// 设置阈值为 50ms
-	Rdb.ConfigSet(ctx, "slowlog-log-slower-than", "50000")
-	Rdb.Do(ctx, "SLOWLOG", "RESET")
+	rdb.ConfigSet(ctx, "slowlog-log-slower-than", "50000")
+	rdb.Do(ctx, "SLOWLOG", "RESET")
 
 	// 制造一个慢命令:sleep 100ms
-	Rdb.Do(ctx, "DEBUG", "SLEEP", "0.1")
+	rdb.Do(ctx, "DEBUG", "SLEEP", "0.1")
 
 	// 查 slowlog
-	logs, _ := Rdb.SlowLogGet(ctx, 5).Result()
+	logs, _ := rdb.SlowLogGet(ctx, 5).Result()
 	fmt.Printf("  slowlog 记录数: %d\n", len(logs))
 	for _, log := range logs {
 		fmt.Printf("  命令: %v  耗时: %dμs\n", log.Args, log.Duration.Microseconds())
@@ -182,7 +182,7 @@ func ExpSlowlog(ctx context.Context) {
 	}
 	fmt.Println("  结论: slowlog 记录超过阈值的命令,是排查慢命令的第一工具\n")
 
-	Rdb.ConfigSet(ctx, "slowlog-log-slower-than", "10000")
+	rdb.ConfigSet(ctx, "slowlog-log-slower-than", "10000")
 }
 
 // ExpLatencyMonitor 实验32: Latency Monitor —— 抓非命令延迟事件
@@ -198,20 +198,20 @@ func ExpLatencyMonitor(ctx context.Context) {
 	fmt.Println("=== 实验32: Latency Monitor ===")
 
 	// 开启监控,阈值 50ms
-	Rdb.ConfigSet(ctx, "latency-monitor-threshold", "50")
-	Rdb.Do(ctx, "LATENCY", "RESET")
+	rdb.ConfigSet(ctx, "latency-monitor-threshold", "50")
+	rdb.Do(ctx, "LATENCY", "RESET")
 
 	// 触发延迟事件
-	Rdb.Do(ctx, "DEBUG", "SLEEP", "0.1")
+	rdb.Do(ctx, "DEBUG", "SLEEP", "0.1")
 
 	time.Sleep(100 * time.Millisecond)
 
 	// LATENCY LATEST
-	result, _ := Rdb.Do(ctx, "LATENCY", "LATEST").Result()
+	result, _ := rdb.Do(ctx, "LATENCY", "LATEST").Result()
 	fmt.Printf("  LATENCY LATEST: %v\n", result)
 
 	// LATENCY DOCTOR
-	doctor, _ := Rdb.Do(ctx, "LATENCY", "DOCTOR").Result()
+	doctor, _ := rdb.Do(ctx, "LATENCY", "DOCTOR").Result()
 	fmt.Println("  LATENCY DOCTOR:")
 	for _, line := range strings.Split(fmt.Sprintf("%v", doctor), ".") {
 		line = strings.TrimSpace(line)
@@ -226,8 +226,8 @@ func ExpLatencyMonitor(ctx context.Context) {
 	fmt.Println("    生产建议:两个都开,互补\n")
 
 	// 恢复默认
-	Rdb.ConfigSet(ctx, "latency-monitor-threshold", "0")
-	Rdb.Do(ctx, "LATENCY", "RESET")
+	rdb.ConfigSet(ctx, "latency-monitor-threshold", "0")
+	rdb.Do(ctx, "LATENCY", "RESET")
 }
 
 // ExpBigkey 实验33: bigkey 检测与处理
@@ -237,32 +237,32 @@ func ExpLatencyMonitor(ctx context.Context) {
 func ExpBigkey(ctx context.Context) {
 	fmt.Println("=== 实验33: bigkey 检测 ===")
 
-	Rdb.Del(ctx, "big:hash", "small:hash")
+	rdb.Del(ctx, "big:hash", "small:hash")
 
 	// 小 Hash:10 个字段
 	for i := 0; i < 10; i++ {
-		Rdb.HSet(ctx, "small:hash", fmt.Sprintf("f%d", i), i)
+		rdb.HSet(ctx, "small:hash", fmt.Sprintf("f%d", i), i)
 	}
 
 	// 大 Hash:10000 个字段
-	p := Rdb.Pipeline()
+	p := rdb.Pipeline()
 	for i := 0; i < 10000; i++ {
 		p.HSet(ctx, "big:hash", fmt.Sprintf("f%d", i), i)
 	}
 	p.Exec(ctx)
 
-	smallMem, _ := Rdb.MemoryUsage(ctx, "small:hash").Result()
-	bigMem, _ := Rdb.MemoryUsage(ctx, "big:hash").Result()
+	smallMem, _ := rdb.MemoryUsage(ctx, "small:hash").Result()
+	bigMem, _ := rdb.MemoryUsage(ctx, "big:hash").Result()
 	fmt.Printf("  small:hash(10字段):    %d bytes\n", smallMem)
 	fmt.Printf("  big:hash(10000字段):   %d bytes = %d KB\n", bigMem, bigMem/1024)
 
 	// HGETALL 耗时对比
 	start := time.Now()
-	Rdb.HGetAll(ctx, "small:hash")
+	rdb.HGetAll(ctx, "small:hash")
 	smallDur := time.Since(start)
 
 	start = time.Now()
-	Rdb.HGetAll(ctx, "big:hash")
+	rdb.HGetAll(ctx, "big:hash")
 	bigDur := time.Since(start)
 
 	fmt.Printf("\n  HGETALL small:hash: %v\n", smallDur)
@@ -272,7 +272,7 @@ func ExpBigkey(ctx context.Context) {
 	fmt.Println("    删除: UNLINK 异步删,避免 DEL 阻塞")
 	fmt.Println("    遍历: 用 HSCAN 代替 HGETALL,渐进式读取\n")
 
-	Rdb.Unlink(ctx, "big:hash", "small:hash")
+	rdb.Unlink(ctx, "big:hash", "small:hash")
 }
 
 // ExpProgressiveDelete 实验34: 大 key 渐进式删除
@@ -303,7 +303,7 @@ func ExpProgressiveDelete(ctx context.Context) {
 	// 构造大 Hash
 	build := func(key string) {
 		for i := 0; i < fields; i += 500 {
-			p := Rdb.Pipeline()
+			p := rdb.Pipeline()
 			for j := i; j < i+500 && j < fields; j++ {
 				p.HSet(ctx, key, fmt.Sprintf("f%d", j), j)
 			}
@@ -311,16 +311,16 @@ func ExpProgressiveDelete(ctx context.Context) {
 		}
 	}
 
-	Rdb.Del(ctx, "prog:hash", "direct:hash")
+	rdb.Del(ctx, "prog:hash", "direct:hash")
 	build("prog:hash")
 	build("direct:hash")
 
-	mem, _ := Rdb.MemoryUsage(ctx, "prog:hash").Result()
+	mem, _ := rdb.MemoryUsage(ctx, "prog:hash").Result()
 	fmt.Printf("  大 Hash(%d 字段): %d KB\n\n", fields, mem/1024)
 
 	// 直接 DEL:主线程同步
 	start := time.Now()
-	Rdb.Del(ctx, "direct:hash")
+	rdb.Del(ctx, "direct:hash")
 	delDur := time.Since(start)
 	fmt.Printf("  直接 DEL 耗时: %v  ← 主线程同步释放全部内存\n", delDur)
 
@@ -332,7 +332,7 @@ func ExpProgressiveDelete(ctx context.Context) {
 	start = time.Now()
 	for {
 		// HSCAN 取一批字段
-		keys, cursor, _ := Rdb.HScan(ctx, "prog:hash", 0, "*", batchSize).Result()
+		keys, cursor, _ := rdb.HScan(ctx, "prog:hash", 0, "*", batchSize).Result()
 		if len(keys) == 0 {
 			break
 		}
@@ -344,7 +344,7 @@ func ExpProgressiveDelete(ctx context.Context) {
 		}
 
 		batchStart := time.Now()
-		Rdb.HDel(ctx, "prog:hash", fields...)
+		rdb.HDel(ctx, "prog:hash", fields...)
 		batchDur := time.Since(batchStart)
 
 		if batchDur > maxBatchDur {
@@ -360,7 +360,7 @@ func ExpProgressiveDelete(ctx context.Context) {
 		}
 	}
 	// 最后删空 key
-	Rdb.Del(ctx, "prog:hash")
+	rdb.Del(ctx, "prog:hash")
 	totalDur := time.Since(start)
 
 	fmt.Printf("  渐进式删除耗时: %v  批次: %d  单批最大耗时: %v\n",

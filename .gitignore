@@ -8,6 +8,7 @@ go-code
 
 # binary
 cmd.exe
+*.exe
 
 # self-signed certs
 *.pem

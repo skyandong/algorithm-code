@@ -87,7 +87,7 @@
 //
 // 工程影响:大量写入时 rehash 持续进行,每次写操作多一个 bucket 迁移开销,压测会看到轻微延迟抖动。
 
-package experiments
+package main
 
 import (
 	"context"
@@ -99,7 +99,7 @@ import (
 )
 
 func encoding(ctx context.Context, key string) string {
-	e, err := Rdb.ObjectEncoding(ctx, key).Result()
+	e, err := rdb.ObjectEncoding(ctx, key).Result()
 	if err != nil {
 		return fmt.Sprintf("err: %v", err)
 	}
@@ -123,21 +123,21 @@ func ExpHash(ctx context.Context) {
 	fmt.Println("=== Hash: listpack → hashtable ===")
 	fmt.Println("阈值: hash-max-listpack-entries=128, hash-max-listpack-value=64")
 
-	Rdb.Del(ctx, "exp:hash")
+	rdb.Del(ctx, "exp:hash")
 
-	Rdb.HSet(ctx, "exp:hash", "f1", "v1")
+	rdb.HSet(ctx, "exp:hash", "f1", "v1")
 	fmt.Printf("1 个字段:      %s\n", encoding(ctx, "exp:hash"))
 
 	for i := 2; i <= 128; i++ {
-		Rdb.HSet(ctx, "exp:hash", fmt.Sprintf("f%d", i), "v")
+		rdb.HSet(ctx, "exp:hash", fmt.Sprintf("f%d", i), "v")
 	}
 	fmt.Printf("128 个字段:    %s\n", encoding(ctx, "exp:hash"))
 
-	Rdb.HSet(ctx, "exp:hash", "f129", "v")
+	rdb.HSet(ctx, "exp:hash", "f129", "v")
 	fmt.Printf("129 个字段:    %s  ← 转换\n", encoding(ctx, "exp:hash"))
 
 	for i := 2; i <= 129; i++ {
-		Rdb.HDel(ctx, "exp:hash", fmt.Sprintf("f%d", i))
+		rdb.HDel(ctx, "exp:hash", fmt.Sprintf("f%d", i))
 	}
 	fmt.Printf("删回 1 个字段: %s  ← 不可逆\n\n", encoding(ctx, "exp:hash"))
 }
@@ -153,12 +153,12 @@ func ExpHash(ctx context.Context) {
 func ExpSet(ctx context.Context) {
 	fmt.Println("=== Set: intset → listpack/hashtable ===")
 
-	Rdb.Del(ctx, "exp:set")
+	rdb.Del(ctx, "exp:set")
 
-	Rdb.SAdd(ctx, "exp:set", 1, 2, 3)
+	rdb.SAdd(ctx, "exp:set", 1, 2, 3)
 	fmt.Printf("3 个整数:      %s\n", encoding(ctx, "exp:set"))
 
-	Rdb.SAdd(ctx, "exp:set", "hello")
+	rdb.SAdd(ctx, "exp:set", "hello")
 	fmt.Printf("插入字符串后:  %s  ← 触发升级\n\n", encoding(ctx, "exp:set"))
 }
 
@@ -179,17 +179,17 @@ func ExpSet(ctx context.Context) {
 func ExpZSet(ctx context.Context) {
 	fmt.Println("=== Sorted Set: listpack → skiplist ===")
 
-	Rdb.Del(ctx, "exp:zset")
+	rdb.Del(ctx, "exp:zset")
 
-	Rdb.ZAdd(ctx, "exp:zset", redis.Z{Score: 1, Member: "a"})
+	rdb.ZAdd(ctx, "exp:zset", redis.Z{Score: 1, Member: "a"})
 	fmt.Printf("1 个成员:    %s\n", encoding(ctx, "exp:zset"))
 
 	for i := 2; i <= 128; i++ {
-		Rdb.ZAdd(ctx, "exp:zset", redis.Z{Score: float64(i), Member: fmt.Sprintf("m%d", i)})
+		rdb.ZAdd(ctx, "exp:zset", redis.Z{Score: float64(i), Member: fmt.Sprintf("m%d", i)})
 	}
 	fmt.Printf("128 个成员:  %s\n", encoding(ctx, "exp:zset"))
 
-	Rdb.ZAdd(ctx, "exp:zset", redis.Z{Score: 129, Member: "m129"})
+	rdb.ZAdd(ctx, "exp:zset", redis.Z{Score: 129, Member: "m129"})
 	fmt.Printf("129 个成员:  %s  ← 转换\n\n", encoding(ctx, "exp:zset"))
 }
 
@@ -212,37 +212,37 @@ func ExpRehash(ctx context.Context) {
 	for i := 0; i < 200; i++ {
 		keys = append(keys, fmt.Sprintf("rehash:key:%d", i))
 	}
-	Rdb.Del(ctx, keys...)
+	rdb.Del(ctx, keys...)
 
 	// 写入 200 个 key,触发从 listpack 升级到 hashtable 再到扩容
 	for i := 0; i < 200; i++ {
-		Rdb.HSet(ctx, "rehash:hash", fmt.Sprintf("f%d", i), i)
+		rdb.HSet(ctx, "rehash:hash", fmt.Sprintf("f%d", i), i)
 	}
 	fmt.Printf("写入 200 个字段后编码: %s\n", encoding(ctx, "rehash:hash"))
 
 	// 测稳定态下 HGET 延迟基线
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
-		Rdb.HGet(ctx, "rehash:hash", fmt.Sprintf("f%d", i%200))
+		rdb.HGet(ctx, "rehash:hash", fmt.Sprintf("f%d", i%200))
 	}
 	baseline := time.Since(start)
 	fmt.Printf("稳定态 1000 次 HGET:  %v  (%.2fμs/op)\n",
 		baseline, float64(baseline.Microseconds())/1000)
 
 	// DEBUG RELOAD 强制触发完整 rehash
-	Rdb.Do(ctx, "DEBUG", "RELOAD")
+	rdb.Do(ctx, "DEBUG", "RELOAD")
 
 	// rehash 完成后再测
 	start = time.Now()
 	for i := 0; i < 1000; i++ {
-		Rdb.HGet(ctx, "rehash:hash", fmt.Sprintf("f%d", i%200))
+		rdb.HGet(ctx, "rehash:hash", fmt.Sprintf("f%d", i%200))
 	}
 	after := time.Since(start)
 	fmt.Printf("RELOAD 后 1000 次 HGET: %v  (%.2fμs/op)\n",
 		after, float64(after.Microseconds())/1000)
 	fmt.Println("结论: rehash 分摊到每次操作,单次开销极小,用户几乎无感知\n")
 
-	Rdb.Del(ctx, "rehash:hash")
+	rdb.Del(ctx, "rehash:hash")
 }
 
 // ExpIntsetMemory 实验9: intset 升级不可逆 + 内存对比
@@ -258,25 +258,25 @@ func ExpRehash(ctx context.Context) {
 func ExpIntsetMemory(ctx context.Context) {
 	fmt.Println("=== 实验9: intset 升级不可逆 + 内存对比 ===")
 
-	Rdb.Del(ctx, "exp:intset")
+	rdb.Del(ctx, "exp:intset")
 
 	// 插入 10 个小整数(int16 范围内)
 	for i := 1; i <= 10; i++ {
-		Rdb.SAdd(ctx, "exp:intset", i)
+		rdb.SAdd(ctx, "exp:intset", i)
 	}
-	mem1, _ := Rdb.MemoryUsage(ctx, "exp:intset").Result()
+	mem1, _ := rdb.MemoryUsage(ctx, "exp:intset").Result()
 	fmt.Printf("10 个小整数:  encoding=%s  memory=%d bytes\n",
 		encoding(ctx, "exp:intset"), mem1)
 
 	// 插入一个超出 int16 范围的整数,触发升级到 int64
-	Rdb.SAdd(ctx, "exp:intset", 99999999999)
-	mem2, _ := Rdb.MemoryUsage(ctx, "exp:intset").Result()
+	rdb.SAdd(ctx, "exp:intset", 99999999999)
+	mem2, _ := rdb.MemoryUsage(ctx, "exp:intset").Result()
 	fmt.Printf("插入大整数后: encoding=%s  memory=%d bytes  ← 升级到 int64\n",
 		encoding(ctx, "exp:intset"), mem2)
 
 	// 删掉大整数
-	Rdb.SRem(ctx, "exp:intset", 99999999999)
-	mem3, _ := Rdb.MemoryUsage(ctx, "exp:intset").Result()
+	rdb.SRem(ctx, "exp:intset", 99999999999)
+	mem3, _ := rdb.MemoryUsage(ctx, "exp:intset").Result()
 	fmt.Printf("删掉大整数后: encoding=%s  memory=%d bytes  ← 编码和内存不降\n\n",
 		encoding(ctx, "exp:intset"), mem3)
 }
@@ -293,19 +293,19 @@ func ExpIntsetMemory(ctx context.Context) {
 func ExpListpackVsHashtable(ctx context.Context) {
 	fmt.Println("=== 实验10: listpack vs hashtable HGET 性能 ===")
 
-	Rdb.Del(ctx, "exp:lp", "exp:ht")
+	rdb.Del(ctx, "exp:lp", "exp:ht")
 
 	// listpack: 10 个字段,在阈值内
 	for i := 0; i < 10; i++ {
-		Rdb.HSet(ctx, "exp:lp", fmt.Sprintf("f%d", i), i)
+		rdb.HSet(ctx, "exp:lp", fmt.Sprintf("f%d", i), i)
 	}
 	// hashtable: 200 个字段,超过阈值
 	for i := 0; i < 200; i++ {
-		Rdb.HSet(ctx, "exp:ht", fmt.Sprintf("f%d", i), i)
+		rdb.HSet(ctx, "exp:ht", fmt.Sprintf("f%d", i), i)
 	}
 
-	memLp, _ := Rdb.MemoryUsage(ctx, "exp:lp").Result()
-	memHt, _ := Rdb.MemoryUsage(ctx, "exp:ht").Result()
+	memLp, _ := rdb.MemoryUsage(ctx, "exp:lp").Result()
+	memHt, _ := rdb.MemoryUsage(ctx, "exp:ht").Result()
 	fmt.Printf("listpack  10字段  encoding=%s  memory=%d bytes\n",
 		encoding(ctx, "exp:lp"), memLp)
 	fmt.Printf("hashtable 200字段 encoding=%s  memory=%d bytes\n",
@@ -315,13 +315,13 @@ func ExpListpackVsHashtable(ctx context.Context) {
 	const n = 10000
 	start := time.Now()
 	for i := 0; i < n; i++ {
-		Rdb.HGet(ctx, "exp:lp", fmt.Sprintf("f%d", i%10))
+		rdb.HGet(ctx, "exp:lp", fmt.Sprintf("f%d", i%10))
 	}
 	lpDur := time.Since(start)
 
 	start = time.Now()
 	for i := 0; i < n; i++ {
-		Rdb.HGet(ctx, "exp:ht", fmt.Sprintf("f%d", i%200))
+		rdb.HGet(ctx, "exp:ht", fmt.Sprintf("f%d", i%200))
 	}
 	htDur := time.Since(start)
 
@@ -332,7 +332,7 @@ func ExpListpackVsHashtable(ctx context.Context) {
 		htDur, float64(htDur.Microseconds())/n)
 	fmt.Println("结论: listpack 字段少时因网络 RTT 主导,差距不大;字段数上去后 O(N) 扫描会拖垮主线程\n")
 
-	Rdb.Del(ctx, "exp:lp", "exp:ht")
+	rdb.Del(ctx, "exp:lp", "exp:ht")
 }
 
 // ExpLargeValue 实验7: 单个 value 过大触发 Hash 编码转换
@@ -349,11 +349,11 @@ func ExpLargeValue(ctx context.Context) {
 	fmt.Println("=== Hash: 单个 value 过大触发转换 ===")
 	fmt.Println("阈值: hash-max-listpack-value=64")
 
-	Rdb.Del(ctx, "exp:hash:val")
+	rdb.Del(ctx, "exp:hash:val")
 
-	Rdb.HSet(ctx, "exp:hash:val", "k", strings.Repeat("x", 64))
+	rdb.HSet(ctx, "exp:hash:val", "k", strings.Repeat("x", 64))
 	fmt.Printf("value=64B:   %s\n", encoding(ctx, "exp:hash:val"))
 
-	Rdb.HSet(ctx, "exp:hash:val", "k", strings.Repeat("x", 65))
+	rdb.HSet(ctx, "exp:hash:val", "k", strings.Repeat("x", 65))
 	fmt.Printf("value=65B:   %s  ← 转换\n\n", encoding(ctx, "exp:hash:val"))
 }

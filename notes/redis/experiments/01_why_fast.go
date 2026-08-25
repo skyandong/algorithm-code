@@ -32,7 +32,7 @@
 //
 // 来源:antirez.com / redis.io/docs / 黄健宏《Redis设计与实现》
 
-package experiments
+package main
 
 import (
 	"context"
@@ -43,8 +43,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 )
-
-var Rdb *redis.Client
 
 // Exp1Pipelining 实验1: Pipelining vs 逐条
 //
@@ -59,12 +57,12 @@ func Exp1Pipelining(ctx context.Context) {
 
 	start := time.Now()
 	for i := 0; i < n; i++ {
-		Rdb.Set(ctx, fmt.Sprintf("bench:seq:%d", i), i, 0)
+		rdb.Set(ctx, fmt.Sprintf("bench:seq:%d", i), i, 0)
 	}
 	seq := time.Since(start)
 
 	start = time.Now()
-	_, err := Rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+	_, err := rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 		for i := 0; i < n; i++ {
 			pipe.Set(ctx, fmt.Sprintf("bench:pipe:%d", i), i, 0)
 		}
@@ -93,10 +91,10 @@ func Exp1Pipelining(ctx context.Context) {
 //
 // 这正是官方强调"避免大 key、避免 KEYS *"的原因。
 func Exp2SingleThreadBlock(ctx context.Context) {
-	Rdb.Set(ctx, "probe", "hello", 0)
+	rdb.Set(ctx, "probe", "hello", 0)
 
 	t0 := time.Now()
-	Rdb.Get(ctx, "probe")
+	rdb.Get(ctx, "probe")
 	base := time.Since(t0)
 
 	var wg sync.WaitGroup
@@ -104,14 +102,14 @@ func Exp2SingleThreadBlock(ctx context.Context) {
 
 	// A: Lua 忙等模拟慢命令, 独占主线程约 0.5~2s
 	wg.Go(func() {
-		Rdb.Eval(ctx, `local x=0 for i=1,50000000 do x=x+i end return x`, nil)
+		rdb.Eval(ctx, `local x=0 for i=1,50000000 do x=x+i end return x`, nil)
 	})
 
 	// B: 等 Lua 跑起来后测普通 GET, 应被卡住
 	wg.Go(func() {
 		time.Sleep(100 * time.Millisecond)
 		s := time.Now()
-		Rdb.Get(ctx, "probe")
+		rdb.Get(ctx, "probe")
 		blocked = time.Since(s)
 	})
 
@@ -142,7 +140,7 @@ func Exp3ConcurrentThroughput(ctx context.Context) {
 		id := c
 		wg.Go(func() {
 			for i := 0; i < perClient; i++ {
-				Rdb.Set(ctx, fmt.Sprintf("conc:%d:%d", id, i), i, 0)
+				rdb.Set(ctx, fmt.Sprintf("conc:%d:%d", id, i), i, 0)
 			}
 		})
 	}

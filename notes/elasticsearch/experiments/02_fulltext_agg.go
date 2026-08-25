@@ -13,7 +13,7 @@
 //
 // 对应笔记：03-查询DSL与相关性.md
 
-package experiments
+package main
 
 import (
 	"bytes"
@@ -59,9 +59,9 @@ func ExpQueryVsFilter() {
 	fmt.Printf("%-10s  %-12s  %-12s\n", "轮次", "must(Query)", "filter(Filter)")
 	for i := 0; i < rounds; i++ {
 		t1 := time.Now()
-		res, err := ES.Search(
-			ES.Search.WithIndex(articlesIndex),
-			ES.Search.WithBody(strings.NewReader(mustQuery)),
+		res, err := esClient.Search(
+			esClient.Search.WithIndex(articlesIndex),
+			esClient.Search.WithBody(strings.NewReader(mustQuery)),
 		)
 		if err != nil || res.IsError() {
 			log.Fatalf("must 查询失败: %v", err)
@@ -70,9 +70,9 @@ func ExpQueryVsFilter() {
 		mustDur := time.Since(t1)
 
 		t2 := time.Now()
-		res2, err := ES.Search(
-			ES.Search.WithIndex(articlesIndex),
-			ES.Search.WithBody(strings.NewReader(filterQuery)),
+		res2, err := esClient.Search(
+			esClient.Search.WithIndex(articlesIndex),
+			esClient.Search.WithBody(strings.NewReader(filterQuery)),
 		)
 		if err != nil || res2.IsError() {
 			log.Fatalf("filter 查询失败: %v", err)
@@ -140,9 +140,9 @@ func ExpMatchVsTerm() {
 	}
 
 	for _, c := range cases {
-		res, err := ES.Search(
-			ES.Search.WithIndex(articlesIndex),
-			ES.Search.WithBody(strings.NewReader(c.query)),
+		res, err := esClient.Search(
+			esClient.Search.WithIndex(articlesIndex),
+			esClient.Search.WithBody(strings.NewReader(c.query)),
 		)
 		if err != nil || res.IsError() {
 			fmt.Printf("  查询失败: %v\n", err)
@@ -182,9 +182,9 @@ func ExpMultiMatch() {
 	  "size": 3
 	}`
 
-	res, err := ES.Search(
-		ES.Search.WithIndex(articlesIndex),
-		ES.Search.WithBody(strings.NewReader(query)),
+	res, err := esClient.Search(
+		esClient.Search.WithIndex(articlesIndex),
+		esClient.Search.WithBody(strings.NewReader(query)),
 	)
 	if err != nil || res.IsError() {
 		log.Fatalf("multi_match 查询失败: %v", err)
@@ -233,9 +233,9 @@ func ExpAggregation() {
 	  }
 	}`
 
-	res, err := ES.Search(
-		ES.Search.WithIndex(articlesIndex),
-		ES.Search.WithBody(strings.NewReader(query)),
+	res, err := esClient.Search(
+		esClient.Search.WithIndex(articlesIndex),
+		esClient.Search.WithBody(strings.NewReader(query)),
 	)
 	if err != nil || res.IsError() {
 		log.Fatalf("聚合查询失败: %v", err)
@@ -288,9 +288,9 @@ func ExpBoolQuery() {
 	  "sort": [{ "_score": "desc" }]
 	}`
 
-	res, err := ES.Search(
-		ES.Search.WithIndex(articlesIndex),
-		ES.Search.WithBody(strings.NewReader(query)),
+	res, err := esClient.Search(
+		esClient.Search.WithIndex(articlesIndex),
+		esClient.Search.WithBody(strings.NewReader(query)),
 	)
 	if err != nil || res.IsError() {
 		body := new(bytes.Buffer)

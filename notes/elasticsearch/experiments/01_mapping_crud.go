@@ -12,7 +12,7 @@
 //
 // 对应笔记：02-分词与Mapping.md
 
-package experiments
+package main
 
 import (
 	"bytes"
@@ -44,7 +44,7 @@ type Article struct {
 //   - dynamic: strict（拒绝未定义的字段，生产常用，防止 Mapping 爆炸）
 func ExpMappingCreate() {
 	// 先删索引（保证实验幂等）
-	ES.Indices.Delete([]string{articlesIndex})
+	esClient.Indices.Delete([]string{articlesIndex})
 
 	mapping := `{
 	  "settings": {
@@ -71,7 +71,7 @@ func ExpMappingCreate() {
 	  }
 	}`
 
-	res, err := ES.Indices.Create(articlesIndex, ES.Indices.Create.WithBody(strings.NewReader(mapping)))
+	res, err := esClient.Indices.Create(articlesIndex, esClient.Indices.Create.WithBody(strings.NewReader(mapping)))
 	if err != nil || res.IsError() {
 		log.Fatalf("创建索引失败: %v %s", err, readBody(res.Body))
 	}
@@ -103,9 +103,9 @@ func ExpDocumentCRUD() {
 	for i, doc := range docs {
 		id := fmt.Sprintf("%d", i+1)
 		body, _ := json.Marshal(doc)
-		res, err := ES.Index(articlesIndex, bytes.NewReader(body),
-			ES.Index.WithDocumentID(id),
-			ES.Index.WithRefresh("true"), // 立即 refresh，实验用；生产不要这样
+		res, err := esClient.Index(articlesIndex, bytes.NewReader(body),
+			esClient.Index.WithDocumentID(id),
+			esClient.Index.WithRefresh("true"), // 立即 refresh，实验用；生产不要这样
 		)
 		if err != nil || res.IsError() {
 			log.Fatalf("写入文档 %s 失败: %v", id, err)
@@ -115,7 +115,7 @@ func ExpDocumentCRUD() {
 	fmt.Printf("写入 %d 条文档\n", len(docs))
 
 	// --- 查询单条 ---
-	res, _ := ES.Get(articlesIndex, "1")
+	res, _ := esClient.Get(articlesIndex, "1")
 	defer res.Body.Close()
 	var getResult map[string]interface{}
 	json.NewDecoder(res.Body).Decode(&getResult)
@@ -125,13 +125,13 @@ func ExpDocumentCRUD() {
 	// --- 更新（partial update）---
 	// _update 只需传要改的字段，ES 内部合并后生成新文档版本
 	updateBody := `{"doc": {"price": 88.0}}`
-	res2, _ := ES.Update(articlesIndex, "1", strings.NewReader(updateBody),
-		ES.Update.WithRefresh("true"),
+	res2, _ := esClient.Update(articlesIndex, "1", strings.NewReader(updateBody),
+		esClient.Update.WithRefresh("true"),
 	)
 	res2.Body.Close()
 
 	// 验证更新
-	res3, _ := ES.Get(articlesIndex, "1")
+	res3, _ := esClient.Get(articlesIndex, "1")
 	defer res3.Body.Close()
 	var updated map[string]interface{}
 	json.NewDecoder(res3.Body).Decode(&updated)
@@ -139,9 +139,9 @@ func ExpDocumentCRUD() {
 	fmt.Printf("UPDATE id=1 price → %.1f（版本号: %v）\n", updatedSrc["price"], updated["_version"])
 
 	// --- 删除 ---
-	res4, _ := ES.Delete(articlesIndex, "5", ES.Delete.WithRefresh("true"))
+	res4, _ := esClient.Delete(articlesIndex, "5", esClient.Delete.WithRefresh("true"))
 	res4.Body.Close()
-	res5, _ := ES.Get(articlesIndex, "5")
+	res5, _ := esClient.Get(articlesIndex, "5")
 	defer res5.Body.Close()
 	fmt.Printf("DELETE id=5: found=%v（应为 false）\n\n", res5.StatusCode != 404)
 }
@@ -154,17 +154,17 @@ func ExpDynamicMappingTrap() {
 	fmt.Println("=== 实验3: Dynamic Mapping 陷阱 ===")
 
 	// 删索引，让它自动推断
-	ES.Indices.Delete([]string{dynamicIndex})
+	esClient.Indices.Delete([]string{dynamicIndex})
 
 	// 写入第一条，ES 自动推断类型
 	firstDoc := `{"order_id": "10086", "amount": 99.9, "status": "paid"}`
-	res, _ := ES.Index(dynamicIndex, strings.NewReader(firstDoc),
-		ES.Index.WithRefresh("true"),
+	res, _ := esClient.Index(dynamicIndex, strings.NewReader(firstDoc),
+		esClient.Index.WithRefresh("true"),
 	)
 	res.Body.Close()
 
 	// 查看推断出的 Mapping
-	mappingRes, _ := ES.Indices.GetMapping(ES.Indices.GetMapping.WithIndex(dynamicIndex))
+	mappingRes, _ := esClient.Indices.GetMapping(esClient.Indices.GetMapping.WithIndex(dynamicIndex))
 	defer mappingRes.Body.Close()
 	var mappingResult map[string]interface{}
 	json.NewDecoder(mappingRes.Body).Decode(&mappingResult)
@@ -192,7 +192,7 @@ func ExpDynamicMappingTrap() {
 	}
 	fmt.Println("  → 生产建议: dynamic=strict，手动定义所有字段类型\n")
 
-	ES.Indices.Delete([]string{dynamicIndex})
+	esClient.Indices.Delete([]string{dynamicIndex})
 }
 
 func readBody(body io.ReadCloser) string {

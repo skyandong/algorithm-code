@@ -64,7 +64,7 @@
 //	MULTI     顺序不被穿插    否         无      需要隔离但能接受部分失败
 //	Lua       是(真原子)      否         无      判断+操作必须原子的场景
 
-package experiments
+package main
 
 import (
 	"context"
@@ -86,13 +86,13 @@ import (
 func ExpMultiExec(ctx context.Context) {
 	fmt.Println("=== 实验23: MULTI/EXEC 事务不支持回滚 ===")
 
-	Rdb.Del(ctx, "tx:str", "tx:result")
-	Rdb.Set(ctx, "tx:str", "hello", 0)
+	rdb.Del(ctx, "tx:str", "tx:result")
+	rdb.Set(ctx, "tx:str", "hello", 0)
 
 	// TxPipelined = MULTI + 命令入队 + EXEC
 	// 命令1: LPUSH 对 String 操作,类型错误
 	// 命令2: SET 正常命令
-	cmds, _ := Rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+	cmds, _ := rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		pipe.LPush(ctx, "tx:str", "item")      // 类型错误
 		pipe.Set(ctx, "tx:result", "ok", 0)    // 正常命令
 		return nil
@@ -101,10 +101,10 @@ func ExpMultiExec(ctx context.Context) {
 	fmt.Printf("  LPUSH 结果: %v\n", cmds[0].Err())
 	fmt.Printf("  SET   结果: %v\n", cmds[1].Err())
 
-	val, _ := Rdb.Get(ctx, "tx:result").Result()
+	val, _ := rdb.Get(ctx, "tx:result").Result()
 	fmt.Printf("  tx:result = %q  ← SET 成功,说明事务没有因 LPUSH 报错而回滚\n\n", val)
 
-	Rdb.Del(ctx, "tx:str", "tx:result")
+	rdb.Del(ctx, "tx:str", "tx:result")
 }
 
 // ExpWatch 实验24: WATCH 乐观锁 —— CAS 模式
@@ -119,10 +119,10 @@ func ExpMultiExec(ctx context.Context) {
 func ExpWatch(ctx context.Context) {
 	fmt.Println("=== 实验24: WATCH 乐观锁 ===")
 
-	Rdb.Set(ctx, "watch:counter", 0, 0)
+	rdb.Set(ctx, "watch:counter", 0, 0)
 
 	// 场景1: 没有并发修改,事务成功
-	err := Rdb.Watch(ctx, func(tx *redis.Tx) error {
+	err := rdb.Watch(ctx, func(tx *redis.Tx) error {
 		val, err := tx.Get(ctx, "watch:counter").Int()
 		if err != nil {
 			return err
@@ -134,14 +134,14 @@ func ExpWatch(ctx context.Context) {
 		return err
 	}, "watch:counter")
 	fmt.Printf("  无并发修改,事务结果: %v\n", err)
-	val, _ := Rdb.Get(ctx, "watch:counter").Result()
+	val, _ := rdb.Get(ctx, "watch:counter").Result()
 	fmt.Printf("  watch:counter = %s\n", val)
 
 	// 场景2: 模拟并发修改,事务被放弃
-	Rdb.Set(ctx, "watch:counter", 0, 0)
-	err = Rdb.Watch(ctx, func(tx *redis.Tx) error {
+	rdb.Set(ctx, "watch:counter", 0, 0)
+	err = rdb.Watch(ctx, func(tx *redis.Tx) error {
 		// 在 WATCH 之后、EXEC 之前,模拟另一个客户端修改了 key
-		Rdb.Set(ctx, "watch:counter", 999, 0)
+		rdb.Set(ctx, "watch:counter", 999, 0)
 
 		_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.Set(ctx, "watch:counter", 100, 0)
@@ -151,10 +151,10 @@ func ExpWatch(ctx context.Context) {
 	}, "watch:counter")
 
 	fmt.Printf("\n  有并发修改,事务结果: %v  (TxFailedErr = 事务放弃)\n", err)
-	val, _ = Rdb.Get(ctx, "watch:counter").Result()
+	val, _ = rdb.Get(ctx, "watch:counter").Result()
 	fmt.Printf("  watch:counter = %s  ← 仍是 999,事务的 SET 100 未执行\n\n", val)
 
-	Rdb.Del(ctx, "watch:counter")
+	rdb.Del(ctx, "watch:counter")
 }
 
 // ExpLua 实验25: Lua 脚本 —— 真原子操作 + EVALSHA
@@ -180,29 +180,29 @@ else
 end`
 
 	// 用正确 token 释放 → 成功
-	Rdb.Set(ctx, lockKey, myToken, 10*time.Second)
-	result, _ := Rdb.Eval(ctx, luaScript, []string{lockKey}, myToken).Int()
+	rdb.Set(ctx, lockKey, myToken, 10*time.Second)
+	result, _ := rdb.Eval(ctx, luaScript, []string{lockKey}, myToken).Int()
 	fmt.Printf("  正确 token 释放: %d  (1=成功删除)\n", result)
 
-	exists, _ := Rdb.Exists(ctx, lockKey).Result()
+	exists, _ := rdb.Exists(ctx, lockKey).Result()
 	fmt.Printf("  锁是否还在: %d  (0=已释放)\n", exists)
 
 	// 用错误 token 释放 → 失败(保护别人的锁)
-	Rdb.Set(ctx, lockKey, otherToken, 10*time.Second)
-	result, _ = Rdb.Eval(ctx, luaScript, []string{lockKey}, myToken).Int()
+	rdb.Set(ctx, lockKey, otherToken, 10*time.Second)
+	result, _ = rdb.Eval(ctx, luaScript, []string{lockKey}, myToken).Int()
 	fmt.Printf("\n  错误 token 释放: %d  (0=拒绝,不会删别人的锁)\n", result)
 
-	exists, _ = Rdb.Exists(ctx, lockKey).Result()
+	exists, _ = rdb.Exists(ctx, lockKey).Result()
 	fmt.Printf("  锁是否还在: %d  (1=未被删)\n", exists)
 
 	// EVALSHA:缓存脚本
-	sha, _ := Rdb.ScriptLoad(ctx, luaScript).Result()
+	sha, _ := rdb.ScriptLoad(ctx, luaScript).Result()
 	fmt.Printf("\n  SCRIPT LOAD SHA1: %s\n", sha[:8]+"...")
-	result, _ = Rdb.EvalSha(ctx, sha, []string{lockKey}, otherToken).Int()
+	result, _ = rdb.EvalSha(ctx, sha, []string{lockKey}, otherToken).Int()
 	fmt.Printf("  EVALSHA 结果: %d\n", result)
 	fmt.Println("  结论: EVALSHA 只传 40 字节 SHA1,脚本越长越省带宽\n")
 
-	Rdb.Del(ctx, lockKey)
+	rdb.Del(ctx, lockKey)
 }
 
 // ExpPipelineVsSeq 实验26: Pipeline vs 逐条 —— RTT 差异
@@ -212,19 +212,19 @@ end`
 func ExpPipelineVsSeq(ctx context.Context) {
 	fmt.Println("=== 实验26: Pipeline vs 逐条 ===")
 
-	Rdb.Del(ctx, "pipe:list")
+	rdb.Del(ctx, "pipe:list")
 
 	// 逐条
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
-		Rdb.RPush(ctx, "pipe:list", i)
+		rdb.RPush(ctx, "pipe:list", i)
 	}
 	seqDur := time.Since(start)
-	Rdb.Del(ctx, "pipe:list")
+	rdb.Del(ctx, "pipe:list")
 
 	// Pipeline
 	start = time.Now()
-	Rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+	rdb.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 		for i := 0; i < 1000; i++ {
 			pipe.RPush(ctx, "pipe:list", i)
 		}
@@ -241,5 +241,5 @@ func ExpPipelineVsSeq(ctx context.Context) {
 	fmt.Println("    MULTI:    服务端保证命令不被穿插,但不省 RTT,也不回滚")
 	fmt.Println("    Lua:      真原子,服务端执行,脚本过长会阻塞主线程\n")
 
-	Rdb.Del(ctx, "pipe:list")
+	rdb.Del(ctx, "pipe:list")
 }

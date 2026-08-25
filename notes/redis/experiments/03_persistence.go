@@ -79,7 +79,7 @@
 //	只要 AOF          数据尽量不丢,everysec 是最佳平衡
 //	混合持久化(推荐)  生产默认选项,两者优点都要
 
-package experiments
+package main
 
 import (
 	"context"
@@ -101,18 +101,18 @@ func ExpBgsave(ctx context.Context) {
 	fmt.Println("=== 实验11: bgsave + fork 耗时 ===")
 
 	// 触发 bgsave
-	Rdb.BgSave(ctx)
+	rdb.BgSave(ctx)
 
 	// 等 bgsave 完成
 	for {
-		info, _ := Rdb.Info(ctx, "persistence").Result()
+		info, _ := rdb.Info(ctx, "persistence").Result()
 		if strings.Contains(info, "rdb_bgsave_in_progress:0") {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	info, _ := Rdb.Info(ctx, "persistence").Result()
+	info, _ := rdb.Info(ctx, "persistence").Result()
 	for _, line := range strings.Split(info, "\r\n") {
 		switch {
 		case strings.HasPrefix(line, "rdb_last_bgsave_status"),
@@ -139,7 +139,7 @@ func ExpAofFsync(ctx context.Context) {
 	fmt.Println("=== 实验12: fsync 策略写入吞吐对比 ===")
 
 	// 先查当前 AOF 是否开启
-	cfg, _ := Rdb.ConfigGet(ctx, "appendonly").Result()
+	cfg, _ := rdb.ConfigGet(ctx, "appendonly").Result()
 	aofEnabled := false
 	if len(cfg) >= 2 {
 		aofEnabled = cfg["appendonly"] == "yes"
@@ -151,20 +151,20 @@ func ExpAofFsync(ctx context.Context) {
 	}
 
 	// 保存原始策略
-	origCfg, _ := Rdb.ConfigGet(ctx, "appendfsync").Result()
+	origCfg, _ := rdb.ConfigGet(ctx, "appendfsync").Result()
 	orig := origCfg["appendfsync"]
-	defer Rdb.ConfigSet(ctx, "appendfsync", orig)
+	defer rdb.ConfigSet(ctx, "appendfsync", orig)
 
 	const n = 1000
 	strategies := []string{"always", "everysec", "no"}
 
 	for _, s := range strategies {
-		Rdb.ConfigSet(ctx, "appendfsync", s)
+		rdb.ConfigSet(ctx, "appendfsync", s)
 		time.Sleep(100 * time.Millisecond)
 
 		start := time.Now()
 		for i := 0; i < n; i++ {
-			Rdb.Set(ctx, fmt.Sprintf("fsync:%s:%d", s, i), i, 0)
+			rdb.Set(ctx, fmt.Sprintf("fsync:%s:%d", s, i), i, 0)
 		}
 		dur := time.Since(start)
 		fmt.Printf("  %-10s %d 次 SET: %v  (%.2fμs/op)\n",
@@ -172,7 +172,7 @@ func ExpAofFsync(ctx context.Context) {
 
 		// 清理
 		for i := 0; i < n; i++ {
-			Rdb.Del(ctx, fmt.Sprintf("fsync:%s:%d", s, i))
+			rdb.Del(ctx, fmt.Sprintf("fsync:%s:%d", s, i))
 		}
 	}
 	fmt.Println("结论: always 每条刷盘最安全但最慢;everysec 是性能与安全的最佳平衡;no 最快但宕机丢得多\n")
@@ -195,13 +195,13 @@ func ExpCowMemory(ctx context.Context) {
 	fmt.Printf("  bgsave 前 used_memory: %d KB\n", memBefore/1024)
 
 	// 触发 bgsave
-	Rdb.BgSave(ctx)
+	rdb.BgSave(ctx)
 	time.Sleep(50 * time.Millisecond)
 
 	// bgsave 期间持续写入,触发 COW
 	val := strings.Repeat("x", 1024) // 1KB value
 	for i := 0; i < 500; i++ {
-		Rdb.Set(ctx, fmt.Sprintf("cow:%d", i), val, 0)
+		rdb.Set(ctx, fmt.Sprintf("cow:%d", i), val, 0)
 	}
 
 	memDuring := usedMemory(ctx)
@@ -210,7 +210,7 @@ func ExpCowMemory(ctx context.Context) {
 
 	// 等 bgsave 完成
 	for {
-		info, _ := Rdb.Info(ctx, "persistence").Result()
+		info, _ := rdb.Info(ctx, "persistence").Result()
 		if strings.Contains(info, "rdb_bgsave_in_progress:0") {
 			break
 		}
@@ -223,7 +223,7 @@ func ExpCowMemory(ctx context.Context) {
 
 	// 清理
 	for i := 0; i < 500; i++ {
-		Rdb.Del(ctx, fmt.Sprintf("cow:%d", i))
+		rdb.Del(ctx, fmt.Sprintf("cow:%d", i))
 	}
 }
 
@@ -251,7 +251,7 @@ func ExpAofRewrite(ctx context.Context) {
 	fmt.Println("=== 实验14: AOF 重写(bgrewriteaof) ===")
 
 	// 检查 AOF 是否开启
-	cfg, _ := Rdb.ConfigGet(ctx, "appendonly").Result()
+	cfg, _ := rdb.ConfigGet(ctx, "appendonly").Result()
 	if cfg["appendonly"] != "yes" {
 		fmt.Println("  AOF 未开启,跳过实验")
 		fmt.Println("  开启方式: CONFIG SET appendonly yes\n")
@@ -260,7 +260,7 @@ func ExpAofRewrite(ctx context.Context) {
 
 	// 重写前状态
 	printAofInfo := func(label string) {
-		info, _ := Rdb.Info(ctx, "persistence").Result()
+		info, _ := rdb.Info(ctx, "persistence").Result()
 		fmt.Printf("  [%s]\n", label)
 		for _, line := range strings.Split(info, "\r\n") {
 			switch {
@@ -275,28 +275,28 @@ func ExpAofRewrite(ctx context.Context) {
 
 	// 先写一批数据制造 AOF 体积
 	for i := 0; i < 500; i++ {
-		Rdb.Set(ctx, fmt.Sprintf("aof:key:%d", i), i, 0)
+		rdb.Set(ctx, fmt.Sprintf("aof:key:%d", i), i, 0)
 	}
 	// 再删掉一半,制造冗余命令(重写后这些 DEL 和原 SET 都会被消除)
 	for i := 0; i < 250; i++ {
-		Rdb.Del(ctx, fmt.Sprintf("aof:key:%d", i))
+		rdb.Del(ctx, fmt.Sprintf("aof:key:%d", i))
 	}
 
 	printAofInfo("重写前")
 
 	// 触发 AOF 重写
-	Rdb.BgRewriteAOF(ctx)
+	rdb.BgRewriteAOF(ctx)
 
 	// 重写期间继续写入,这些命令会进 rewrite buffer
 	for i := 500; i < 600; i++ {
-		Rdb.Set(ctx, fmt.Sprintf("aof:key:%d", i), i, 0)
+		rdb.Set(ctx, fmt.Sprintf("aof:key:%d", i), i, 0)
 	}
 
 	printAofInfo("重写期间")
 
 	// 等重写完成
 	for {
-		info, _ := Rdb.Info(ctx, "persistence").Result()
+		info, _ := rdb.Info(ctx, "persistence").Result()
 		if strings.Contains(info, "aof_rewrite_in_progress:0") {
 			break
 		}
@@ -309,12 +309,12 @@ func ExpAofRewrite(ctx context.Context) {
 
 	// 清理
 	for i := 0; i < 600; i++ {
-		Rdb.Del(ctx, fmt.Sprintf("aof:key:%d", i))
+		rdb.Del(ctx, fmt.Sprintf("aof:key:%d", i))
 	}
 }
 
 func usedMemory(ctx context.Context) int64 {
-	info, _ := Rdb.Info(ctx, "memory").Result()
+	info, _ := rdb.Info(ctx, "memory").Result()
 	for _, line := range strings.Split(info, "\r\n") {
 		if strings.HasPrefix(line, "used_memory:") {
 			v, _ := strconv.ParseInt(strings.TrimPrefix(line, "used_memory:"), 10, 64)

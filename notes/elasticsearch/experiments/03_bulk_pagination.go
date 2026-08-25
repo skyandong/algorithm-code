@@ -14,7 +14,7 @@
 //
 // 对应笔记：04-分片与写入流程.md, 05-性能优化与生产实践.md
 
-package experiments
+package main
 
 import (
 	"bytes"
@@ -44,7 +44,7 @@ type BulkDoc struct {
 func ExpBulkVsSingle() {
 	fmt.Println("=== 实验9: 逐条写 vs Bulk 写入 ===")
 
-	ES.Indices.Delete([]string{bulkIndex})
+	esClient.Indices.Delete([]string{bulkIndex})
 
 	// 创建索引
 	mapping := `{
@@ -59,7 +59,7 @@ func ExpBulkVsSingle() {
 	    }
 	  }
 	}`
-	res, _ := ES.Indices.Create(bulkIndex, ES.Indices.Create.WithBody(strings.NewReader(mapping)))
+	res, _ := esClient.Indices.Create(bulkIndex, esClient.Indices.Create.WithBody(strings.NewReader(mapping)))
 	res.Body.Close()
 
 	authors := []string{"alice", "bob", "carol", "dave", "eve"}
@@ -76,14 +76,14 @@ func ExpBulkVsSingle() {
 			Created: "2024-01-01",
 		}
 		body, _ := json.Marshal(doc)
-		res, _ := ES.Index(bulkIndex, bytes.NewReader(body))
+		res, _ := esClient.Index(bulkIndex, bytes.NewReader(body))
 		res.Body.Close()
 	}
 	singleDur := time.Since(start)
 
 	// 重建索引（DeleteByQuery 是异步的，直接删重建更干净）
-	ES.Indices.Delete([]string{bulkIndex})
-	res2, _ := ES.Indices.Create(bulkIndex, ES.Indices.Create.WithBody(strings.NewReader(mapping)))
+	esClient.Indices.Delete([]string{bulkIndex})
+	res2, _ := esClient.Indices.Create(bulkIndex, esClient.Indices.Create.WithBody(strings.NewReader(mapping)))
 	res2.Body.Close()
 
 	// --- Bulk 写入（每批 100 条）---
@@ -106,7 +106,7 @@ func ExpBulkVsSingle() {
 			buf.Write(docBytes)
 			buf.WriteByte('\n')
 		}
-		res, err := ES.Bulk(bytes.NewReader(buf.Bytes()))
+		res, err := esClient.Bulk(bytes.NewReader(buf.Bytes()))
 		if err != nil || res.IsError() {
 			log.Fatalf("bulk 写入失败: %v", err)
 		}
@@ -146,19 +146,19 @@ func ExpRefreshInterval() {
 	payload := meta + "\n" + testDoc + "\n"
 
 	// 先关掉自动 refresh
-	res, _ := ES.Indices.PutSettings(
+	res, _ := esClient.Indices.PutSettings(
 		strings.NewReader(`{"index":{"refresh_interval":"-1"}}`),
-		ES.Indices.PutSettings.WithIndex(bulkIndex),
+		esClient.Indices.PutSettings.WithIndex(bulkIndex),
 	)
 	res.Body.Close()
 
 	// 写入文档（不触发 refresh）
-	ES.Bulk(strings.NewReader(payload))
+	esClient.Bulk(strings.NewReader(payload))
 
 	// 立即查，应查不到
-	searchRes, _ := ES.Search(
-		ES.Search.WithIndex(bulkIndex),
-		ES.Search.WithBody(strings.NewReader(`{"query":{"term":{"author":"tester"}}}`)),
+	searchRes, _ := esClient.Search(
+		esClient.Search.WithIndex(bulkIndex),
+		esClient.Search.WithBody(strings.NewReader(`{"query":{"term":{"author":"tester"}}}`)),
 	)
 	var r map[string]interface{}
 	json.NewDecoder(searchRes.Body).Decode(&r)
@@ -167,12 +167,12 @@ func ExpRefreshInterval() {
 	fmt.Printf("写入后立即查（refresh_interval=-1）: 命中 %v 条（数据还在 Buffer，不可见）\n", count1)
 
 	// 手动触发 refresh
-	ES.Indices.Refresh(ES.Indices.Refresh.WithIndex(bulkIndex))
+	esClient.Indices.Refresh(esClient.Indices.Refresh.WithIndex(bulkIndex))
 
 	// 再查，能查到
-	searchRes2, _ := ES.Search(
-		ES.Search.WithIndex(bulkIndex),
-		ES.Search.WithBody(strings.NewReader(`{"query":{"term":{"author":"tester"}}}`)),
+	searchRes2, _ := esClient.Search(
+		esClient.Search.WithIndex(bulkIndex),
+		esClient.Search.WithBody(strings.NewReader(`{"query":{"term":{"author":"tester"}}}`)),
 	)
 	var r2 map[string]interface{}
 	json.NewDecoder(searchRes2.Body).Decode(&r2)
@@ -181,9 +181,9 @@ func ExpRefreshInterval() {
 	fmt.Printf("手动 POST /_refresh 后再查:           命中 %v 条（Segment 生成，数据可见）\n", count2)
 
 	// 恢复默认
-	res2, _ := ES.Indices.PutSettings(
+	res2, _ := esClient.Indices.PutSettings(
 		strings.NewReader(`{"index":{"refresh_interval":"1s"}}`),
-		ES.Indices.PutSettings.WithIndex(bulkIndex),
+		esClient.Indices.PutSettings.WithIndex(bulkIndex),
 	)
 	res2.Body.Close()
 
@@ -209,9 +209,9 @@ func ExpFromSizeLimit() {
 
 	// 正常翻页
 	page1 := `{"from": 0, "size": 3, "_source": ["doc_id", "author", "score"], "sort": [{"score": "desc"}, {"doc_id": "asc"}]}`
-	res, _ := ES.Search(
-		ES.Search.WithIndex(bulkIndex),
-		ES.Search.WithBody(strings.NewReader(page1)),
+	res, _ := esClient.Search(
+		esClient.Search.WithIndex(bulkIndex),
+		esClient.Search.WithBody(strings.NewReader(page1)),
 	)
 	var r1 map[string]interface{}
 	json.NewDecoder(res.Body).Decode(&r1)
@@ -227,9 +227,9 @@ func ExpFromSizeLimit() {
 
 	// 尝试超出限制（from=10001）
 	deepQuery := `{"from": 10001, "size": 10}`
-	res2, _ := ES.Search(
-		ES.Search.WithIndex(bulkIndex),
-		ES.Search.WithBody(strings.NewReader(deepQuery)),
+	res2, _ := esClient.Search(
+		esClient.Search.WithIndex(bulkIndex),
+		esClient.Search.WithBody(strings.NewReader(deepQuery)),
 	)
 	defer res2.Body.Close()
 	fmt.Printf("\nfrom=10001 查询 HTTP 状态码: %d\n", res2.StatusCode)
@@ -270,9 +270,9 @@ func ExpSearchAfter() {
 		}
 		json.NewEncoder(&queryBuf).Encode(baseQuery)
 
-		res, err := ES.Search(
-			ES.Search.WithIndex(bulkIndex),
-			ES.Search.WithBody(bytes.NewReader(queryBuf.Bytes())),
+		res, err := esClient.Search(
+			esClient.Search.WithIndex(bulkIndex),
+			esClient.Search.WithBody(bytes.NewReader(queryBuf.Bytes())),
 		)
 		if err != nil || res.IsError() {
 			log.Fatalf("search_after 查询失败: %v", err)
