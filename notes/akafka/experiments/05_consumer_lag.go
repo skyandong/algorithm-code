@@ -174,7 +174,12 @@ func printLagReport(ctx context.Context) {
 }
 
 func produceMessages(ctx context.Context) {
-	client, err := kgo.NewClient(kgo.SeedBrokers(brokers), kgo.RequiredAcks(kgo.LeaderAck()))
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(brokers),
+		kgo.RequiredAcks(kgo.LeaderAck()),
+		// 幂等生产要求 acks=all，这里为吞吐用 acks=1，需显式关闭幂等
+		kgo.DisableIdempotentWrite(),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
