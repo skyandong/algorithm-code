@@ -1,0 +1,8 @@
+# 本地存储数据（由 docker-compose 挂载生成）
+data/
+
+# checkpoint 进度文件
+*.checkpoint
+
+# 编译产物
+oss-lab

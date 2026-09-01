@@ -1,0 +1,41 @@
+# 本地 S3 兼容对象存储，供 oss-lab 开发测试使用
+#
+# 【为什么用 MinIO】
+#   本仓库要验证的是「同一套 aws-sdk-go-v2 代码能否在本地与阿里云 OSS
+#   之间平滑切换」。MinIO 是 S3 协议的事实标准本地实现，对 S3 API 的
+#   覆盖度最高，用它做本地测试最能代表切换到 OSS 时的真实行为。
+#
+#   （注：MinIO 开源版已于 2026-04-25 归档，但这只影响生产环境的免费
+#    HA 档；单节点本地开发服务器本身完全可用，且本机已缓存镜像。）
+#
+# 启动：docker compose up -d
+# 停止：docker compose down      （数据保留在 ./data/minio）
+# 清库：docker compose down -v && rm -rf ./data
+
+services:
+  minio:
+    # 使用本机已缓存的镜像（daocloud 镜像源拉取的 minio/minio）
+    image: docker.m.daocloud.io/minio/minio:latest
+    container_name: oss-lab-minio
+    restart: unless-stopped
+
+    command: server /data --console-address ":9001"
+
+    environment:
+      # MinIO 的 root 账号，对应 aws-sdk 的 AccessKey/SecretKey
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+
+    ports:
+      - "9000:9000" # S3 API 端点（oss-lab 的 local 后端默认连这里）
+      - "9001:9001" # Web 控制台
+
+    volumes:
+      - ./data/minio:/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "mc alias set local http://localhost:9000 minioadmin minioadmin >/dev/null 2>&1 && mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
