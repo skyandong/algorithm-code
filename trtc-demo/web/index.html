@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="FHDuYI8jAyswk3XQb5nZO3">
+<head data-page-node-id="onuEhUD5YecisP06TNAy3z">
+  <meta charset="UTF-8" data-page-node-id="RHNnaEpWhXMB075t4LVMEq" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="F52qrtSqHAQJtuem3aEAfC" />
+  <title>TRTC 视频通话自测 Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f6fa; color: #2d3436; padding: 24px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 22px; margin-bottom: 6px; }
+    .sub { color: #636e72; font-size: 13px; margin-bottom: 20px; }
+    .card {
+      background: #fff; border-radius: 12px; padding: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 16px;
+    }
+    .card h2 { font-size: 15px; margin-bottom: 14px; color: #0984e3; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    label { display: block; font-size: 12px; color: #636e72; margin-bottom: 4px; }
+    input {
+      width: 100%; padding: 9px 12px; border: 1px solid #dfe6e9;
+      border-radius: 8px; font-size: 14px; outline: none;
+    }
+    input:focus { border-color: #0984e3; }
+    .btn {
+      padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px;
+      cursor: pointer; font-weight: 600; transition: all .15s;
+    }
+    .btn-primary { background: #0984e3; color: #fff; }
+    .btn-primary:hover { background: #0873c4; }
+    .btn-danger { background: #d63031; color: #fff; }
+    .btn-danger:hover { background: #b92d2e; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .videos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .video-box {
+      position: relative; background: #000; border-radius: 12px;
+      overflow: hidden; aspect-ratio: 4/3;
+    }
+    .video-box video { width: 100%; height: 100%; object-fit: cover; }
+    .video-label {
+      position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.6);
+      color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 6px;
+    }
+    .placeholder {
+      position: absolute; inset: 0; display: flex; align-items: center;
+      justify-content: center; color: #b2bec3; font-size: 13px;
+    }
+    .status {
+      font-size: 12px; color: #636e72; margin-top: 10px;
+      font-family: monospace; white-space: pre-wrap; line-height: 1.5;
+    }
+    .status .ok { color: #00b894; }
+    .status .err { color: #d63031; }
+    #config-msg { font-size: 12px; color: #e17055; margin-top: 8px; }
+    @media (max-width: 640px) {
+      .form-grid, .videos { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body data-page-node-id="YbgrNLOLXpOEki7hXvcL3H">
+  <div class="container" data-page-node-id="wiqKAfsujFikA9eyxzG5dh">
+    <h1 data-page-node-id="qRXJDbWHBTgqFInUbiBtZI">📹 TRTC 视频通话自测 Demo</h1>
+    <p class="sub" data-page-node-id="vqcfZRXI51qDcArnZCT9ub">SDKAppID 与签名服务已内置。开两个浏览器窗口用不同 userID + 相同 roomId 即可互打视频通话。</p>
+
+    <div class="card" data-page-node-id="jfGygRvE1q5ufHvCpM36fp">
+      <h2 data-page-node-id="ZAhLuWf0pyIyoxOIKKyKux">1. 配置</h2>
+      <p class="sub" data-page-node-id="VqXWf0pyIyoxOIKKyKux1">SDKAppID 和签名服务地址已内置，无需填写。</p>
+      <div class="form-grid" data-page-node-id="FXKUhfVe7ajuMBtWMRLxv7">
+        <div data-page-node-id="qgdojs0dMbZHnh3ufR42ti">
+          <label data-page-node-id="H4fsuzWe0K2TB7KiMpsLRk">用户ID（本窗口）</label>
+          <input id="userId" placeholder="如 alice（A/B 窗口要用不同的）" data-page-node-id="22ytBnqG5TEm8RJZ9OLwdl" />
+        </div>
+        <div data-page-node-id="Ct4jCqYRgnQhv3CTN1P9q5">
+          <label data-page-node-id="WzEdLviD2eGAizX4DJAixZ">房间号（两个窗口保持一致）</label>
+          <input id="roomId" placeholder="如 10001（正整数）" data-page-node-id="RYAUM3FQedFSRcbB3rWYNO" />
+        </div>
+      </div>
+      <div id="config-msg" data-page-node-id="ehCHWtqp7dL1BrvfrcwdHN"></div>
+      <div class="btn-row" data-page-node-id="AGhH0bpeGydQRBMChEB9NC">
+        <button id="joinBtn" class="btn btn-primary" data-page-node-id="kRKHgiftrkvX6g4MBNV41h">🔗 进房通话</button>
+        <button id="leaveBtn" class="btn btn-danger" disabled data-page-node-id="iMFWkDzOgdHvtGM9Yo6vAo">📴 退出房间</button>
+      </div>
+      <div class="status" id="status" data-page-node-id="Leg9Fki844kfgqtRWEHoit">等待配置并进房…</div>
+    </div>
+
+    <div class="card" data-page-node-id="vzfcn7WbKnL0c8XbwWX1T1">
+      <h2 data-page-node-id="ttUd9gTyIriGWyTpBEhpBB">2. 视频画面</h2>
+      <div class="videos" data-page-node-id="EgDQ1YqtZeBGMjb1DdhNf7">
+        <div class="video-box" data-page-node-id="huArOSKyOPCMIF8HCgzDkV">
+          <div class="placeholder" id="localPh" data-page-node-id="47JEQ3bJuhDDnkUoWNU013">本地视频（我）</div>
+          <div id="localVideo" style="width:100%;height:100%;display:none" data-page-node-id="aHdCF18WDVDH1xR7zHf9eT"></div>
+          <div class="video-label" data-page-node-id="eHzTr2ALuZ01VG8zXCDYQW">本地（我）</div>
+        </div>
+        <div class="video-box" data-page-node-id="6nJ5xrEzLdFNHpdAH2noQb">
+          <div class="placeholder" id="remotePh" data-page-node-id="FEfjhG7xgaw3U1B9gVVVKp">远端视频（对方）</div>
+          <div id="remoteVideo" style="width:100%;height:100%" data-page-node-id="D2BBaxw9jqLOBAcR6s8rsn"></div>
+          <div class="video-label" data-page-node-id="hJMA5EXzNso1hHiFZVrpSf">远端（对方）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 腾讯云 TRTC Web SDK v4 -- 本地托管（trtc-sdk.js），避免外网 CDN 不稳定/失效 -->
+  <script src="trtc-sdk.js"></script>
+  <script>
+    // ---------- 全局状态 ----------
+    // 内置配置（方案 B：写死，无需用户在页面填写）
+    const SDK_APP_ID = 1600136959;             // 你的腾讯云 TRTC 应用 ID
+    const SIGN_URL = '';                        // 空 = 同源（页面由 Go 服务托管，自动用当前地址）
+
+    let client = null;      // TRTC Client
+    let localStream = null; // 本地流
+    let remoteVideo = null; // 远端流播放对象
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $('status');
+
+    // 简单的状态输出（追加行）
+    function log(msg, cls = '') {
+      const line = document.createElement('div');
+      line.className = cls;
+      line.textContent = '> ' + msg;
+      statusEl.appendChild(line);
+      statusEl.scrollTop = statusEl.scrollHeight;
+    }
+    function clearLog() { statusEl.innerHTML = ''; }
+
+    // ---------- 读取配置 ----------
+    function getConfig() {
+      const sdkAppId = SDK_APP_ID;
+      const signUrl = SIGN_URL || location.origin; // 同源时用当前页面地址
+      const userId = $('userId').value.trim();
+      const roomId = parseInt($('roomId').value.trim(), 10);
+      if (!sdkAppId || isNaN(sdkAppId)) return { error: '内置 SDKAppID 无效' };
+      if (!userId) return { error: '请填写用户ID' };
+      if (!roomId || isNaN(roomId)) return { error: '请填写正确的房间号（正整数）' };
+      return { sdkAppId, signUrl, userId, roomId };
+    }
+
+    // ---------- 从 Go 后端取 userSig ----------
+    async function fetchUserSig(signUrl, userId, roomId) {
+      const url = `${signUrl}/api/token?userId=${encodeURIComponent(userId)}&roomId=${roomId}`;
+      log(`请求签名服务: ${url}`);
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `签名服务返回 ${resp.status}`);
+      }
+      const data = await resp.json();
+      if (!data.userSig) throw new Error('签名服务未返回 userSig');
+      log(`已获取 userSig (长度 ${data.userSig.length})`, 'ok');
+      return data.userSig;
+    }
+
+    // ---------- 进房 ----------
+    async function join() {
+      try {
+        const cfg = getConfig();
+        if (cfg.error) { log(cfg.error, 'err'); return; }
+
+        // 防重复进房：如果已存在 client（上次进房未退出），先清理干净，避免状态污染
+        if (client) {
+          log('检测到已有连接，先退出旧会话…');
+          await leave();
+        }
+
+        if (!window.TRTC) {
+          log('❌ TRTC SDK 未加载。可能原因：① 网络无法访问外网 CDN(cdn.jsdelivr.net)；② 浏览器拦截了第三方脚本；③ CDN 地址失效。', 'err');
+          log('解决办法：确认能打开 https://cdn.jsdelivr.net/npm/trtc-js-sdk@4.15.22/trtc.umd.js，或更换网络/浏览器后刷新页面重试。', 'err');
+          return;
+        }
+
+        // 浏览器兼容性检查（isSupported 在部分版本不是顶层方法，做容错；非进房必需）
+        if (typeof TRTC.isSupported === 'function') {
+          try {
+            const support = await TRTC.isSupported();
+            const ok = support && support.result !== false;
+            if (!ok) { log('当前浏览器不支持 WebRTC，请用 Chrome/Edge/Firefox', 'err'); return; }
+          } catch (e) { log('浏览器检测跳过: ' + e.message); }
+        }
+
+        clearLog();
+        log(`进房参数: sdkAppId=${cfg.sdkAppId} userId=${cfg.userId} roomId=${cfg.roomId}`);
+
+        const userSig = await fetchUserSig(cfg.signUrl, cfg.userId, cfg.roomId);
+
+        // 1. 创建客户端
+        client = TRTC.createClient({
+          mode: 'rtc',
+          sdkAppId: cfg.sdkAppId,
+          userId: cfg.userId,
+          userSig,
+        });
+
+        // 2. 进房前监听远端流
+        client.on('stream-added', (event) => {
+          const stream = event.stream;
+          log(`收到远端流: ${stream.getUserId()} (${stream.getType()})`);
+          client.subscribe(stream).catch((e) => log('订阅远端流失败: ' + e, 'err'));
+        });
+        client.on('stream-subscribed', (event) => {
+          const stream = event.stream;
+          log(`已订阅远端流: ${stream.getUserId()}`, 'ok');
+          playRemote(stream);
+        });
+        client.on('stream-removed', () => {
+          log('远端流已移除', 'err');
+          hideRemote();
+        });
+        client.on('peer-leave', (event) => {
+          log(`远端用户离开: ${event.userId}`);
+          hideRemote();
+        });
+        client.on('error', (e) => log('客户端错误: ' + JSON.stringify(e), 'err'));
+
+        // 3. 进房
+        await client.join({ roomId: cfg.roomId });
+        log('✅ 进房成功', 'ok');
+
+        // 4. 创建并初始化本地流
+        localStream = TRTC.createStream({
+          userId: cfg.userId,
+          audio: true,
+          video: true,
+          screen: false,
+        });
+        await localStream.initialize();
+        log('✅ 本地音视频采集成功', 'ok');
+
+        // 5. 预览本地视频
+        playLocal(localStream);
+
+        // 6. 发布本地流
+        await client.publish(localStream);
+        log('✅ 本地流已发布', 'ok');
+
+        $('joinBtn').disabled = true;
+        $('leaveBtn').disabled = false;
+        log('🎉 通话中… 请在另一个窗口用不同 userID、相同 roomId 加入', 'ok');
+      } catch (e) {
+        log('进房/通话失败: ' + e.message + ' ' + e, 'err');
+        cleanup();
+      }
+    }
+
+    // ---------- 播放本地流 ----------
+    function playLocal(stream) {
+      // #localVideo 现在是 div 容器，stream.play 会在容器内自动创建 video 播放
+      $('localVideo').style.display = 'block';   // 关键：显示容器
+      $('localPh').style.display = 'none';
+      log('预览本地视频…');
+      // stream.play 返回 Promise（或接收回调），失败要捕获，否则画面出不来却不报错
+      const playPromise = stream.play('localVideo', { objectFit: 'cover' });
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(() => {
+          log('✅ 本地视频画面已显示', 'ok');
+        }).catch((e) => {
+          log('❌ 本地视频播放失败: ' + (e && e.message ? e.message : e), 'err');
+        });
+      } else if (typeof playPromise === 'function') {
+        // 旧版本用回调
+        playPromise(() => log('✅ 本地视频画面已显示', 'ok'));
+      }
+    }
+
+    // ---------- 播放远端流 ----------
+    function playRemote(stream) {
+      $('remotePh').style.display = 'none';
+      // 远端视频放入 #remoteVideo 容器（TRTC 会自动创建 video）
+      stream.play('remoteVideo');
+      remoteVideo = stream;
+    }
+    function hideRemote() {
+      $('remotePh').style.display = 'flex';
+      const box = $('remoteVideo');
+      box.innerHTML = '';
+      if (remoteVideo) { try { remoteVideo.stop(); } catch (e) {} }
+      remoteVideo = null;
+    }
+
+    // ---------- 退出 ----------
+    async function leave() {
+      try {
+        if (localStream) {
+          localStream.stop(); localStream.close();
+          localStream = null;
+        }
+        if (client) {
+          await client.leave();
+        }
+        log('已退出房间', 'ok');
+      } catch (e) {
+        log('退房异常: ' + e, 'err');
+      } finally {
+        cleanup();
+      }
+    }
+
+    // ---------- 资源清理 ----------
+    function cleanup() {
+      // 本地视频容器（div）复位 + 清空容器内残留的 video（关键！否则重新进房会复用旧video导致画面黑）
+      $('localVideo').innerHTML = '';
+      $('localVideo').style.display = 'none';
+      $('localPh').style.display = 'flex';
+      // 远端视频容器清空并复位
+      $('remoteVideo').innerHTML = '';
+      $('remotePh').style.display = 'flex';
+      remoteVideo = null;
+
+      if (localStream) { try { localStream.stop(); localStream.close(); } catch (e) {} localStream = null; }
+      if (client) { try { client.destroy(); } catch (e) {} client = null; }
+
+      $('joinBtn').disabled = false;
+      $('leaveBtn').disabled = true;
+    }
+
+    // ---------- 事件绑定 ----------
+    $('joinBtn').addEventListener('click', join);
+    $('leaveBtn').addEventListener('click', leave);
+  </script>
+</body>
+</html>
