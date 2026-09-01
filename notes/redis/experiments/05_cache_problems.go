@@ -87,6 +87,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -133,7 +134,8 @@ func ExpCachePenetration(ctx context.Context) {
 
 	fmt.Printf("  100 次并发查询不存在的 key\n")
 	fmt.Printf("  实际打到 DB 的次数: %d\n", atomic.LoadInt64(&dbHits))
-	fmt.Println("  结论: 空值缓存后只有第一次穿透,后续全部命中缓存\n")
+	fmt.Println("  结论: 空值缓存能挡住后续请求,但首波并发在回填完成前存在竞态窗口,")
+	fmt.Println("        仍有多个请求同时打到 DB —— 要收窄到 1 次,需配合互斥锁/singleflight(见实验16)\n")
 
 	rdb.Del(ctx, "user:99999")
 }
@@ -240,9 +242,9 @@ func ExpCacheAvalanche(ctx context.Context) {
 		rdb.Set(ctx, fmt.Sprintf("avalanche:uniform:%d", i), i, 2*time.Second)
 	}
 
-	// 随机过期:TTL 在 2~4 秒之间随机
+	// 随机过期:TTL 在 2~4 秒之间随机打散
 	for i := 0; i < n; i++ {
-		jitter := time.Duration(i%2000) * time.Millisecond
+		jitter := time.Duration(rand.Intn(2000)) * time.Millisecond
 		rdb.Set(ctx, fmt.Sprintf("avalanche:random:%d", i), i, 2*time.Second+jitter)
 	}
 
@@ -291,6 +293,8 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 	// 初始状态:缓存和 DB 都是旧值
 	rdb.Set(ctx, key, "old_value", time.Minute)
 	dbValue := "old_value"
+	// dbValue 会被写 goroutine 修改、读 goroutine 读取,必须加锁避免 data race
+	var mu sync.Mutex
 
 	var wg sync.WaitGroup
 
@@ -300,7 +304,9 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 		rdb.Del(ctx, key)
 		// 更新 DB
 		time.Sleep(5 * time.Millisecond)
+		mu.Lock()
 		dbValue = "new_value"
+		mu.Unlock()
 		// sleep 后第二次删缓存(等读线程可能的回填完成)
 		time.Sleep(50 * time.Millisecond)
 		rdb.Del(ctx, key)
@@ -338,7 +344,9 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 		if err != nil {
 			// 缓存 miss(主动删除或自然过期都会走到这里)
 			// 此时 DB 还是旧值,读线程拿到旧值回填
+			mu.Lock()
 			val = dbValue
+			mu.Unlock()
 			rdb.Set(ctx, key, val, time.Minute)
 		}
 		fmt.Printf("  读线程回填值: %s  (此时 DB 还是旧值,已造成脏缓存)\n", val)
@@ -353,7 +361,9 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 		final = "(已删除,下次读会从 DB 取到新值)"
 	}
 	fmt.Printf("  双删后缓存值: %s\n", final)
+	mu.Lock()
 	fmt.Printf("  DB 当前值:    %s\n", dbValue)
+	mu.Unlock()
 	fmt.Println("  结论: 延迟双删消除了读线程回填旧值的窗口期\n")
 
 	rdb.Del(ctx, key)

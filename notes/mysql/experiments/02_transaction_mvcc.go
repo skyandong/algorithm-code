@@ -15,10 +15,11 @@
 //
 // 实验项：
 //
-//	Exp1：RC vs RR — 不可重复读 & 可重复读
-//	Exp2：脏读演示 — READ UNCOMMITTED 能读到未提交数据
-//	Exp3：幻读 — RR 快照读 vs FOR UPDATE 当前读的差异
-//	Exp4：两阶段提交可见性 — 事务提交顺序与可见性
+//	Exp1：可重复读(RR) — 两次读结果一致
+//	Exp2：不可重复读(RC) — 每次读最新已提交
+//	Exp3：幻读 — 快照读 vs 当前读（含 Gap Lock 说明）
+//	Exp4：快照读 vs 当前读 — 同一事务看到不同结果
+//	Exp5：转账原子性 — 余额不足回滚
 
 package main
 

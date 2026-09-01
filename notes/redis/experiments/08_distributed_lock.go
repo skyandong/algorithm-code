@@ -98,6 +98,14 @@ if redis.call('get', KEYS[1]) == ARGV[1] then
 else
     return 0
 end`
+
+	// renewScript 续期前先校验锁归属,防止误续别人的锁
+	renewScript = `
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('pexpire', KEYS[1], ARGV[2])
+else
+    return 0
+end`
 )
 
 // tryLock 尝试获取锁,返回 token 和是否成功
@@ -246,7 +254,7 @@ func ExpLockExpiry(ctx context.Context) {
 	token3, _ := tryLock(ctx, lockKey, 300*time.Millisecond)
 	fmt.Printf("  watchdog 方案: 加锁 TTL=300ms\n")
 
-	// 启动 watchdog:每 100ms 续期一次
+	// 启动 watchdog:每 100ms 续期一次(先校验锁还是自己的,再续期)
 	done := make(chan struct{})
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -257,8 +265,8 @@ func ExpLockExpiry(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				// 续期:重置 TTL
-				rdb.PExpire(ctx, lockKey, 300*time.Millisecond)
+				// Lua 原子续期:token 匹配才 PEXPIRE,避免误续别人的锁
+				rdb.Eval(ctx, renewScript, []string{lockKey}, token3, "300")
 				fmt.Println("  watchdog: 续期一次")
 			case <-done:
 				return

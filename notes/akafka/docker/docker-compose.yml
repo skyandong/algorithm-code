@@ -27,6 +27,5 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-
 volumes:
   kafka-data:

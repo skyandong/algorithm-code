@@ -13,9 +13,11 @@
 //
 // 实验项：
 //
-//	Exp1：SELECT FOR UPDATE vs LOCK IN SHARE MODE 的互斥关系
-//	Exp2：死锁复现与检测
-//	Exp3：间隙锁导致插入阻塞
+//	Exp1：FOR UPDATE X 锁互斥 — 第二个事务阻塞等待
+//	Exp2：死锁复现 — 反序加锁，InnoDB 自动回滚一方
+//	Exp3：间隙锁阻塞插入 — 范围 FOR UPDATE 挡住间隙内 INSERT
+//	Exp4：无索引 UPDATE 退化表锁
+//	Exp5：SKIP LOCKED 任务队列并发抢占
 
 package main
 

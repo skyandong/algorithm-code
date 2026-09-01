@@ -72,7 +72,7 @@ channel
 - `recvq`：接收无法继续时等待的 goroutine 队列；
 - `lock`：保护 channel 内部状态。
 
-注意：runtime 内部结构属于实现细节，版本之间可能变化。本文中的源码逻辑以 Go 1.26.3 为参考，稳定的行为应以 Go 语言规范为准。
+注意：runtime 内部结构属于实现细节，版本之间可能变化。本文中的源码逻辑以 Go 1.26.3 为参考，稳定的行为应以 Go 语言规范为准。上面的结构是简化版：Go 1.26.3 的实际 `hchan` 还有 `bubble` 字段（`testing/synctest` 的泡隔离检查）和 `timer` 字段（`time.After` 等创建的 timer channel 使用），不影响本文讨论的常规语义。
 
 ---
 

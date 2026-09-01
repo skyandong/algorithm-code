@@ -68,8 +68,8 @@ race detector 不能证明程序不存在所有并发错误，但能发现许多
 常见的同步关系包括：
 
 - mutex 的 `Unlock` happens-before 之后成功获得的 `Lock`；
-- channel 的发送完成与对应接收建立同步；
-- 关闭 channel happens-before 接收者观察到关闭；
+- 无缓冲 channel 的第 k 次接收 happens-before 第 k 次发送完成；有缓冲 channel 的第 k 次发送 happens-before 第 k 次接收完成；
+- 关闭 channel happens-before 因关闭而返回零值的接收；
 - atomic 操作按照其内存顺序建立同步关系；
 - `WaitGroup.Wait` 返回前，相关任务必须已经完成；
 - `sync.Once.Do` 返回时，初始化函数已经完成执行。

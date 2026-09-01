@@ -82,6 +82,8 @@ SELECT
 FROM class_info c
 LEFT JOIN student_score s ON c.class_id = s.class_id
 WHERE s.score >= 60                        -- ✓ WHERE 先过滤:只算及格的人(减少聚合输入)
+                                            -- 注意:对右表列加 WHERE 会过滤掉 NULL 行,LEFT JOIN 退化成 INNER 语义;
+                                            -- 需保留无匹配维度时,右表过滤条件应写进 JOIN ON
 GROUP BY c.class_id, c.class_name
 HAVING avg_score >= 75;                    -- ✓ HAVING 再过滤:班级平均 >= 75(过滤聚合结果)
 ```
@@ -89,7 +91,9 @@ HAVING avg_score >= 75;                    -- ✓ HAVING 再过滤:班级平均 
 **反例(把能放 WHERE 的条件塞进 HAVING):**
 
 ```sql
--- 不好:score >= 60 不是聚合条件,放 HAVING 里也能跑,但所有行都进了聚合,白白多算
+-- 不好:score >= 60 不是聚合条件,放 HAVING 里直接报错——非聚合且不在 GROUP BY 中的列
+-- 不能进 HAVING(8.0 默认 only_full_group_by 下 Error 1055);
+-- 即使关掉 only_full_group_by,也是所有行都进了聚合,白白多算
 SELECT
     c.class_name,                          -- 班级名称
     COUNT(*) AS student_num,
@@ -97,7 +101,7 @@ SELECT
 FROM class_info c
 LEFT JOIN student_score s ON c.class_id = s.class_id
 GROUP BY c.class_id, c.class_name
-HAVING avg_score >= 75 AND s.score >= 60;  -- 不推荐:score >= 60 是行级过滤,应该放 WHERE
+HAVING avg_score >= 75 AND s.score >= 60;  -- s.score 报 Error 1055;行级过滤应该放 WHERE
 ```
 
 **原则:** 行级条件(不涉及聚合)放 WHERE,组级条件(涉及聚合)放 HAVING。
@@ -124,9 +128,9 @@ HAVING avg_score >= 75;                    -- ✓ MySQL 允许直接用别名
 
 | 场景 | 用 WHERE | 用 HAVING |
 |---|---|---|
-| `score > 60`(行级过滤) | ✓ | ✗(能跑但不推荐) |
+| `score > 60`(行级过滤) | ✓ | ✗(不在 GROUP BY 中的列报 Error 1055) |
 | `AVG(score) > 70`(聚合过滤) | ✗(报错) | ✓ |
-| `student_name = '小明'`(行级) | ✓ | ✓(不推荐) |
+| `student_name = '小明'`(行级) | ✓ | ✗(同上,除非该列在 GROUP BY 中) |
 | `COUNT(*) > 3`(聚合过滤) | ✗(报错) | ✓ |
 | 减少聚合输入量 | ✓ | ✗ |
 
@@ -150,7 +154,7 @@ GROUP BY g.grade_id, g.grade_name, c.class_id, c.class_name;
 | 位置 | 能用别名 `class_avg`? | 实测 |
 |---|---|---|
 | `WHERE class_avg >= 70` | ✗ 不能 | `Error 1054: Unknown column 'class_avg' in 'where clause'` |
-| `GROUP BY class_avg` | ✗ 不能 | 别名在 GROUP BY 之后才生成 |
+| `GROUP BY class_avg` | ✗ 不能 | 普通列别名其实可用于 GROUP BY;这里是聚合表达式的别名,GROUP BY 中不允许出现聚合函数,报 `Invalid use of group function` |
 | `HAVING class_avg >= 70` | ✓ 能 | MySQL 特例,标准 SQL 不允许 |
 | 普通 `ORDER BY class_avg` | ✓ 能 | ORDER BY 在 SELECT 之后执行 |
 | 窗口函数 `ORDER BY class_avg` | ✗ **不能** | `Error 1054: Unknown column 'class_avg' in 'window order by'` |

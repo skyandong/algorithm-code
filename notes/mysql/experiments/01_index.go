@@ -12,6 +12,10 @@
 //	Exp2：覆盖索引 — Using index vs 回表(Using where)
 //	Exp3：联合索引最左前缀 — 哪些查询能命中索引
 //	Exp4：索引失效场景 — 函数运算、隐式转换、左模糊
+//	Exp5：最左前缀 key_len 验证
+//	Exp6：扩展索引消灭回表
+//	Exp7：联合索引列顺序（等值在前 vs 范围在前）
+//	Exp8：索引选择性（Cardinality）
 
 package main
 
@@ -154,7 +158,7 @@ func RunIndexExperiments(db *gorm.DB) {
 	// 左模糊：LIKE '%xxx'，索引无法确定起始键
 	// 先给 remark 加临时索引演示（实际项目中 remark 一般不加索引）
 	db.Exec("ALTER TABLE orders ADD INDEX idx_remark(remark(64))")
-	fmt.Println("[左模糊] WHERE remark LIKE '%test'  (期望 type=ALL)")
+	fmt.Printf("[左模糊] WHERE remark LIKE '%%test'  (期望 type=ALL)\n")
 	printExplain(db, "SELECT id FROM orders WHERE remark LIKE '%test'")
 	fmt.Println("[右前缀] WHERE remark LIKE 'test%'  (期望 type=range，前缀可以走索引)")
 	printExplain(db, "SELECT id FROM orders WHERE remark LIKE 'test%'")
@@ -203,7 +207,7 @@ func RunIndexExperiments(db *gorm.DB) {
 	printExplainWithKeyLen(db, "SELECT id FROM orders WHERE user_id=? AND created_at>?", 1, "2024-01-01")
 	db.Exec("ALTER TABLE orders DROP INDEX idx_cat_uid")
 
-	fmt.Println("\n=== 实验9: 索引选择性（Cardinality）===")
+	fmt.Println("\n=== 实验8: 索引选择性（Cardinality）===")
 	// 选择性 = COUNT(DISTINCT col) / COUNT(*)，越接近 1 越值得建索引
 	// status 只有 0/1/2，选择性极低；user_id 有 10 个值；id 唯一，选择性=1
 	type CardRow struct {

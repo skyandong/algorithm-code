@@ -78,6 +78,14 @@ func Exp1Pipelining(ctx context.Context) {
 	fmt.Printf("pipeline %d 次 SET: %v\n", n, pipe)
 	fmt.Printf("提速: %.1fx  <- 瓶颈是网络 RTT, pipeline 把 N 次 RTT 压成 1 次\n\n",
 		float64(seq.Nanoseconds())/float64(pipe.Nanoseconds()))
+
+	// 清理基准 key,避免污染后续实验(SCAN/KEYS 等)
+	del := rdb.Pipeline()
+	for i := 0; i < n; i++ {
+		del.Del(ctx, fmt.Sprintf("bench:seq:%d", i))
+		del.Del(ctx, fmt.Sprintf("bench:pipe:%d", i))
+	}
+	del.Exec(ctx)
 }
 
 // Exp2SingleThreadBlock 实验2: 单线程阻塞
@@ -152,4 +160,13 @@ func Exp3ConcurrentThroughput(ctx context.Context) {
 	fmt.Printf("%d 并发客户端 × %d 次 SET = %d 次, 耗时 %v\n", clients, perClient, total, dur)
 	fmt.Printf("吞吐: %.0f ops/sec\n", float64(total)/dur.Seconds())
 	fmt.Println("结论: 单线程 Redis 靠 epoll 多路复用, 同时服务大量并发连接\n")
+
+	// 清理 10 万个测试 key,避免污染实例内存和后续 SCAN/KEYS 实验
+	del := rdb.Pipeline()
+	for c := 0; c < clients; c++ {
+		for i := 0; i < perClient; i++ {
+			del.Del(ctx, fmt.Sprintf("conc:%d:%d", c, i))
+		}
+	}
+	del.Exec(ctx)
 }

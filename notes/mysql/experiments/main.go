@@ -37,7 +37,11 @@ func main() {
 		RunLockExperiments(db)
 	case "log":
 		RunLogExperiments(db)
+	case "join":
+		RunJoinExperiments(db)
+	case "aggregate":
+		RunAggregateExperiments(db)
 	default:
-		fmt.Println("用法: go run ./experiments/ [index|transaction|lock|log]")
+		fmt.Println("用法: go run ./experiments/ [index|transaction|lock|log|join|aggregate]")
 	}
 }

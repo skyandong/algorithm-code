@@ -99,7 +99,9 @@ func mastersWaitMany() {
 
 // mastersGOMAXPROCS1 笔记 4 §2.1：单核上并发执行但非并行。
 func mastersGOMAXPROCS1() {
-	runtime.GOMAXPROCS(1)
+	prev := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(prev) // 恢复，避免影响后续实验
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -118,11 +120,14 @@ func mastersGOMAXPROCS1() {
 	}()
 
 	wg.Wait()
-	fmt.Println("\n（GOMAXPROCS=1：第一个 goroutine 先跑完，第二个才开始）")
+	fmt.Println("\n（GOMAXPROCS=1：两个 goroutine 不交错，哪个先跑完由调度决定，与启动顺序无关）")
 }
 
-// mastersGoschedSay 笔记 4 §4.1：Gosched 主动让出时间片，实现交替输出。
+// mastersGoschedSay 笔记 4 §4.1：Gosched 主动让出时间片，实现交替输出（文档注明 GOMAXPROCS=1 时）。
 func mastersGoschedSay() {
+	prev := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(prev) // 单核下 Gosched 的交替效果最明显
+
 	say := func(s string, wg *sync.WaitGroup) {
 		defer wg.Done()
 		for i := 0; i < 5; i++ {
@@ -136,7 +141,7 @@ func mastersGoschedSay() {
 	go say("world", &wg)
 	say("hello", &wg)
 	wg.Wait()
-	fmt.Println("（Gosched 让两个 goroutine 交替执行）")
+	fmt.Println("（Gosched 让两个 goroutine 交替执行；多核下则可能各自连续输出，交替无保证）")
 }
 
 // mastersChannelSum 笔记 4 §4.1：两个 goroutine 各算一半，channel 汇总。

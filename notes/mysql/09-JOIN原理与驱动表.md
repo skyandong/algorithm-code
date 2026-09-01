@@ -84,8 +84,8 @@ FROM class_info c           -- 班级表(小表,建哈希表,放内存)
 JOIN student_score s        -- 成绩表(大表,扫一遍,探测哈希表)
   ON s.class_id = c.class_id; -- JOIN 列(无索引也能用 Hash Join)
 -- 成本 O(N+M),比 BNLJ 快很多
--- MySQL 8.0.18+ 自动选,替代了 BNLJ
--- EXPLAIN 的 Extra 会出现 "Using join buffer (hash join)" 或 "Extra: Hash Join"
+-- MySQL 8.0.18+ 自动选,替代了 BNLJ(8.0.20 起彻底移除 BNLJ)
+-- EXPLAIN 的 Extra 会出现 "Using join buffer (hash join)"（裸的 "hash join" 节点名只在 FORMAT=TREE/ANALYZE 树形输出中出现）
 ```
 
 Hash Join 让"小表建哈希"成为关键 → 建哈希那方还是越小越好，但整体成本从 `O(N×M)` 降到 `O(N+M)`，**驱动表大小的权重下降**。
@@ -206,3 +206,19 @@ SELECT * FROM (
 - MySQL 8.0.18+ 无索引 JOIN 用 Hash Join，成本 `O(N+M)`，驱动表大小权重下降。
 - 优化器自动选驱动表，书写顺序不一定生效；要强制用 `STRAIGHT_JOIN`。
 - **功能依赖能省 GROUP BY 列,仅限"GROUP BY 列唯一决定 SELECT 列"——一对多 JOIN 后 `select *` + GROUP BY 必挂 Error 1055。**
+
+---
+
+## 七、实验
+
+对应代码：[experiments/06_join.go](experiments/06_join.go)
+
+```bash
+go run ./experiments/ join
+```
+
+实验内容：
+1. Index NLJ：被驱动表 JOIN 列有二级索引，type=ref（STRAIGHT_JOIN 固定驱动表观察）
+2. 无索引场景：8.0.18+ 自动 Hash Join（Extra=Using join buffer (hash join)）
+3. 优化器自动调换驱动表：不加 STRAIGHT_JOIN 时反走 class_info 主键（eq_ref）
+4. 三表 JOIN 驱动表选择 + STRAIGHT_JOIN 强制顺序对比

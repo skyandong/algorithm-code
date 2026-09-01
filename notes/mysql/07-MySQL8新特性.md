@@ -111,4 +111,6 @@ CREATE TABLE t (
 -- ci = case insensitive（不区分大小写）
 ```
 
-**迁移注意：** 老库从 utf8 迁到 utf8mb4 时，`VARCHAR(255)` 在 utf8 下是 765 字节，utf8mb4 下是 1020 字节，超过索引单列长度限制（767 字节），需要改用前缀索引或缩短列长度。
+**迁移注意：** 老库从 utf8 迁到 utf8mb4 时，`VARCHAR(255)` 在 utf8 下是 765 字节，utf8mb4 下是 1020 字节。
+- 5.6 及以前（Compact 行格式 + `innodb_large_prefix=OFF`）：索引单列限制 **767 字节**，utf8mb4 下 `VARCHAR(255)` 直接建索引会报错，需前缀索引或缩短列
+- 5.7+ / 8.0（DYNAMIC 行格式）：限制放宽到 **3072 字节**，`VARCHAR(255)` utf8mb4 建索引没问题；但联合索引各列总长度仍受 3072 限制

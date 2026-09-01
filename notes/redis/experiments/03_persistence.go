@@ -91,12 +91,14 @@ import (
 
 // ExpBgsave 实验11: 触发 bgsave,观察 fork 耗时和 RDB 状态
 //
-// INFO persistence 关键字段:
+// INFO 关键字段:
 //
 //	rdb_last_bgsave_status   上次 bgsave 结果(ok/err)
 //	rdb_last_bgsave_time_sec 上次 bgsave 耗时(秒)
 //	rdb_last_save_time       上次成功保存的 unix 时间戳
 //	latest_fork_usec         上次 fork 耗时(微秒) ← 监控 fork 阻塞的核心指标
+//	                         注意版本差异:6.x 在 INFO stats 里,7.x 在 INFO persistence 里,
+//	                         所以这里直接查全量 INFO 兜底
 func ExpBgsave(ctx context.Context) {
 	fmt.Println("=== 实验11: bgsave + fork 耗时 ===")
 
@@ -112,7 +114,8 @@ func ExpBgsave(ctx context.Context) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	info, _ := rdb.Info(ctx, "persistence").Result()
+	// 全量 INFO:latest_fork_usec 的所在 section 随版本变化
+	info, _ := rdb.Info(ctx).Result()
 	for _, line := range strings.Split(info, "\r\n") {
 		switch {
 		case strings.HasPrefix(line, "rdb_last_bgsave_status"),
@@ -130,18 +133,22 @@ func ExpBgsave(ctx context.Context) {
 // 通过 CONFIG SET 动态切换 fsync 策略,对比相同写入量下的耗时。
 // 生产不要随意切换 always,这里仅用小数据量演示差距。
 //
-// 预期输出:
+// 预期输出(真实机械盘/高写入量下):
 //
 //	always   最慢(每条命令都等刷盘)
 //	everysec 中间
 //	no       最快(OS 决定刷盘时机)
+//
+// 注意:本地 docker(macOS 文件系统 fsync 语义弱)+ 逐条命令 RTT 主导的环境下,
+// 三档差距可能淹没在网络噪声里 —— 这本身就是个实验结论:fsync 的代价要在
+// 真实磁盘和批量写入下才显著。
 func ExpAofFsync(ctx context.Context) {
 	fmt.Println("=== 实验12: fsync 策略写入吞吐对比 ===")
 
 	// 先查当前 AOF 是否开启
 	cfg, _ := rdb.ConfigGet(ctx, "appendonly").Result()
 	aofEnabled := false
-	if len(cfg) >= 2 {
+	if len(cfg) >= 1 {
 		aofEnabled = cfg["appendonly"] == "yes"
 	}
 	if !aofEnabled {
@@ -175,24 +182,28 @@ func ExpAofFsync(ctx context.Context) {
 			rdb.Del(ctx, fmt.Sprintf("fsync:%s:%d", s, i))
 		}
 	}
-	fmt.Println("结论: always 每条刷盘最安全但最慢;everysec 是性能与安全的最佳平衡;no 最快但宕机丢得多\n")
+	fmt.Println("结论: 理论上 always 每条刷盘最安全但最慢,everysec 是性能与安全的最佳平衡")
+	fmt.Println("      本地 docker 环境下差距可能不明显(fsync 语义弱 + RTT 主导),真实磁盘上才显著\n")
 }
 
 // ExpCowMemory 实验13: bgsave 期间 COW 内存变化
 //
-// bgsave 期间持续写入,观察 used_memory 增长。
-// 写量越大,COW 复制越多,内存涨得越多。
+// 关键认知:COW 复制的页是内核层面的开销,体现在进程 RSS(used_memory_rss),
+// Redis 自身视角的 used_memory 根本看不到 COW —— 它只统计自己申请的内存。
+// 所以本实验同时观察两个指标:
+//
+//	used_memory      Redis 自身申请的内存(新增 key 会涨,与 COW 无关)
+//	used_memory_rss  OS 视角的进程常驻内存(COW 复制会让它超出 used_memory 的涨幅)
 //
 // 预期输出:
 //
-//	bgsave 前:   used_memory = X
-//	bgsave 期间: used_memory > X  ← COW 复制导致增长
-//	bgsave 后:   used_memory 回落
+//	bgsave 期间持续写入 → used_memory_rss 的涨幅超过 used_memory 的涨幅(差值就是 COW)
+//	bgsave 结束后 RSS 回落(子进程退出,复制的页被释放)
 func ExpCowMemory(ctx context.Context) {
 	fmt.Println("=== 实验13: bgsave 期间 COW 内存变化 ===")
 
-	memBefore := usedMemory(ctx)
-	fmt.Printf("  bgsave 前 used_memory: %d KB\n", memBefore/1024)
+	memBefore, rssBefore := usedMemory(ctx), rssMemory(ctx)
+	fmt.Printf("  bgsave 前:   used_memory=%d KB  rss=%d KB\n", memBefore/1024, rssBefore/1024)
 
 	// 触发 bgsave
 	rdb.BgSave(ctx)
@@ -204,9 +215,11 @@ func ExpCowMemory(ctx context.Context) {
 		rdb.Set(ctx, fmt.Sprintf("cow:%d", i), val, 0)
 	}
 
-	memDuring := usedMemory(ctx)
-	fmt.Printf("  bgsave 期间 used_memory: %d KB  (增加 %d KB)\n",
-		memDuring/1024, (memDuring-memBefore)/1024)
+	memDuring, rssDuring := usedMemory(ctx), rssMemory(ctx)
+	fmt.Printf("  写入 500KB:  used_memory=%d KB (涨 %d KB)  rss=%d KB (涨 %d KB)\n",
+		memDuring/1024, (memDuring-memBefore)/1024,
+		rssDuring/1024, (rssDuring-rssBefore)/1024)
+	fmt.Println("  rss 涨幅中超出 used_memory 涨幅的部分 ≈ COW 复制的页")
 
 	// 等 bgsave 完成
 	for {
@@ -217,14 +230,26 @@ func ExpCowMemory(ctx context.Context) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	memAfter := usedMemory(ctx)
-	fmt.Printf("  bgsave 后 used_memory: %d KB\n", memAfter/1024)
-	fmt.Println("结论: 写量越大 COW 复制越多,大实例 bgsave 期间内存可能翻倍,必须预留\n")
+	_, rssAfter := usedMemory(ctx), rssMemory(ctx)
+	fmt.Printf("  bgsave 后:   rss=%d KB\n", rssAfter/1024)
+	fmt.Println("结论: COW 的内存开销要看 RSS 而不是 used_memory;写量越大 COW 复制越多,")
+	fmt.Println("      大实例 bgsave 期间 RSS 可能接近翻倍,必须预留内存余量\n")
 
 	// 清理
 	for i := 0; i < 500; i++ {
 		rdb.Del(ctx, fmt.Sprintf("cow:%d", i))
 	}
+}
+
+func rssMemory(ctx context.Context) int64 {
+	info, _ := rdb.Info(ctx, "memory").Result()
+	for _, line := range strings.Split(info, "\r\n") {
+		if strings.HasPrefix(line, "used_memory_rss:") {
+			v, _ := strconv.ParseInt(strings.TrimPrefix(line, "used_memory_rss:"), 10, 64)
+			return v
+		}
+	}
+	return 0
 }
 
 // ExpAofRewrite 实验14: AOF 重写(bgrewriteaof)+ 重写缓冲区

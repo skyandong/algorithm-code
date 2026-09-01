@@ -14,7 +14,11 @@
 8. [聚合查询练习](08-聚合查询练习.md) — GROUP BY、HAVING、窗口函数、ROLLUP、找茬错题对比（含 MySQL 8 真实报错）
 9. [JOIN 原理与驱动表](09-JOIN原理与驱动表.md) — Nested Loop 三变体、驱动表选择、Hash Join、SQL 字段级注释
 10. [WHERE 与 HAVING](10-WHERE与HAVING.md) — 执行顺序、聚合过滤边界、Error 1054 报错、别名特例、速查表
-11. [面试一口答](面试一口答.md) — 考前速刷：30+ 条必须"张口就来"的核心点、高频三连问
+11. [分库分表](11-分库分表.md) — 拆分时机、分片键与分片算法、全局 ID、跨分片查询/JOIN/事务、双写迁移
+12. [Buffer Pool 与内存](12-BufferPool与内存.md) — 改进版 LRU、脏页刷新、Change Buffer、Doublewrite、AHI
+13. [主从复制与高可用](13-主从复制与高可用.md) — 复制流程、异步/半同步/MGR、GTID、并行复制、读写分离
+14. [SQL 优化实战](14-SQL优化实战.md) — 深分页、COUNT、大表 DML、批量写入、IN vs EXISTS、optimizer_trace
+15. [面试一口答](面试一口答.md) — 考前速刷：40+ 条必须"张口就来"的核心点、高频三连问
 
 ---
 
@@ -27,7 +31,13 @@ go run ./experiments/ index       # 索引：EXPLAIN 验证覆盖索引、最左
 go run ./experiments/ transaction # 事务：RC/RR 可见性、幻读、快照读 vs 当前读、转账原子性
 go run ./experiments/ lock        # 锁：X锁互斥、死锁复现、间隙锁、无索引表锁、SKIP LOCKED
 go run ./experiments/ log         # 日志：Redo Log 写入量、Binlog 格式、慢查询日志
+go run ./experiments/ join        # JOIN：Index NLJ vs Hash Join、驱动表选择、STRAIGHT_JOIN
+go run ./experiments/ aggregate   # 聚合：GROUP BY/窗口函数/ROLLUP，真实复现 Error 1054/1055
 ```
+
+其他目录：
+- `gorm/` — GORM 入门 demo（模型映射、AutoMigrate、CRUD）
+- `ent/` — ent ORM 生成代码（schema 在 `ent/schema/`，需 `go get entgo.io/ent` 后使用，独立于实验代码）
 
 ---
 
@@ -57,3 +67,22 @@ go run ./experiments/ log         # 日志：Redo Log 写入量、Binlog 格式�
 - [ ] 两阶段提交解决什么问题？崩溃恢复时怎么对账？
 - [ ] 执行 ALTER TABLE 前为什么要先查长事务？MDL 雪崩怎么发生的？
 - [ ] gh-ost 和 pt-osc 的增量同步方式有什么本质区别？
+
+**SQL 实战（JOIN / 聚合 / WHERE-HAVING）**
+- [ ] 被驱动表 JOIN 列有索引和没索引，成本公式差在哪？8.0 无索引用什么兜底？
+- [ ] "小表驱动大表"的"小"指什么？被驱动表没索引时 Extra 显示什么？
+- [ ] 一对多 JOIN + `select *` + GROUP BY 为什么必挂？三种正确写法是什么？
+- [ ] WHERE 里用聚合别名报什么错？HAVING 能用别名的依据是什么？
+- [ ] 窗口函数的 ORDER BY 里为什么不能用 SELECT 别名？
+
+**分库分表 / 内存 / 复制 / SQL 优化**
+- [ ] 单表多大才需要分库分表？拆之前先穷尽哪些手段？
+- [ ] 分片键怎么选？哈希取模扩容难在哪，翻倍扩容怎么解决？
+- [ ] UUID 为什么不适合做分库分表后的主键？雪花算法 64 位怎么分？
+- [ ] InnoDB 的 LRU 和教科书 LRU 差在哪三件事？怎么防全表扫描污染？
+- [ ] Change Buffer 为什么只对非唯一二级索引生效？
+- [ ] Doublewrite 解决什么问题？为什么 Redo Log 解决不了？
+- [ ] 半同步 AFTER_COMMIT 和 AFTER_SYNC 谁有幻读风险？
+- [ ] GTID 相比位点复制好在哪？并行复制三代演进？
+- [ ] 深分页 LIMIT 1000000,10 为什么慢？延迟关联和游标分页各治什么？
+- [ ] InnoDB COUNT(*) 为什么慢？大表 DELETE 为什么要分批？

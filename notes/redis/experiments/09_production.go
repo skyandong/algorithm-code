@@ -213,7 +213,7 @@ func ExpLatencyMonitor(ctx context.Context) {
 	// LATENCY DOCTOR
 	doctor, _ := rdb.Do(ctx, "LATENCY", "DOCTOR").Result()
 	fmt.Println("  LATENCY DOCTOR:")
-	for _, line := range strings.Split(fmt.Sprintf("%v", doctor), ".") {
+	for _, line := range strings.Split(fmt.Sprintf("%v", doctor), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			fmt.Printf("    %s\n", line)
@@ -289,7 +289,7 @@ func ExpBigkey(ctx context.Context) {
 //	Hash   HSCAN → HDEL  每批 100 个字段
 //	Set    SSCAN → SREM  每批 100 个成员
 //	ZSet   ZREMRANGEBYRANK 每次删前 100 个(不需要 SCAN)
-//	List   LTRIM 每次从头砍掉 100 个
+//	List   LTRIM 0 -101  每次砍掉尾部 100 个(保留头部到倒数第 101 个)
 //	String 直接 UNLINK(无法拆分)
 //
 // 预期输出:
@@ -324,37 +324,42 @@ func ExpProgressiveDelete(ctx context.Context) {
 	delDur := time.Since(start)
 	fmt.Printf("  直接 DEL 耗时: %v  ← 主线程同步释放全部内存\n", delDur)
 
-	// 渐进式删除 Hash
+	// 渐进式删除 Hash:HSCAN 游标必须逐轮推进,不能每轮都从 0 开始 ——
+	// 从 0 重扫会跳过越来越多已删元素留下的空桶,越删越慢(O(N²))
 	const batchSize = 100
 	var totalBatches int
 	var maxBatchDur time.Duration
 
 	start = time.Now()
+	var cursor uint64
 	for {
-		// HSCAN 取一批字段
-		keys, cursor, _ := rdb.HScan(ctx, "prog:hash", 0, "*", batchSize).Result()
-		if len(keys) == 0 {
+		// HSCAN 取一批字段(游标从上轮的返回值继续)
+		pairs, next, _ := rdb.HScan(ctx, "prog:hash", cursor, "*", batchSize).Result()
+		if len(pairs) == 0 && next == 0 {
 			break
 		}
 
-		// keys 是 [field1, value1, field2, value2, ...] 交替的
-		fields := make([]string, 0, len(keys)/2)
-		for i := 0; i < len(keys); i += 2 {
-			fields = append(fields, keys[i])
+		// pairs 是 [field1, value1, field2, value2, ...] 交替的
+		batchFields := make([]string, 0, len(pairs)/2)
+		for i := 0; i < len(pairs); i += 2 {
+			batchFields = append(batchFields, pairs[i])
 		}
 
-		batchStart := time.Now()
-		rdb.HDel(ctx, "prog:hash", fields...)
-		batchDur := time.Since(batchStart)
+		if len(batchFields) > 0 {
+			batchStart := time.Now()
+			rdb.HDel(ctx, "prog:hash", batchFields...)
+			batchDur := time.Since(batchStart)
 
-		if batchDur > maxBatchDur {
-			maxBatchDur = batchDur
+			if batchDur > maxBatchDur {
+				maxBatchDur = batchDur
+			}
+			totalBatches++
 		}
-		totalBatches++
 
 		// 批次间 sleep 1ms,把压力分散到时间轴上
 		time.Sleep(time.Millisecond)
 
+		cursor = next
 		if cursor == 0 {
 			break
 		}
@@ -366,7 +371,8 @@ func ExpProgressiveDelete(ctx context.Context) {
 	fmt.Printf("  渐进式删除耗时: %v  批次: %d  单批最大耗时: %v\n",
 		totalDur, totalBatches, maxBatchDur)
 	fmt.Println("\n  结论:")
-	fmt.Println("  - 渐进式删除总耗时更长(有 sleep),但每批只删 100 个字段")
-	fmt.Println("  - 主线程每次感知的延迟极小,业务流量不受影响")
+	fmt.Println("  - 渐进式删除总耗时更长(有 sleep + 每批一个 RTT),但 DEL 是一次性集中阻塞,")
+	fmt.Println("    渐进式把删除压力摊到时间轴上,主线程每批只承担极小的服务端开销")
+	fmt.Println("  - 客户端测到的单批耗时主要是网络 RTT,服务端执行是微秒级")
 	fmt.Println("  - 生产建议: bigkey 不要在线上高峰期直接删,用渐进式脚本在低峰期执行\n")
 }

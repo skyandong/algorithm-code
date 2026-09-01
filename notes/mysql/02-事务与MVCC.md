@@ -22,7 +22,7 @@
 | READ UNCOMMITTED（读未提交） | ✗ | ✗ | ✗ | 直接读最新数据 |
 | READ COMMITTED（读已提交） | ✓ | ✗ | ✗ | MVCC，每次查询生成新 ReadView |
 | REPEATABLE READ（可重复读，默认） | ✓ | ✓ | 部分解决 | MVCC，事务首次查询时生成 ReadView，复用 |
-| SERIALIZABLE（串行化） | ✓ | ✓ | ✓ | 所有操作加排他锁 |
+| SERIALIZABLE（串行化） | ✓ | ✓ | ✓ | 普通 SELECT 隐式加 S 锁（等同 `LOCK IN SHARE MODE`），写操作加 X 锁 |
 
 **三种并发问题：**
 - **脏读**：读到其他事务未提交的数据
@@ -130,7 +130,7 @@ UPDATE accounts SET balance = 2000 WHERE id = 1
 3. 写 Redo Log —— prepare 阶段（WAL）
    记录"做了什么"：在 X 页 Y 偏移写入 2000
    顺序追加，极快；崩溃时用它重放恢复数据
-   存储位置：InnoDB 层，ib_logfile0 / ib_logfile1（环形）
+   存储位置：InnoDB 层；8.0.30 前为 ib_logfile0/1（环形），8.0.30+ 迁到 #innodb_redo 目录（由 innodb_redo_log_capacity 管理，可在线调整）
 
 4. 写 Binlog（事务提交时）
    记录行变更（ROW 格式）或 SQL 原文（STATEMENT 格式）
@@ -164,7 +164,7 @@ UPDATE accounts SET balance = 2000 WHERE id = 1
   Redo 有 prepare + Binlog 不存在 → 回滚
 ```
 
-**长事务的危害：** Undo Log 被 purge 线程清理的前提是没有活跃事务在读老版本。长事务持有 ReadView，版本链无法清理，ibdata1 持续膨胀，读操作遍历链越来越慢。生产必须监控：
+**长事务的危害：** Undo Log 被 purge 线程清理的前提是没有活跃事务在读老版本。长事务持有 ReadView，版本链无法清理，undo 表空间持续膨胀（8.0 undo log 默认在独立 undo 表空间，非 ibdata1），读操作遍历链越来越慢。生产必须监控：
 
 ```sql
 SELECT trx_id, trx_started, trx_state, trx_query

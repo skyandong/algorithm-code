@@ -25,11 +25,13 @@
 //
 // 编码转换阈值(可配置,触发后不可逆):
 //
-//	Hash       listpack → hashtable   元素数>128 或 value>64B   hash-max-listpack-entries/value
-//	List       listpack → quicklist   单节点元素数>128 或 value>64B  list-max-listpack-size
-//	Set        intset   → listpack    插入非整数 或 元素数>512   set-max-intset-entries
+//	Hash       listpack → hashtable   元素数>512 或 value>64B   hash-max-listpack-entries/value
+//	List       始终是 quicklist,无整体转换;单节点是 listpack,
+//	           节点大小超限自动分裂新节点                  list-max-listpack-size(默认 8KB)
+//	Set        intset   → hashtable   元素数>512               set-max-intset-entries
+//	Set        intset   → listpack    插入非整数(仅 7.2+;<7.2 直接 hashtable)
 //	Set        listpack → hashtable   元素数>128 或 value>64B   set-max-listpack-entries
-//	Sorted Set listpack → skiplist    元素数>128 或 value>64B   zset-max-listpack-entries/value
+//	Sorted Set listpack → skiplist    元素数>128 或 member>64B  zset-max-listpack-entries/value
 //
 // 生产注意:阈值调太大有风险。listpack 是 O(N) 查找,元素多了慢命令拖垮主线程。
 // 曾有业务把 hash-max-listpack-entries 调到几千,单个 Hash HGETALL 直接打出慢查询。
@@ -110,33 +112,33 @@ func encoding(ctx context.Context, key string) string {
 //
 // 触发条件(默认阈值):
 //
-//	元素数 > 128  →  hash-max-listpack-entries
+//	元素数 > 512  →  hash-max-listpack-entries
 //	单个 value > 64B  →  hash-max-listpack-value
 //
 // 预期输出:
 //
 //	1 个字段:      listpack
-//	128 个字段:    listpack
-//	129 个字段:    hashtable  ← 转换
+//	512 个字段:    listpack
+//	513 个字段:    hashtable  ← 转换
 //	删回 1 个字段: hashtable  ← 不可逆
 func ExpHash(ctx context.Context) {
 	fmt.Println("=== Hash: listpack → hashtable ===")
-	fmt.Println("阈值: hash-max-listpack-entries=128, hash-max-listpack-value=64")
+	fmt.Println("阈值: hash-max-listpack-entries=512, hash-max-listpack-value=64")
 
 	rdb.Del(ctx, "exp:hash")
 
 	rdb.HSet(ctx, "exp:hash", "f1", "v1")
 	fmt.Printf("1 个字段:      %s\n", encoding(ctx, "exp:hash"))
 
-	for i := 2; i <= 128; i++ {
+	for i := 2; i <= 512; i++ {
 		rdb.HSet(ctx, "exp:hash", fmt.Sprintf("f%d", i), "v")
 	}
-	fmt.Printf("128 个字段:    %s\n", encoding(ctx, "exp:hash"))
+	fmt.Printf("512 个字段:    %s\n", encoding(ctx, "exp:hash"))
 
-	rdb.HSet(ctx, "exp:hash", "f129", "v")
-	fmt.Printf("129 个字段:    %s  ← 转换\n", encoding(ctx, "exp:hash"))
+	rdb.HSet(ctx, "exp:hash", "f513", "v")
+	fmt.Printf("513 个字段:    %s  ← 转换\n", encoding(ctx, "exp:hash"))
 
-	for i := 2; i <= 129; i++ {
+	for i := 2; i <= 513; i++ {
 		rdb.HDel(ctx, "exp:hash", fmt.Sprintf("f%d", i))
 	}
 	fmt.Printf("删回 1 个字段: %s  ← 不可逆\n\n", encoding(ctx, "exp:hash"))
@@ -277,7 +279,7 @@ func ExpIntsetMemory(ctx context.Context) {
 	// 删掉大整数
 	rdb.SRem(ctx, "exp:intset", 99999999999)
 	mem3, _ := rdb.MemoryUsage(ctx, "exp:intset").Result()
-	fmt.Printf("删掉大整数后: encoding=%s  memory=%d bytes  ← 编码和内存不降\n\n",
+	fmt.Printf("删掉大整数后: encoding=%s  memory=%d bytes  ← 编码仍 int64,回不到升级前\n\n",
 		encoding(ctx, "exp:intset"), mem3)
 }
 

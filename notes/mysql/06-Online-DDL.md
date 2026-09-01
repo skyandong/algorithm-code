@@ -10,8 +10,8 @@
 |------|------|------|
 | 5.5 及之前 | Copy Table | 锁全表，复制到临时表，期间 DML 阻塞 |
 | 5.6 | Online DDL（部分） | `ALGORITHM=INPLACE`，大部分操作无需拷贝表 |
-| 5.7 | 增强 | 支持更多 inplace 操作，VARCHAR 扩容等 |
-| 8.0 | Instant DDL | 加列到末尾等操作只改元数据，瞬间完成 |
+| 5.7 | 增强 | `RENAME INDEX` 无需重建表；更多 DDL 支持 INPLACE |
+| 8.0 | Instant DDL | 加列到末尾等操作只改元数据，瞬间完成；VARCHAR 扩容支持 INPLACE（长度字节数不变时仅改元数据） |
 
 ---
 
@@ -44,7 +44,8 @@ SELECT trx_id, trx_started, trx_query
 FROM information_schema.INNODB_TRX
 WHERE TIME_TO_SEC(TIMEDIFF(NOW(), trx_started)) > 10;
 
--- 确认无 MDL 等待
+-- 确认无 MDL 等待（需先开启 instrument：UPDATE performance_schema.setup_instruments
+-- SET enabled='YES' WHERE name='wait/lock/metadata/sql/mdl'，MDL instrument 默认关闭）
 SELECT * FROM performance_schema.metadata_locks
 WHERE OBJECT_SCHEMA = 'mydb' AND OBJECT_NAME = 'orders';
 ```
@@ -116,7 +117,7 @@ DROP TABLE t1, t2;  -- 8.0+：要么全删，要么全不删，崩溃不留垃�
 
 ## 大表加索引最佳实践
 
-1. **首选 Instant DDL**（8.0，仅限加列场景）
+1. **首选 Instant DDL**（8.0：加列、RENAME COLUMN、ALTER COLUMN SET/DROP DEFAULT 等纯元数据操作；8.0.29+ 还支持 INSTANT DROP COLUMN 和任意位置加列）
 2. **评估 Online DDL 可行性**：`ALGORITHM=INPLACE, LOCK=NONE`，在业务低峰执行
 3. **超大表（>5000万行）用 gh-ost / pt-osc**：
 
@@ -143,7 +144,7 @@ pt-online-schema-change \
 | 原表侵入 | 有触发器，每次 DML 有额外开销 | 零侵入，不加触发器 |
 | 限速能力 | 有，但较粗 | `--max-load` 监控主库负载，超阈值自动暂停 |
 | 已有触发器 | 不支持 | 支持 |
-| 可演练 | 无 | `--dry-run` 不真正执行 |
+| 可演练 | `--dry-run`（建影子表执行 alter，不建触发器不拷数据） | `--dry-run` 不真正执行 |
 | 生产推荐 | 次选 | **首选** |
 
 两者核心思路相同：
