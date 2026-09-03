@@ -1,6 +1,6 @@
 // # 内存可见性与 sync.Once 实验
 //
-// 对应笔记：notes/golang/01-并发内存可见性与sync.Once.md
+// 对应笔记：notes/golang/05-并发内存可见性与sync.Once.md
 //
 // 运行：
 //
@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-// RunVisibilityExperiments 演示笔记 1 的核心概念。
+// RunVisibilityExperiments 演示笔记 5 的核心概念。
 func RunVisibilityExperiments() {
 	fmt.Println("===== 1. data race 演示（强烈建议用 go run -race 运行本命令）=====")
 	demoDataRace()
@@ -46,7 +46,7 @@ func RunVisibilityExperiments() {
 	demoCorrectOnce()
 }
 
-// demoDataRace 复现笔记 1 第 1 节：writer 写 data/ready，reader 忙等 ready。
+// demoDataRace 复现笔记 5 第 1 节：writer 写 data/ready，reader 忙等 ready。
 // 这里用有界循环 + 截止时间避免无限自旋；普通变量跨 goroutine 读写构成 data race，
 // 结果不可预测 —— 用 -race 运行可看到 "WARNING: DATA RACE"。
 func demoDataRace() {
@@ -69,7 +69,7 @@ func demoDataRace() {
 	fmt.Println("reader 读到 data =", data, "（结果不确定，-race 下会报 DATA RACE）")
 }
 
-// demoAtomicPublish 笔记 1 第 4 节：atomic Store/Load 发布状态。
+// demoAtomicPublish 笔记 5 第 4 节：atomic Store/Load 发布状态。
 func demoAtomicPublish() {
 	var data atomic.Int64
 	var ready atomic.Bool
@@ -90,7 +90,7 @@ func demoAtomicPublish() {
 	fmt.Println("atomic: data =", data.Load(), "（Store 先于 ready.Store，Load 顺序保证可见）")
 }
 
-// demoChannelPublish 笔记 1 第 4 节：close(done) 发布 —— 关闭前的写入对收到通知的代码可见。
+// demoChannelPublish 笔记 5 第 4 节：close(done) 发布 —— 关闭前的写入对收到通知的代码可见。
 func demoChannelPublish() {
 	done := make(chan struct{})
 	var data int
@@ -104,7 +104,7 @@ func demoChannelPublish() {
 	fmt.Println("channel: data =", data, "（close 前的写入 happens-before 收到通知）")
 }
 
-// demoMutexSync 笔记 1 第 5 节：mutex 不只是互斥，还建立可见性。
+// demoMutexSync 笔记 5 第 5 节：mutex 不只是互斥，还建立可见性。
 func demoMutexSync() {
 	var mu sync.Mutex
 	var data int
@@ -129,7 +129,7 @@ func demoMutexSync() {
 	}
 }
 
-// wrongOnce 复现笔记 1 第 6 节：外层无锁读 done，是错误实现。
+// wrongOnce 复现笔记 5 第 6 节：外层无锁读 done，是错误实现。
 type wrongOnce struct {
 	mu   sync.Mutex
 	done uint32
@@ -167,7 +167,7 @@ func demoWrongOnce() {
 	fmt.Println("wrongOnce: executed =", executed.Load(), "（race 存在，结果不可依赖；-race 会报告）")
 }
 
-// demoCorrectOnce 笔记 1 第 7 节：直接用标准库 sync.Once。
+// demoCorrectOnce 笔记 5 第 7 节：直接用标准库 sync.Once。
 func demoCorrectOnce() {
 	var once sync.Once
 	var executed atomic.Int64

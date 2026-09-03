@@ -1,6 +1,6 @@
 // # Channel 与 nil channel 语义实验
 //
-// 对应笔记：notes/golang/02-Channel内部与nil语义.md
+// 对应笔记：notes/golang/06-Channel内部与nil语义.md
 //
 // 运行：
 //
@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-// RunChannelExperiments 演示笔记 2 的核心语义。
+// RunChannelExperiments 演示笔记 6 的核心语义。
 func RunChannelExperiments() {
 	fmt.Println("===== 1. nil channel 接收 case 永不就绪（select + timeout）=====")
 	demoNilRecvNeverReady()
@@ -43,7 +43,7 @@ func RunChannelExperiments() {
 	demoCloseWakesSenderPanic()
 }
 
-// demoNilRecvNeverReady 笔记 2 第 5.1 节：从 nil channel 接收永远不会完成。
+// demoNilRecvNeverReady 笔记 6 第 5.1 节：从 nil channel 接收永远不会完成。
 func demoNilRecvNeverReady() {
 	var ch chan int // nil
 
@@ -55,7 +55,7 @@ func demoNilRecvNeverReady() {
 	}
 }
 
-// demoNilSendNonBlocking 笔记 2 第 5.3 节：nil channel 非阻塞发送立即失败。
+// demoNilSendNonBlocking 笔记 6 第 5.3 节：nil channel 非阻塞发送立即失败。
 func demoNilSendNonBlocking() {
 	var ch chan int // nil
 
@@ -67,7 +67,7 @@ func demoNilSendNonBlocking() {
 	}
 }
 
-// demoDisableRestoreBranch 笔记 2 第 6 节：ch = nil 只是改变变量指向，可恢复。
+// demoDisableRestoreBranch 笔记 6 第 6 节：ch = nil 只是改变变量指向，可恢复。
 func demoDisableRestoreBranch() {
 	ch := make(chan int, 1)
 	var input <-chan int = ch
@@ -90,7 +90,7 @@ func demoDisableRestoreBranch() {
 	}
 }
 
-// demoClosedRecv 笔记 2 第 11 节：close 不清空缓冲，读完数据后才返回零值 + false。
+// demoClosedRecv 笔记 6 第 11 节：close 不清空缓冲，读完数据后才返回零值 + false。
 func demoClosedRecv() {
 	ch := make(chan int, 2)
 	ch <- 10
@@ -112,7 +112,7 @@ func demoClosedRecv() {
 	fmt.Printf("收到零值：%d, ok=%v（真实发送的零值，ok 为 true）\n", v, ok)
 }
 
-// demoCloseWakesReceiver 笔记 2 第 12.1 节：阻塞接收者被 close 唤醒，得到零值 + false。
+// demoCloseWakesReceiver 笔记 6 第 12.1 节：阻塞接收者被 close 唤醒，得到零值 + false。
 func demoCloseWakesReceiver() {
 	ch := make(chan int)
 
@@ -129,7 +129,7 @@ func demoCloseWakesReceiver() {
 	wg.Wait()
 }
 
-// demoCloseWakesSenderPanic 笔记 2 第 12.2 节：阻塞发送者被 close 唤醒后 panic。
+// demoCloseWakesSenderPanic 笔记 6 第 12.2 节：阻塞发送者被 close 唤醒后 panic。
 func demoCloseWakesSenderPanic() {
 	ch := make(chan int, 1)
 	ch <- 1 // 缓冲区已满

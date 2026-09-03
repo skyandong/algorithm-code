@@ -1,6 +1,6 @@
 // # 名家博客并发模式实验
 //
-// 对应笔记：notes/golang/04-名家并发模式汇总.md
+// 对应笔记：notes/golang/13-名家并发模式汇总.md
 //
 // 运行：
 //
@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-// RunMastersExperiments 演示笔记 4 的实战模式。
+// RunMastersExperiments 演示笔记 13 的实战模式。
 func RunMastersExperiments() {
 	fmt.Println("===== 1. Dave Cheney：close(ch) 广播停止信号 =====")
 	mastersBroadcastStop()
@@ -52,7 +52,7 @@ func RunMastersExperiments() {
 	mastersSelectTimeout()
 }
 
-// mastersBroadcastStop 笔记 4 §1.2：close(finish) 一次广播，N 个 goroutine 同时收到。
+// mastersBroadcastStop 笔记 13 §1.2：close(finish) 一次广播，N 个 goroutine 同时收到。
 func mastersBroadcastStop() {
 	const n = 100
 	finish := make(chan struct{})
@@ -75,7 +75,7 @@ func mastersBroadcastStop() {
 	fmt.Printf("Waited %v for %d goroutines to stop\n", time.Since(t0), n)
 }
 
-// mastersWaitMany 笔记 4 §1.2：nil channel 禁用已关闭分支，避免死循环。
+// mastersWaitMany 笔记 13 §1.2：nil channel 禁用已关闭分支，避免死循环。
 func mastersWaitMany() {
 	waitMany := func(a, b chan bool) {
 		for a != nil || b != nil {
@@ -97,7 +97,7 @@ func mastersWaitMany() {
 	waitMany(a, b)
 }
 
-// mastersGOMAXPROCS1 笔记 4 §2.1：单核上并发执行但非并行。
+// mastersGOMAXPROCS1 笔记 13 §2.1：单核上并发执行但非并行。
 func mastersGOMAXPROCS1() {
 	prev := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prev) // 恢复，避免影响后续实验
@@ -123,7 +123,7 @@ func mastersGOMAXPROCS1() {
 	fmt.Println("\n（GOMAXPROCS=1：两个 goroutine 不交错，哪个先跑完由调度决定，与启动顺序无关）")
 }
 
-// mastersGoschedSay 笔记 4 §4.1：Gosched 主动让出时间片，实现交替输出（文档注明 GOMAXPROCS=1 时）。
+// mastersGoschedSay 笔记 13 §4.1：Gosched 主动让出时间片，实现交替输出（文档注明 GOMAXPROCS=1 时）。
 func mastersGoschedSay() {
 	prev := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prev) // 单核下 Gosched 的交替效果最明显
@@ -144,7 +144,7 @@ func mastersGoschedSay() {
 	fmt.Println("（Gosched 让两个 goroutine 交替执行；多核下则可能各自连续输出，交替无保证）")
 }
 
-// mastersChannelSum 笔记 4 §4.1：两个 goroutine 各算一半，channel 汇总。
+// mastersChannelSum 笔记 13 §4.1：两个 goroutine 各算一半，channel 汇总。
 func mastersChannelSum() {
 	sum := func(a []int, c chan int) {
 		total := 0
@@ -162,7 +162,7 @@ func mastersChannelSum() {
 	fmt.Printf("x=%d y=%d x+y=%d\n", x, y, x+y)
 }
 
-// mastersFibonacci 笔记 4 §4.1：生产者 close，range 自动退出。
+// mastersFibonacci 笔记 13 §4.1：生产者 close，range 自动退出。
 func mastersFibonacci() {
 	fibonacci := func(n int, c chan int) {
 		x, y := 1, 1
@@ -181,7 +181,7 @@ func mastersFibonacci() {
 	fmt.Println("（range 在 close 后自动退出）")
 }
 
-// mastersPipeline 笔记 4 §6.1：gen → sq → sq 三阶段流水线。
+// mastersPipeline 笔记 13 §6.1：gen → sq → sq 三阶段流水线。
 func mastersPipeline() {
 	gen := func(nums ...int) <-chan int {
 		out := make(chan int)
@@ -210,7 +210,7 @@ func mastersPipeline() {
 	}
 }
 
-// mastersSelectTimeout 笔记 4 §4.1：select + 超时退出模式。
+// mastersSelectTimeout 笔记 13 §4.1：select + 超时退出模式。
 func mastersSelectTimeout() {
 	c := make(chan int)
 	o := make(chan bool)

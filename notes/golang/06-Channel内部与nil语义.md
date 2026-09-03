@@ -1225,7 +1225,7 @@ closed：
 
 ## 实验
 
-对应代码：[experiments/02_channel.go](experiments/02_channel.go)
+对应代码：[experiments/06_channel.go](experiments/06_channel.go)
 
 ```bash
 cd notes/golang

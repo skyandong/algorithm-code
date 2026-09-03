@@ -1,6 +1,6 @@
 // # Goroutine 面试题实验
 //
-// 对应笔记：notes/golang/03-Goroutine面试题集.md（编程手写题 1-6）
+// 对应笔记：notes/golang/12-Goroutine面试题集.md（编程手写题 1-6）
 //
 // 运行：
 //
@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-// RunInterviewExperiments 运行笔记 3 的六道编程手写题 + 一道选择题演示。
+// RunInterviewExperiments 运行笔记 12 的六道编程手写题 + 一道选择题演示。
 func RunInterviewExperiments() {
 	fmt.Println("===== 题1：Goroutine + Channel 基础 =====")
 	q1ProducerConsumer()

@@ -507,7 +507,7 @@ sync.Once：只执行一次初始化，并在完成后发布结果
 
 ## 实验
 
-对应代码：[experiments/01_memory_visibility.go](experiments/01_memory_visibility.go)
+对应代码：[experiments/05_memory_visibility.go](experiments/05_memory_visibility.go)
 
 ```bash
 cd notes/golang

@@ -6,21 +6,45 @@ import (
 )
 
 func main() {
-	exp := "visibility"
+	exp := "all"
 	if len(os.Args) > 1 {
 		exp = os.Args[1]
 	}
 
-	switch exp {
-	case "visibility":
-		RunVisibilityExperiments()
-	case "channel":
-		RunChannelExperiments()
-	case "interview":
-		RunInterviewExperiments()
-	case "masters":
-		RunMastersExperiments()
-	default:
-		fmt.Println("用法: go run ./experiments/ [visibility|channel|interview|masters]")
+	// 单个实验名 -> 入口
+	entries := []struct {
+		name string
+		run  func()
+	}{
+		{"visibility", RunVisibilityExperiments},
+		{"channel", RunChannelExperiments},
+		{"interview", RunInterviewExperiments},
+		{"masters", RunMastersExperiments},
+		{"gmp", RunGMPExperiments},
+		{"gcmemory", RunGCMemoryExperiments},
+		{"slicemap", RunSliceMapExperiments},
+		{"interface", RunInterfaceReflectionExperiments},
+		{"sync", RunSyncExperiments},
+		{"context", RunContextExperiments},
+		{"performance", RunPerformanceExperiments},
+		{"string", RunStringExperiments},
+		{"generics", RunGenericsExperiments},
 	}
+
+	if exp == "all" {
+		for _, e := range entries {
+			fmt.Printf("\n############ 实验 %s ############\n", e.name)
+			e.run()
+		}
+		return
+	}
+
+	for _, e := range entries {
+		if e.name == exp {
+			e.run()
+			return
+		}
+	}
+
+	fmt.Println("用法: go run ./experiments/ [all|visibility|channel|interview|masters|gmp|gcmemory|slicemap|interface|sync|context|performance|string|generics]")
 }
