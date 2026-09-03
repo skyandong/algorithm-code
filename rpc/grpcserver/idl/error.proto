@@ -1,0 +1,11 @@
+// error.proto  【全局唯一】
+syntax = "proto3";
+
+package err;          // 统一包名
+option go_package = "./err"; // 生成到 err 文件夹
+
+// 全项目通用 结构化错误（所有服务复用这一个）
+message BizError {
+  int32 code = 1;    // 自定义业务码
+  string msg = 2;    // 错误信息
+}

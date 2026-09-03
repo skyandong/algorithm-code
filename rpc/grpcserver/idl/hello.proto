@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package hello;
+option go_package = "./hello";  // 必须加！
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  int32 code = 1;
+  string message = 2;
+}
+
+// 客户端流汇总：收完 N 个请求回一个总结
+message HelloSummary {
+  int32 count = 1;
+  string names = 2;
+}
+
+service HelloService {
+  // 一元调用 + 结构化错误（status.WithDetails 包装 BizError）—— 原有
+  rpc SayHello (HelloRequest) returns (HelloReply);
+
+  // 服务端流：一问多答（推送场景）
+  rpc StreamHello (HelloRequest) returns (stream HelloReply);
+
+  // 客户端流：多问一答（批量上报场景）
+  rpc UploadHello (stream HelloRequest) returns (HelloSummary);
+
+  // 双向流：边问边答（聊天/实时同步场景）
+  rpc ChatHello (stream HelloRequest) returns (stream HelloReply);
+}
