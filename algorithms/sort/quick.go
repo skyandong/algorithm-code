@@ -1,7 +1,7 @@
 package sort
 
 import (
-	"github.com/skyandong/go-code/stack"
+	"github.com/skyandong/go-code/algorithms/stack"
 )
 
 // partSort1 左右指针法

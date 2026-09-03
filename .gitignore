@@ -19,5 +19,20 @@ entc
 reasonix.toml
 .playwright-mcp/
 
+# ai: eino 为独立仓库（sven-eino），不并入本仓库
+ai/eino/
+
+# rpc/web: 编译产物
+rpc/grpcclient/grpcclient
+web/hertzserver/hertzserver
+
+# demos: 编译产物
+demos/tracing/tracing
+
+# nginx 实验证书与产物
+notes/nginx/conf/certs/
+notes/nginx/conf/logs/
+notes/nginx/experiments/nginx
+
 # workbuddy project data
 .workbuddy/
