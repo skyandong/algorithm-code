@@ -1,6 +1,6 @@
 GO := /Users/tal/sdk/go1.26.3/bin/go
 
-.PHONY: up down run-01 run-02 run-03 run-04 run-05 run-06 topics
+.PHONY: up down run-01 run-02 run-03 run-04 run-05 run-06 run-07 run-08 run-09 run-10 run-11 topics
 
 # 启动 Kafka + Kafka UI
 up:
@@ -31,6 +31,16 @@ topics:
 		--create --if-not-exists --topic account-credit --partitions 1 --replication-factor 1
 	docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
 		--create --if-not-exists --topic account-audit --partitions 1 --replication-factor 1
+	docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+		--create --if-not-exists --topic order-events --partitions 3 --replication-factor 1
+	docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+		--create --if-not-exists --topic storage-demo --partitions 3 --replication-factor 1
+	docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+		--create --if-not-exists --topic concurrent-demo --partitions 1 --replication-factor 1
+	docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+		--create --if-not-exists --topic skew-uniform --partitions 6 --replication-factor 1
+	docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+		--create --if-not-exists --topic skew-hot --partitions 6 --replication-factor 1
 	@echo "Topic 列表："
 	@docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
@@ -70,3 +80,23 @@ run-05:
 run-06:
 	@echo "=== 运行案例6：多 Topic 流水线（Ctrl+C 退出）==="
 	$(GO) run ./experiments/ pipeline
+
+run-07:
+	@echo "=== 运行案例7：顺序性保证 ==="
+	$(GO) run ./experiments/ ordering
+
+run-08:
+	@echo "=== 运行案例8：存储与读路径 ==="
+	$(GO) run ./experiments/ storage
+
+run-09:
+	@echo "=== 运行案例9：位移提交竞态 vs 滑动窗口 ==="
+	$(GO) run ./experiments/ concurrent
+
+run-10:
+	@echo "=== 运行案例10：分区倾斜观测 ==="
+	$(GO) run ./experiments/ skew
+
+run-11:
+	@echo "=== 运行案例11：集群健康巡检 ==="
+	$(GO) run ./experiments/ health

@@ -1,9 +1,10 @@
 // 案例6：多 Topic 流水线（Event-Driven Pipeline）
 // 场景：电商下单流程 orders → payment-requests → notifications
-//   1. 下单服务生产订单事件到 orders topic
-//   2. 支付服务消费 orders，处理支付，产出支付结果到 payment-requests
-//   3. 通知服务消费 payment-requests，发送用户通知到 notifications
-//   4. 审计服务消费 notifications，记录全链路日志
+//  1. 下单服务生产订单事件到 orders topic
+//  2. 支付服务消费 orders，处理支付，产出支付结果到 payment-requests
+//  3. 通知服务消费 payment-requests，发送用户通知到 notifications
+//  4. 审计服务消费 notifications，记录全链路日志
+//
 // 演示：消费-转换-生产的流水线模式，每个服务是独立的消费者组
 package main
 

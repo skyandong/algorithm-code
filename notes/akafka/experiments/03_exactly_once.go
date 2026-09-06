@@ -30,6 +30,10 @@ func RunExactlyOnce() {
 // idempotentProduce 幂等生产者
 // 原理：Producer 携带 PID + SequenceNumber，Broker 端去重
 // 保证：单分区、单会话内消息不重复（网络重试安全）
+//
+// 注意：franz-go 的 kgo 客户端默认就开启幂等（acks=all 时），
+// 要显式关闭需用 kgo.DisableIdempotentWrite()（见 05_consumer_lag.go）。
+// 所以这里无需额外配置，仅用 RequiredAcks(AllISRAcks) 满足幂等前提。
 func idempotentProduce() {
 	fmt.Println("\n--- 幂等生产者 ---")
 
