@@ -28,7 +28,7 @@ import (
 
 // Order 电商订单表，刻意设计以覆盖多种索引场景
 type Order struct {
-	ID         uint      `gorm:"primarykey"`                    // 聚簇索引
+	ID         uint      `gorm:"primarykey"`                     // 聚簇索引
 	UserID     uint      `gorm:"not null;index:idx_user_status"` // 联合索引前缀
 	Status     int8      `gorm:"not null;index:idx_user_status"` // 联合索引后缀
 	Amount     int64     `gorm:"not null"`                       // 分，避免浮点

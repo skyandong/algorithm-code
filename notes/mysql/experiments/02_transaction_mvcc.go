@@ -79,7 +79,7 @@ func expRR(db *gorm.DB) {
 			tx.First(&a, 1)
 			fmt.Printf("  txA 第一次读 alice.balance = %d\n", a.Balance)
 
-			close(ready) // 告诉 txB 可以改了
+			close(ready)                       // 告诉 txB 可以改了
 			time.Sleep(100 * time.Millisecond) // 等 txB 提交
 
 			tx.First(&a, 1) // 第二次读，ReadView 不变，结果应该一样

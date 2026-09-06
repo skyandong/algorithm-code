@@ -97,7 +97,7 @@ func ttlJitterSpread() (min, max int, sorted []int) {
 	rng := rand.New(rand.NewSource(7))
 	ttls := make([]int, 0, 1000)
 	for i := 0; i < 1000; i++ {
-		base := 300 // 基础 TTL 300s
+		base := 300                  // 基础 TTL 300s
 		jitter := rng.Intn(121) - 60 // ±20% (±60s)
 		ttls = append(ttls, base+jitter)
 	}

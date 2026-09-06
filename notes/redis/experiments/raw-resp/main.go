@@ -5,11 +5,11 @@
 RESP(REdis Serialization Protocol)是 Redis 客户端和服务端之间的 TCP 线协议。
 文本格式,人能读,用首字节区分类型:
 
-	+ Simple String   →  +OK\r\n
-	- Error           →  -ERR unknown command\r\n
-	: Integer         →  :1000\r\n
-	$ Bulk String     →  $5\r\nhello\r\n          (带长度,二进制安全)
-	* Array           →  *3\r\n$3\r\nSET\r\n...   (命令就是字符串数组)
+  - Simple String   →  +OK\r\n
+  - Error           →  -ERR unknown command\r\n
+    : Integer         →  :1000\r\n
+    $ Bulk String     →  $5\r\nhello\r\n          (带长度,二进制安全)
+  - Array           →  *3\r\n$3\r\nSET\r\n...   (命令就是字符串数组)
 
 SET name redis 在协议层的真实字节:
 
@@ -124,7 +124,7 @@ func main() {
 
 	// 先看一条命令在协议层长什么样
 	fmt.Printf("SET k 0 的 RESP 字节: %q\n", string(encode("SET", "k", "0")))
-	fmt.Println("(即 *3\\r\\n$3\\r\\nSET\\r\\n$1\\r\\nk\\r\\n$1\\r\\n0\\r\\n)\n")
+	fmt.Println("(即 *3\\r\\n$3\\r\\nSET\\r\\n$1\\r\\nk\\r\\n$1\\r\\n0\\r\\n)")
 
 	// 逐条: 每条都 write + flush + read, 一个 RTT 跑一次
 	start := time.Now()

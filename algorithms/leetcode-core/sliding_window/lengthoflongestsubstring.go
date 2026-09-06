@@ -4,7 +4,8 @@ package slidingwindow
 // https://leetcode-cn.com/problems/longest-substring-without-repeating-characters/
 //
 // 题意: 给定字符串 s，找出其中不含重复字符的最长子串的长度。
-//       注意是"子串"(连续)，不是"子序列"(可不连续)，这一区别经常被面试官当场考。
+//
+//	注意是"子串"(连续)，不是"子序列"(可不连续)，这一区别经常被面试官当场考。
 //
 // 解法选择理由:
 //   - 暴力: 枚举所有子串 O(n^2) 再判重 O(n) => O(n^3)，n=5e4 必超时，不可行。

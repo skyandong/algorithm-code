@@ -144,7 +144,7 @@ func ExpKeysVsScan(ctx context.Context) {
 	scanDur := time.Since(start)
 	fmt.Printf("  SCAN scan:key:*  返回 %d 个,迭代 %d 次,耗时 %v  ← 渐进式不阻塞\n",
 		scanCount, iterations, scanDur)
-	fmt.Println("  结论: KEYS 阻塞主线程,生产严禁;SCAN 渐进式,每次只处理少量 key\n")
+	fmt.Println("  结论: KEYS 阻塞主线程,生产严禁;SCAN 渐进式,每次只处理少量 key")
 
 	// 清理
 	pipe = rdb.Pipeline()
@@ -180,7 +180,7 @@ func ExpSlowlog(ctx context.Context) {
 	if len(logs) == 0 {
 		fmt.Println("  (DEBUG SLEEP 可能被禁用,尝试用大 KEYS 触发)")
 	}
-	fmt.Println("  结论: slowlog 记录超过阈值的命令,是排查慢命令的第一工具\n")
+	fmt.Println("  结论: slowlog 记录超过阈值的命令,是排查慢命令的第一工具")
 
 	rdb.ConfigSet(ctx, "slowlog-log-slower-than", "10000")
 }
@@ -223,7 +223,7 @@ func ExpLatencyMonitor(ctx context.Context) {
 	fmt.Println("  SLOWLOG vs Latency Monitor:")
 	fmt.Println("    SLOWLOG:          只记慢命令,fork/expire/aof-write 抓不到")
 	fmt.Println("    Latency Monitor:  记所有延迟事件,包括内部非命令操作")
-	fmt.Println("    生产建议:两个都开,互补\n")
+	fmt.Println("    生产建议:两个都开,互补")
 
 	// 恢复默认
 	rdb.ConfigSet(ctx, "latency-monitor-threshold", "0")
@@ -270,7 +270,7 @@ func ExpBigkey(ctx context.Context) {
 	fmt.Println("\n  处理方案:")
 	fmt.Println("    拆分: 按业务维度拆成多个小 Hash")
 	fmt.Println("    删除: UNLINK 异步删,避免 DEL 阻塞")
-	fmt.Println("    遍历: 用 HSCAN 代替 HGETALL,渐进式读取\n")
+	fmt.Println("    遍历: 用 HSCAN 代替 HGETALL,渐进式读取")
 
 	rdb.Unlink(ctx, "big:hash", "small:hash")
 }
@@ -374,5 +374,5 @@ func ExpProgressiveDelete(ctx context.Context) {
 	fmt.Println("  - 渐进式删除总耗时更长(有 sleep + 每批一个 RTT),但 DEL 是一次性集中阻塞,")
 	fmt.Println("    渐进式把删除压力摊到时间轴上,主线程每批只承担极小的服务端开销")
 	fmt.Println("  - 客户端测到的单批耗时主要是网络 RTT,服务端执行是微秒级")
-	fmt.Println("  - 生产建议: bigkey 不要在线上高峰期直接删,用渐进式脚本在低峰期执行\n")
+	fmt.Println("  - 生产建议: bigkey 不要在线上高峰期直接删,用渐进式脚本在低峰期执行")
 }

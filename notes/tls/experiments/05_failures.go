@@ -3,10 +3,10 @@
 // 刻意制造四种失败，观察 Go/crypto/tls 报出的错误——
 // 这些错误对应浏览器里的各种证书告警，生产排查时按图索骥。
 //
-//	1. 不信任的 CA      → x509: certificate signed by unknown authority
-//	2. 域名不匹配       → x509: certificate is valid for ..., not ...
-//	3. 证书过期         → x509: certificate has expired or is not yet valid
-//	4. 客户端只说 TLS1.0, 服务器要求 ≥1.2 → protocol version mismatch
+//  1. 不信任的 CA      → x509: certificate signed by unknown authority
+//  2. 域名不匹配       → x509: certificate is valid for ..., not ...
+//  3. 证书过期         → x509: certificate has expired or is not yet valid
+//  4. 客户端只说 TLS1.0, 服务器要求 ≥1.2 → protocol version mismatch
 //
 // 对应笔记《07-实战排查》。
 package main

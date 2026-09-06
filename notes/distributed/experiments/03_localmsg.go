@@ -34,7 +34,7 @@ func RunLocalMsgExperiments() {
 type fakeDB struct {
 	mu      sync.Mutex
 	balance map[string]int // 业务表
-	outbox  []outboxRow   // 消息表（和业务同库！）
+	outbox  []outboxRow    // 消息表（和业务同库！）
 }
 
 type outboxRow struct {

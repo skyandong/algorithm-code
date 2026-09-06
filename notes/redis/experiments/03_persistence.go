@@ -125,7 +125,7 @@ func ExpBgsave(ctx context.Context) {
 			fmt.Println(" ", line)
 		}
 	}
-	fmt.Println("结论: latest_fork_usec 是监控 fork 阻塞的核心指标,生产建议接入告警\n")
+	fmt.Println("结论: latest_fork_usec 是监控 fork 阻塞的核心指标,生产建议接入告警")
 }
 
 // ExpAofFsync 实验12: 三种 fsync 策略写入吞吐对比
@@ -153,7 +153,7 @@ func ExpAofFsync(ctx context.Context) {
 	}
 	if !aofEnabled {
 		fmt.Println("  AOF 未开启(appendonly=no),跳过实验")
-		fmt.Println("  开启方式: CONFIG SET appendonly yes\n")
+		fmt.Println("  开启方式: CONFIG SET appendonly yes")
 		return
 	}
 
@@ -183,7 +183,7 @@ func ExpAofFsync(ctx context.Context) {
 		}
 	}
 	fmt.Println("结论: 理论上 always 每条刷盘最安全但最慢,everysec 是性能与安全的最佳平衡")
-	fmt.Println("      本地 docker 环境下差距可能不明显(fsync 语义弱 + RTT 主导),真实磁盘上才显著\n")
+	fmt.Println("      本地 docker 环境下差距可能不明显(fsync 语义弱 + RTT 主导),真实磁盘上才显著")
 }
 
 // ExpCowMemory 实验13: bgsave 期间 COW 内存变化
@@ -233,7 +233,7 @@ func ExpCowMemory(ctx context.Context) {
 	_, rssAfter := usedMemory(ctx), rssMemory(ctx)
 	fmt.Printf("  bgsave 后:   rss=%d KB\n", rssAfter/1024)
 	fmt.Println("结论: COW 的内存开销要看 RSS 而不是 used_memory;写量越大 COW 复制越多,")
-	fmt.Println("      大实例 bgsave 期间 RSS 可能接近翻倍,必须预留内存余量\n")
+	fmt.Println("      大实例 bgsave 期间 RSS 可能接近翻倍,必须预留内存余量")
 
 	// 清理
 	for i := 0; i < 500; i++ {
@@ -279,7 +279,7 @@ func ExpAofRewrite(ctx context.Context) {
 	cfg, _ := rdb.ConfigGet(ctx, "appendonly").Result()
 	if cfg["appendonly"] != "yes" {
 		fmt.Println("  AOF 未开启,跳过实验")
-		fmt.Println("  开启方式: CONFIG SET appendonly yes\n")
+		fmt.Println("  开启方式: CONFIG SET appendonly yes")
 		return
 	}
 
@@ -330,7 +330,7 @@ func ExpAofRewrite(ctx context.Context) {
 
 	printAofInfo("重写完成后")
 	fmt.Println("  结论: aof_current_size 应小于重写前(冗余命令被压缩)")
-	fmt.Println("        重写期间写入的命令通过 rewrite buffer 追加到新文件,一条不丢\n")
+	fmt.Println("        重写期间写入的命令通过 rewrite buffer 追加到新文件,一条不丢")
 
 	// 清理
 	for i := 0; i < 600; i++ {

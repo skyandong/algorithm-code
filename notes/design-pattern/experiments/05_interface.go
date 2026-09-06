@@ -35,12 +35,12 @@ func RunInterfaceExperiments() {
 func i1Ecosystem() {
 	src := strings.NewReader("hello interface ecology") // 内存当文件
 
-	var buf bytes.Buffer                            // 目的地是内存
-	hasher := md5.New()                              // 目的地是哈希
+	var buf bytes.Buffer // 目的地是内存
+	hasher := md5.New()  // 目的地是哈希
 
-	n1, _ := io.Copy(&buf, src)                      // reader → writer（内存→内存）
+	n1, _ := io.Copy(&buf, src) // reader → writer（内存→内存）
 	src.Reset("hello interface ecology")
-	n2, _ := io.Copy(hasher, src)                    // 同一个 Copy，喂给哈希
+	n2, _ := io.Copy(hasher, src) // 同一个 Copy，喂给哈希
 
 	fmt.Printf("io.Copy -> buffer: %d 字节, 内容=%q\n", n1, buf.String())
 	fmt.Printf("io.Copy -> md5:   %d 字节, sum=%x\n", n2, hasher.Sum(nil))

@@ -102,18 +102,18 @@ func (w *slidingWindow) stats() (total, fails int) {
 
 // ---- 熔断器: 状态机 + 窗口 + 参数 ----
 type circuitBreaker struct {
-	mu          sync.Mutex
-	state       cbState
-	window      *slidingWindow
-	errThresh   float64 // 错误率阈值
-	minSamples  int     // 最小样本
-	cooldown    int     // 冷却期（请求数维度模拟时间）
-	sinceOpen   int     // open 状态以来经过的请求数
-	probes      int     // half-open 已放行的探活数
-	probeNeed   int     // half-open 需要的连续成功探活数
-	probeOK     int
-	fastFails   int // 统计: open 期间快速失败的请求数
-	passedInHP  int
+	mu         sync.Mutex
+	state      cbState
+	window     *slidingWindow
+	errThresh  float64 // 错误率阈值
+	minSamples int     // 最小样本
+	cooldown   int     // 冷却期（请求数维度模拟时间）
+	sinceOpen  int     // open 状态以来经过的请求数
+	probes     int     // half-open 已放行的探活数
+	probeNeed  int     // half-open 需要的连续成功探活数
+	probeOK    int
+	fastFails  int // 统计: open 期间快速失败的请求数
+	passedInHP int
 }
 
 func newCircuitBreaker() *circuitBreaker {

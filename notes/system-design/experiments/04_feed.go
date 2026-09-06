@@ -14,10 +14,10 @@ import (
 
 // feedUser: 模拟用户
 type feedUser struct {
-	id          int
-	followers   int // 粉丝数
-	posts       int // 日发帖数
-	isBigV      bool
+	id        int
+	followers int // 粉丝数
+	posts     int // 日发帖数
+	isBigV    bool
 }
 
 func RunFeedExperiments() {

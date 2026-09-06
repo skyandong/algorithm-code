@@ -134,8 +134,9 @@ func demoBidiStream(ctx context.Context, client hello.HelloServiceClient) {
 }
 
 // ⑥ deadline：ctx 带超时。StreamHello 每条间隔 500ms，
-//    700ms 后 ctx 到期 → Recv 返回 DeadlineExceeded，
-//    服务端 Send 也会因 ctx 取消而失败 —— 超时是全链路取消，不是客户端单方面断开。
+//
+//	700ms 后 ctx 到期 → Recv 返回 DeadlineExceeded，
+//	服务端 Send 也会因 ctx 取消而失败 —— 超时是全链路取消，不是客户端单方面断开。
 func demoDeadline(client hello.HelloServiceClient) {
 	fmt.Println("------ ⑥ deadline 超时 ------")
 	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)

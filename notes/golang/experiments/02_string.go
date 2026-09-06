@@ -70,7 +70,7 @@ func strImmutable() {
 	// 零拷贝视图：契约交到你手里
 	b := []byte("hello")
 	s := unsafe.String(unsafe.SliceData(b), len(b)) // Go 1.20+ 标准写法
-	b[0] = 'H'                                       // 改的是源 []byte
+	b[0] = 'H'                                      // 改的是源 []byte
 	fmt.Printf("unsafe.String 零拷贝后改源 b: s=%q（s 跟着变了！红线：绝不修改零拷贝产物的底层）\n", s)
 
 	// 驻留：编译期相同字面量共享只读段

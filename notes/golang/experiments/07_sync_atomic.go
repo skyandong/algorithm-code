@@ -85,7 +85,7 @@ func syncRWMutex() {
 		mu.Lock() // 写者到达，等存量读者退出（readerCount 打为负）
 		writerHeld <- struct{}{}
 		time.Sleep(100 * time.Millisecond) // 持锁一段时间，放大观察窗口
-		mu.Unlock() // 写者离场，被闸门挡住的新读者随之放行
+		mu.Unlock()                        // 写者离场，被闸门挡住的新读者随之放行
 	}()
 	time.Sleep(100 * time.Millisecond) // 确保写者已排队
 

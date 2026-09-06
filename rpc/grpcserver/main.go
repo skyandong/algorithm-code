@@ -46,7 +46,8 @@ func (s *server) SayHello(
 }
 
 // ② 服务端流：一问多答。像"往水管里写 N 次"，客户端逐条 Recv。
-//    典型场景：列表拉取、行情推送、大结果分批下发。
+//
+//	典型场景：列表拉取、行情推送、大结果分批下发。
 func (s *server) StreamHello(req *hello.HelloRequest, stream hello.HelloService_StreamHelloServer) error {
 	log.Println("[业务] StreamHello 开始推送")
 	for i := 1; i <= 3; i++ {
@@ -62,7 +63,8 @@ func (s *server) StreamHello(req *hello.HelloRequest, stream hello.HelloService_
 }
 
 // ③ 客户端流：多问一答。一直 Recv 直到客户端关流，最后回一个汇总。
-//    典型场景：批量上报、文件分块上传。
+//
+//	典型场景：批量上报、文件分块上传。
 func (s *server) UploadHello(stream hello.HelloService_UploadHelloServer) error {
 	var names []string
 	for {
@@ -80,7 +82,8 @@ func (s *server) UploadHello(stream hello.HelloService_UploadHelloServer) error 
 }
 
 // ④ 双向流：Send/Recv 互不阻塞，先后顺序完全由业务定。
-//    这里实现最简单的 echo：读到一条回一条；客户端关流后服务端跟着关。
+//
+//	这里实现最简单的 echo：读到一条回一条；客户端关流后服务端跟着关。
 func (s *server) ChatHello(stream hello.HelloService_ChatHelloServer) error {
 	for {
 		req, err := stream.Recv()

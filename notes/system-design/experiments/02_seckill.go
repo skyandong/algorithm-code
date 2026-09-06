@@ -14,8 +14,8 @@ import (
 // 锚点: 10 万并发请求, 库存 1000 → 成功订单恰好 1000, 0 超卖, 0 少卖。
 
 const (
-	seckillStock   = 1000   // 初始库存
-	seckillReqs    = 100000 // 并发请求数
+	seckillStock = 1000   // 初始库存
+	seckillReqs  = 100000 // 并发请求数
 )
 
 // mockRedisStock: 模拟 Redis DECR/INCR 的原子预扣

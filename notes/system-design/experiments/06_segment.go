@@ -15,9 +15,9 @@ import (
 // 锚点: 阶段 B 期间 fallback(同步取段)=0 次, 单号最大延迟 << 抖动时长。
 
 const (
-	segStep     = 10000                        // 每段大小
-	segLowMark  = 0.3                           // 低水位 30%: 剩 3000 号触发预取
-	dbJitter    = 200 * time.Millisecond        // 模拟 DB 抖动耗时
+	segStep    = 10000                  // 每段大小
+	segLowMark = 0.3                    // 低水位 30%: 剩 3000 号触发预取
+	dbJitter   = 200 * time.Millisecond // 模拟 DB 抖动耗时
 )
 
 // segment: 一个号段 buffer

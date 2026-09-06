@@ -210,7 +210,7 @@ func perfGCObservation() {
 	before := ms.NumGC
 	for i := 0; i < 256; i++ {
 		g := make([]byte, 1<<20) // 1MB 垃圾
-		g[0] = byte(i)            // 写一下保证分配不被优化掉
+		g[0] = byte(i)           // 写一下保证分配不被优化掉
 	}
 	runtime.ReadMemStats(&ms)
 	fmt.Printf("分配 256MB 瞬时垃圾后: NumGC %d → %d（分配压力自动驱动 GC，无需手动）\n",

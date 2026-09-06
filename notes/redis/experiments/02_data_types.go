@@ -242,7 +242,7 @@ func ExpRehash(ctx context.Context) {
 	after := time.Since(start)
 	fmt.Printf("RELOAD 后 1000 次 HGET: %v  (%.2fμs/op)\n",
 		after, float64(after.Microseconds())/1000)
-	fmt.Println("结论: rehash 分摊到每次操作,单次开销极小,用户几乎无感知\n")
+	fmt.Println("结论: rehash 分摊到每次操作,单次开销极小,用户几乎无感知")
 
 	rdb.Del(ctx, "rehash:hash")
 }
@@ -332,7 +332,7 @@ func ExpListpackVsHashtable(ctx context.Context) {
 		lpDur, float64(lpDur.Microseconds())/n)
 	fmt.Printf("  hashtable(200): %v  (%.2fμs/op)\n",
 		htDur, float64(htDur.Microseconds())/n)
-	fmt.Println("结论: listpack 字段少时因网络 RTT 主导,差距不大;字段数上去后 O(N) 扫描会拖垮主线程\n")
+	fmt.Println("结论: listpack 字段少时因网络 RTT 主导,差距不大;字段数上去后 O(N) 扫描会拖垮主线程")
 
 	rdb.Del(ctx, "exp:lp", "exp:ht")
 }

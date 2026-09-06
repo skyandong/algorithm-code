@@ -9,12 +9,12 @@ package linkedlist
 //
 // 【算法选择：Floyd 快慢指针】
 // 可选解法各有取舍：
-//   1. 哈希集合：遍历把每个 *ListNode 存进 map，遇到重复即有环。
-//      时间 O(n)、空间 O(n)。写法最直白，但面试官会追问"能不能 O(1) 空间"。
-//   2. Floyd 龟兔赛跑（快慢双指针）：slow 每次走 1 步，quick 每次走 2 步。
-//      若有环，quick 终会从背后追上 slow（在环内相遇）；若无环，quick 先到 nil。
-//      时间 O(n)、空间 O(1)。这是面试标准答案，也是本题最优解。
-//   3. 标记法（修改节点/给节点加 visited 字段）：破坏原链表结构，不可取。
+//  1. 哈希集合：遍历把每个 *ListNode 存进 map，遇到重复即有环。
+//     时间 O(n)、空间 O(n)。写法最直白，但面试官会追问"能不能 O(1) 空间"。
+//  2. Floyd 龟兔赛跑（快慢双指针）：slow 每次走 1 步，quick 每次走 2 步。
+//     若有环，quick 终会从背后追上 slow（在环内相遇）；若无环，quick 先到 nil。
+//     时间 O(n)、空间 O(1)。这是面试标准答案，也是本题最优解。
+//  3. 标记法（修改节点/给节点加 visited 字段）：破坏原链表结构，不可取。
 //
 // 这里采用解法 2。空间 O(1) 是该问题的理论下界——在不修改输入的前提下，
 // 必须用某种"游标"在链表上游走，至少常数个指针。
@@ -54,7 +54,7 @@ func hasCycle(head *ListNode) bool {
 		if slow == quick {
 			return true
 		}
-		slow = slow.Next      // 慢指针走 1 步
+		slow = slow.Next        // 慢指针走 1 步
 		quick = quick.Next.Next // 快指针走 2 步
 	}
 	// quick 走到 nil（或 quick.Next 为 nil），说明链表有终点，无环。

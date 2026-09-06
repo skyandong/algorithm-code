@@ -24,19 +24,19 @@ func main() {
 	}
 	res.Body.Close()
 
-	fmt.Println("========== 第一节：Mapping 与 CRUD ==========\n")
+	fmt.Println("========== 第一节：Mapping 与 CRUD ==========")
 	ExpMappingCreate()
 	ExpDocumentCRUD()
 	ExpDynamicMappingTrap()
 
-	fmt.Println("========== 第二节：全文检索与聚合 ==========\n")
+	fmt.Println("========== 第二节：全文检索与聚合 ==========")
 	ExpQueryVsFilter()
 	ExpMatchVsTerm()
 	ExpMultiMatch()
 	ExpAggregation()
 	ExpBoolQuery()
 
-	fmt.Println("========== 第三节：写入优化与深分页 ==========\n")
+	fmt.Println("========== 第三节：写入优化与深分页 ==========")
 	ExpBulkVsSingle()
 	ExpRefreshInterval()
 	ExpFromSizeLimit()

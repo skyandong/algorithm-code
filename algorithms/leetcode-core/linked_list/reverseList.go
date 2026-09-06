@@ -19,10 +19,10 @@ package linkedlist
 //   - 空间 O(1)：仅用三个指针变量，与链表长度无关，已是该问题的空间下界。
 //
 // 易错点速览（面试常追问，见行内【】标注）：
-//   1) prev 必须初始化为 nil，而不是 new(ListNode)；新链表尾部的 Next 应指向 nil。
-//   2) 必须先用 next 暂存 head.Next，再改 head.Next，否则后续节点丢失。
-//   3) 循环条件是 head != nil 而非 head.Next != nil，否则会漏掉最后一个节点的翻转。
-//   4) 返回 prev 而不是 head：循环结束时 head == nil，prev 恰好指向原尾节点（即新头）。
+//  1. prev 必须初始化为 nil，而不是 new(ListNode)；新链表尾部的 Next 应指向 nil。
+//  2. 必须先用 next 暂存 head.Next，再改 head.Next，否则后续节点丢失。
+//  3. 循环条件是 head != nil 而非 head.Next != nil，否则会漏掉最后一个节点的翻转。
+//  4. 返回 prev 而不是 head：循环结束时 head == nil，prev 恰好指向原尾节点（即新头）。
 func reverseList(head *ListNode) *ListNode {
 	// prev 指向"已翻转部分的头"。
 	// 【坑】初始值必须是 nil，不能是 new(ListNode)。因为原链表尾部（反转后的新头之前那个节点）

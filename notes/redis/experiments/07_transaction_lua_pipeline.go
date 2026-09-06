@@ -93,8 +93,8 @@ func ExpMultiExec(ctx context.Context) {
 	// 命令1: LPUSH 对 String 操作,类型错误
 	// 命令2: SET 正常命令
 	cmds, _ := rdb.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.LPush(ctx, "tx:str", "item")      // 类型错误
-		pipe.Set(ctx, "tx:result", "ok", 0)    // 正常命令
+		pipe.LPush(ctx, "tx:str", "item")   // 类型错误
+		pipe.Set(ctx, "tx:result", "ok", 0) // 正常命令
 		return nil
 	})
 
@@ -200,7 +200,7 @@ end`
 	fmt.Printf("\n  SCRIPT LOAD SHA1: %s\n", sha[:8]+"...")
 	result, _ = rdb.EvalSha(ctx, sha, []string{lockKey}, otherToken).Int()
 	fmt.Printf("  EVALSHA 结果: %d\n", result)
-	fmt.Println("  结论: EVALSHA 只传 40 字节 SHA1,脚本越长越省带宽\n")
+	fmt.Println("  结论: EVALSHA 只传 40 字节 SHA1,脚本越长越省带宽")
 
 	rdb.Del(ctx, lockKey)
 }
@@ -239,7 +239,7 @@ func ExpPipelineVsSeq(ctx context.Context) {
 	fmt.Println("  Pipeline vs MULTI 的本质区别:")
 	fmt.Println("    Pipeline: 客户端打包,命令可能被其他客户端穿插,只省 RTT")
 	fmt.Println("    MULTI:    服务端保证命令不被穿插,但不省 RTT,也不回滚")
-	fmt.Println("    Lua:      真原子,服务端执行,脚本过长会阻塞主线程\n")
+	fmt.Println("    Lua:      真原子,服务端执行,脚本过长会阻塞主线程")
 
 	rdb.Del(ctx, "pipe:list")
 }

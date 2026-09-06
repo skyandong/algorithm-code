@@ -15,8 +15,8 @@ func longestPalindrome(s string) string {
 	}
 	begin, maxLen := 0, 0
 	for i := 0; i < len(s); i++ {
-		l1 := expand(i, i)     // 奇数长度,中心 i
-		l2 := expand(i, i+1)   // 偶数长度,中心 i,i+1 之间
+		l1 := expand(i, i)   // 奇数长度,中心 i
+		l2 := expand(i, i+1) // 偶数长度,中心 i,i+1 之间
 		l := l1
 		if l2 > l1 {
 			l = l2

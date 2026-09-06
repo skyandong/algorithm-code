@@ -13,10 +13,10 @@ import (
 
 // User 用户模型
 type User struct {
-	ID        uint      `gorm:"primarykey"`
-	Name      string    `gorm:"type:varchar(64);not null;index"`
-	Age       int       `gorm:"default:0"`
-	Email     string    `gorm:"type:varchar(128);uniqueIndex"`
+	ID        uint   `gorm:"primarykey"`
+	Name      string `gorm:"type:varchar(64);not null;index"`
+	Age       int    `gorm:"default:0"`
+	Email     string `gorm:"type:varchar(128);uniqueIndex"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

@@ -7,8 +7,8 @@
 //	TLS 1.3 会话恢复（PSK，第二次连同一台服务器）
 //
 // 观察指标：
-//	- ConnectionState.DidResume：是否走了恢复路径
-//	- 握手耗时（本机 loopback RTT≈0，差异微小，但 DidResume 一目了然）
+//   - ConnectionState.DidResume：是否走了恢复路径
+//   - 握手耗时（本机 loopback RTT≈0，差异微小，但 DidResume 一目了然）
 //
 // 对应笔记《04-会话恢复与0-RTT》。
 package main

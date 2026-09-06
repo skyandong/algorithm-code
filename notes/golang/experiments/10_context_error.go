@@ -51,7 +51,7 @@ func RunContextExperiments() {
 // ctxCancelTree 第1节：父取消沿树传播；子超时不能比父宽。
 func ctxCancelTree() {
 	parent, cancel := context.WithCancel(context.Background())
-	childA, cancelA := context.WithCancel(parent)            // 手动取消层
+	childA, cancelA := context.WithCancel(parent)             // 手动取消层
 	childB, cancelB := context.WithTimeout(parent, time.Hour) // 子给了 1 小时
 	defer cancelA()
 	defer cancelB()

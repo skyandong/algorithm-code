@@ -130,10 +130,10 @@ type cacheEntry struct {
 
 // Cache 本地 LRU 缓存 + 一致性哈希感知
 type Cache struct {
-	mu    sync.RWMutex
-	data  map[string]*list.Element // key → LRU 节点
-	lru   *list.List
-	cap   int
+	mu   sync.RWMutex
+	data map[string]*list.Element // key → LRU 节点
+	lru  *list.List
+	cap  int
 
 	ring *Ring // 当前生效的哈希环 (原子替换)
 }
@@ -292,4 +292,3 @@ func (c *Cache) InvalidateMovedKeys(oldRing, newRing *Ring) {
 		}
 	}
 }
-

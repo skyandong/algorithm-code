@@ -178,7 +178,7 @@ func RunRegistryExperiments() {
 	// ---- 场景三: 心跳正常但健康检查失败（"活着的僵尸"）----
 	fmt.Println("\n--- 场景三: 健康探针摘除僵尸实例 ---")
 	fmt.Printf("摘除前名单: %v\n", r.lookup("order-svc"))
-	r.heartbeat("order-svc", "10.0.0.2:8080") // 心跳照常（进程活着）
+	r.heartbeat("order-svc", "10.0.0.2:8080")        // 心跳照常（进程活着）
 	r.setHealth("order-svc", "10.0.0.2:8080", false) // 但探针失败（DB 依赖挂了）
 	afterZombie := r.lookup("order-svc")
 	fmt.Printf("心跳正常 + 探针失败 → 立即摘除, 名单: %v\n", afterZombie)

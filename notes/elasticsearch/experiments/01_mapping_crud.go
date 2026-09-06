@@ -81,7 +81,7 @@ func ExpMappingCreate() {
 	fmt.Printf("索引 [%s] 创建成功\n", articlesIndex)
 	fmt.Println("  title: text + keyword subfield（搜索用 text，排序/聚合用 title.keyword）")
 	fmt.Println("  author/tags: keyword（只做精确匹配，不分词）")
-	fmt.Println("  dynamic: strict（未定义字段会报错，防止 Mapping 膨胀）\n")
+	fmt.Println("  dynamic: strict（未定义字段会报错，防止 Mapping 膨胀）")
 }
 
 // ExpDocumentCRUD 演示文档的增删改查。
@@ -190,7 +190,7 @@ func ExpDynamicMappingTrap() {
 	} else {
 		fmt.Printf("  本次 ES 版本推断为 %v（不同版本行为可能不同）\n", orderIdType)
 	}
-	fmt.Println("  → 生产建议: dynamic=strict，手动定义所有字段类型\n")
+	fmt.Println("  → 生产建议: dynamic=strict，手动定义所有字段类型")
 
 	esClient.Indices.Delete([]string{dynamicIndex})
 }

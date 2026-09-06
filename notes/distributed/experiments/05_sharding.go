@@ -107,8 +107,8 @@ func nodeIndexOf(pos uint32, nodes int) int {
 // ---------- 第2节：虚拟节点 ----------
 
 type vRing struct {
-	pos  []uint32 // 排序后的虚拟节点位置
-	own  []int    // 每个位置属于哪个物理节点
+	pos []uint32 // 排序后的虚拟节点位置
+	own []int    // 每个位置属于哪个物理节点
 }
 
 func newVRing(nodes, vnodes int) *vRing {

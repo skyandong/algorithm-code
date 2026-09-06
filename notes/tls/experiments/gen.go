@@ -70,9 +70,10 @@ func genLeaf(cn string, dnsNames []string, days int, parent *certKeyPair) *certK
 // genChain 生成 完整三级链：Root CA → Intermediate CA → Leaf
 //
 // 对应真实世界：
-//   Root CA        预装在操作系统/浏览器里（离线保管，十年有效）
-//   Intermediate   Let's Encrypt 这类在线签发机构
-//   Leaf           你的网站证书（几周~几个月有效）
+//
+//	Root CA        预装在操作系统/浏览器里（离线保管，十年有效）
+//	Intermediate   Let's Encrypt 这类在线签发机构
+//	Leaf           你的网站证书（几周~几个月有效）
 func genChain() (root, inter, leaf *certKeyPair) {
 	root = genCA("Demo Root CA", 3650)
 	inter = genLeaf("Demo Intermediate CA", nil, 1825, root)

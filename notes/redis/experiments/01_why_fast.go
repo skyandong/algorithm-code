@@ -127,7 +127,7 @@ func Exp2SingleThreadBlock(ctx context.Context) {
 	fmt.Printf("正常 GET 延迟:         %v\n", base)
 	fmt.Printf("慢命令期间的 GET 延迟:  %v\n", blocked)
 	fmt.Println("结论: 普通命令被慢命令卡住 —— 单线程执行, 一条慢命令阻塞所有后续命令")
-	fmt.Println("      如看不到阻塞, 调大 Lua 循环次数或减小 B 的 sleep\n")
+	fmt.Println("      如看不到阻塞, 调大 Lua 循环次数或减小 B 的 sleep")
 }
 
 // Exp3ConcurrentThroughput 实验3: 并发吞吐(I/O 多路复用)
@@ -159,7 +159,7 @@ func Exp3ConcurrentThroughput(ctx context.Context) {
 	fmt.Println("=== 实验3: 并发吞吐 (I/O 多路复用) ===")
 	fmt.Printf("%d 并发客户端 × %d 次 SET = %d 次, 耗时 %v\n", clients, perClient, total, dur)
 	fmt.Printf("吞吐: %.0f ops/sec\n", float64(total)/dur.Seconds())
-	fmt.Println("结论: 单线程 Redis 靠 epoll 多路复用, 同时服务大量并发连接\n")
+	fmt.Println("结论: 单线程 Redis 靠 epoll 多路复用, 同时服务大量并发连接")
 
 	// 清理 10 万个测试 key,避免污染实例内存和后续 SCAN/KEYS 实验
 	del := rdb.Pipeline()

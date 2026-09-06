@@ -28,8 +28,8 @@ func tlsCreds() credentials.TransportCredentials {
 		return nil
 	}
 	return credentials.NewTLS(&tls.Config{
-		RootCAs:    pool,              // 信任这份自签证书
-		ServerName: "localhost",       // 校验证书 SAN 里的域名，不匹配即握手失败
-		MinVersion: tls.VersionTLS12,  // 1.0/1.1 有已知漏洞
+		RootCAs:    pool,             // 信任这份自签证书
+		ServerName: "localhost",      // 校验证书 SAN 里的域名，不匹配即握手失败
+		MinVersion: tls.VersionTLS12, // 1.0/1.1 有已知漏洞
 	})
 }

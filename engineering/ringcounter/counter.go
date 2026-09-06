@@ -36,10 +36,10 @@ import (
 )
 
 const (
-	bucketNum = 50                  // 环形数组长度：50 个桶 × 100ms = 5 秒窗口
-	shardNum  = 32                  // 分段锁个数
-	bucketMS  = 100                 // 每个桶覆盖的毫秒数
-	windowS   = 5                   // 滑动窗口秒数
+	bucketNum = 50  // 环形数组长度：50 个桶 × 100ms = 5 秒窗口
+	shardNum  = 32  // 分段锁个数
+	bucketMS  = 100 // 每个桶覆盖的毫秒数
+	windowS   = 5   // 滑动窗口秒数
 )
 
 // bucket 一个 100ms 时间桶，记录该时段内的请求数

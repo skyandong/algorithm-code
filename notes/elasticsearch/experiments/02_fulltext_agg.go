@@ -85,7 +85,7 @@ func ExpQueryVsFilter() {
 
 	fmt.Println()
 	fmt.Println("结论：filter 首次查询建立 Bitset 缓存，后续命中缓存速度更快")
-	fmt.Println("      精确匹配、范围过滤场景下，优先用 filter 而非 must\n")
+	fmt.Println("      精确匹配、范围过滤场景下，优先用 filter 而非 must")
 }
 
 // ExpMatchVsTerm 演示 match 和 term 在 text 字段上的经典陷阱。
@@ -160,7 +160,7 @@ func ExpMatchVsTerm() {
 
 	fmt.Println()
 	fmt.Println("规律：text 字段 → 用 match；keyword 字段 → 用 term")
-	fmt.Println("      想对 text 字段做精确匹配：用 .keyword subfield + term\n")
+	fmt.Println("      想对 text 字段做精确匹配：用 .keyword subfield + term")
 }
 
 // ExpMultiMatch 演示跨字段搜索和 boost 权重调整。
@@ -201,13 +201,14 @@ func ExpMultiMatch() {
 		src := hit["_source"].(map[string]interface{})
 		fmt.Printf("  _score=%.4f  title=%q\n", hit["_score"], src["title"])
 	}
-	fmt.Println("  title 权重是 content 的 2 倍，title 命中的文档排名更靠前\n")
+	fmt.Println("  title 权重是 content 的 2 倍，title 命中的文档排名更靠前")
 }
 
 // ExpAggregation 演示 terms 聚合 + metric 子聚合。
 //
 // 类比 SQL：
-//   SELECT author, COUNT(*), AVG(price) FROM articles GROUP BY author ORDER BY COUNT(*) DESC
+//
+//	SELECT author, COUNT(*), AVG(price) FROM articles GROUP BY author ORDER BY COUNT(*) DESC
 //
 // ES 聚合要求字段必须是 keyword 或 numeric，text 字段默认不能聚合。
 func ExpAggregation() {
@@ -261,7 +262,7 @@ func ExpAggregation() {
 
 	fmt.Println()
 	fmt.Println("等价 SQL: SELECT author, COUNT(*), AVG(price), MAX(price) FROM articles GROUP BY author")
-	fmt.Println("          聚合字段必须是 keyword 或 numeric，text 字段不支持\n")
+	fmt.Println("          聚合字段必须是 keyword 或 numeric，text 字段不支持")
 }
 
 // ExpBoolQuery 演示 bool 查询的四个子句组合。
@@ -312,5 +313,5 @@ func ExpBoolQuery() {
 	}
 
 	fmt.Println()
-	fmt.Println("要点：should + minimum_should_match 实现 OR 逻辑；filter 不影响评分且可缓存\n")
+	fmt.Println("要点：should + minimum_should_match 实现 OR 逻辑；filter 不影响评分且可缓存")
 }

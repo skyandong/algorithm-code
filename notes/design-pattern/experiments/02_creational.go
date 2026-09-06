@@ -56,7 +56,7 @@ func WithMaxConn(n int) ServerOption {
 
 func NewServer(opts ...ServerOption) *serverOptions {
 	o := defaultServerOptions() // 1. 默认值集中
-	for _, opt := range opts { // 2. 逐个覆写
+	for _, opt := range opts {  // 2. 逐个覆写
 		opt(&o)
 	}
 	return &o

@@ -199,9 +199,10 @@ func ExpRefreshInterval() {
 // ExpFromSizeLimit 演示 from+size 深分页的问题，不真正执行深翻页（避免耗时）。
 //
 // 为什么深分页会 OOM：
-//   from=10000, size=10 时，每个分片需要返回 10010 条，
-//   协调节点合并 N*10010 条后排序，再截取 10 条。
-//   分片越多，内存消耗越大，容易 OOM。
+//
+//	from=10000, size=10 时，每个分片需要返回 10010 条，
+//	协调节点合并 N*10010 条后排序，再截取 10 条。
+//	分片越多，内存消耗越大，容易 OOM。
 //
 // ES 默认限制 max_result_window=10000，超出会报错。
 func ExpFromSizeLimit() {
@@ -234,7 +235,7 @@ func ExpFromSizeLimit() {
 	defer res2.Body.Close()
 	fmt.Printf("\nfrom=10001 查询 HTTP 状态码: %d\n", res2.StatusCode)
 	fmt.Println("  → 400 错误：Result window is too large (max_result_window=10000)")
-	fmt.Println("  → 解决方案：用 search_after 代替 from+size\n")
+	fmt.Println("  → 解决方案：用 search_after 代替 from+size")
 }
 
 // ExpSearchAfter 演示基于游标的 search_after 翻页。
@@ -245,7 +246,8 @@ func ExpFromSizeLimit() {
 //   - 内存消耗恒定（只需当前页 + 游标值），不随页数增长
 //
 // 注意：排序字段必须包含唯一值（如 doc_id）作为 tiebreaker，
-//       否则相同排序值的文档可能被漏掉或重复。
+//
+//	否则相同排序值的文档可能被漏掉或重复。
 func ExpSearchAfter() {
 	fmt.Println("=== 实验12: search_after 游标翻页 ===")
 
@@ -306,5 +308,5 @@ func ExpSearchAfter() {
 	fmt.Println("结论：")
 	fmt.Println("  search_after 每次只取当前页数据，内存恒定，不随页数增长")
 	fmt.Println("  不支持跳页（只能顺序翻页），适合瀑布流/无限滚动场景")
-	fmt.Println("  排序字段必须含唯一值作为 tiebreaker（这里用 doc_id）\n")
+	fmt.Println("  排序字段必须含唯一值作为 tiebreaker（这里用 doc_id）")
 }

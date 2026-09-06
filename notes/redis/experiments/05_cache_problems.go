@@ -135,7 +135,7 @@ func ExpCachePenetration(ctx context.Context) {
 	fmt.Printf("  100 次并发查询不存在的 key\n")
 	fmt.Printf("  实际打到 DB 的次数: %d\n", atomic.LoadInt64(&dbHits))
 	fmt.Println("  结论: 空值缓存能挡住后续请求,但首波并发在回填完成前存在竞态窗口,")
-	fmt.Println("        仍有多个请求同时打到 DB —— 要收窄到 1 次,需配合互斥锁/singleflight(见实验16)\n")
+	fmt.Println("        仍有多个请求同时打到 DB —— 要收窄到 1 次,需配合互斥锁/singleflight(见实验16)")
 
 	rdb.Del(ctx, "user:99999")
 }
@@ -194,7 +194,7 @@ func ExpCacheBreakdown(ctx context.Context) {
 	}
 	wg.Wait()
 	fmt.Printf("  有互斥锁: %d 次请求打到 DB\n", atomic.LoadInt64(&dbHitsWithLock))
-	fmt.Println("  结论: 互斥锁把击穿从 N 次 DB 查询降到 1 次\n")
+	fmt.Println("  结论: 互斥锁把击穿从 N 次 DB 查询降到 1 次")
 
 	rdb.Del(ctx, key, lockKey)
 
@@ -219,7 +219,7 @@ func ExpCacheBreakdown(ctx context.Context) {
 	fmt.Printf("  singleflight: %d 次请求打到 DB\n", atomic.LoadInt64(&dbHitsSF))
 	fmt.Println("  对比:")
 	fmt.Println("    互斥锁    抢不到锁需要重试,逻辑自己控制")
-	fmt.Println("    singleflight 等待者直接拿到结果,无需重试,代码更干净\n")
+	fmt.Println("    singleflight 等待者直接拿到结果,无需重试,代码更干净")
 
 	rdb.Del(ctx, key)
 }
@@ -267,7 +267,7 @@ func ExpCacheAvalanche(ctx context.Context) {
 		hitUniform, n, float64(hitUniform)/n*100)
 	fmt.Printf("  随机过期: %d/%d (%.0f%%) ← 部分存活,DB 压力分散\n",
 		hitRandom, n, float64(hitRandom)/n*100)
-	fmt.Println("  结论: 过期时间加随机值是防雪崩最简单有效的手段\n")
+	fmt.Println("  结论: 过期时间加随机值是防雪崩最简单有效的手段")
 
 	// 清理
 	for i := 0; i < n; i++ {
@@ -364,7 +364,7 @@ func ExpDelayedDoubleDelete(ctx context.Context) {
 	mu.Lock()
 	fmt.Printf("  DB 当前值:    %s\n", dbValue)
 	mu.Unlock()
-	fmt.Println("  结论: 延迟双删消除了读线程回填旧值的窗口期\n")
+	fmt.Println("  结论: 延迟双删消除了读线程回填旧值的窗口期")
 
 	rdb.Del(ctx, key)
 }

@@ -40,7 +40,7 @@ func k1LWW() {
 	type write struct {
 		who      string
 		value    string
-		physTime int // 本地物理时间戳
+		physTime int  // 本地物理时间戳
 		later    bool // 因果上是否更晚
 	}
 	writes := []write{
@@ -83,10 +83,10 @@ func k2Lamport() {
 	a, b := &lamportNode{}, &lamportNode{}
 
 	// 因果链: a 本地事件 → a 发消息 → b 收到 → b 本地事件
-	e1 := a.local()   // a 的写
-	e2 := a.send()    // a 发出（消息携带 e2）
+	e1 := a.local()     // a 的写
+	e2 := a.send()      // a 发出（消息携带 e2）
 	e3 := b.receive(e2) // b 收到
-	e4 := b.local()   // b 基于消息的写
+	e4 := b.local()     // b 基于消息的写
 	fmt.Printf("因果链 a.write→send→b.recv→b.write: Lamport %d→%d→%d→%d（单调递增 ✓）\n", e1, e2, e3, e4)
 
 	// 并发事件: 另一个没有消息往来的 c

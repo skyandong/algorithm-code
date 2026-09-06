@@ -122,7 +122,7 @@ func ExpLazyDelete(ctx context.Context) {
 	} else {
 		fmt.Printf("  访问过期 key:%s\n", val)
 	}
-	fmt.Println("  结论: 惰性删除访问时立即触发;定期删除有延迟,不保证过期立刻释放内存\n")
+	fmt.Println("  结论: 惰性删除访问时立即触发;定期删除有延迟,不保证过期立刻释放内存")
 }
 
 // ExpDelVsUnlink 实验21: DEL vs UNLINK 阻塞对比
@@ -168,7 +168,7 @@ func ExpDelVsUnlink(ctx context.Context) {
 	fmt.Printf("  UNLINK 耗时: %v  (主线程只解除引用,后台异步释放)\n", unlinkDur)
 
 	fmt.Printf("  提速: %.1fx\n", float64(delDur)/float64(unlinkDur))
-	fmt.Println("  结论: 大 key 务必用 UNLINK,DEL 会阻塞主线程\n")
+	fmt.Println("  结论: 大 key 务必用 UNLINK,DEL 会阻塞主线程")
 }
 
 // ExpEvictionPolicy 实验22: 淘汰策略 —— LRU vs LFU
@@ -224,7 +224,7 @@ func ExpEvictionPolicy(ctx context.Context) {
 	fmt.Println("         热点 key 如果有一段时间没访问,照样被淘汰")
 	fmt.Println("    LFU: 淘汰访问频率最低的 key")
 	fmt.Println("         历史热点 key 频率高,即使最近没访问也不会被淘汰")
-	fmt.Println("    推荐: 有明显冷热数据的场景用 allkeys-lfu\n")
+	fmt.Println("    推荐: 有明显冷热数据的场景用 allkeys-lfu")
 
 	// 清理
 	for i := 0; i < 100; i++ {
