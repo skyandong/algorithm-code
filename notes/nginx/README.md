@@ -11,7 +11,8 @@
 4. [HTTPS 与 TLS 终止实战](04-HTTPS-TLS终止实战.md) — TLS 终止架构、自签证书、后端零 TLS 的可验证形态
 5. [性能调优与生产排查](05-性能调优与排查.md) — sendfile/gzip、buffering、502/慢请求排查手册
 6. [场景题专题](06-场景题专题.md) — 统一入口、灰度发布、秒杀入口、多级代理真实 IP
-7. [面试一口答](面试一口答.md) — 考前速刷:26 个高频问题"张口就来"
+7. [最小 API 网关](07-最小API网关.md) — 用 auth_request/limit_req/map 把网关拼出来、身份透传、网关联不是安全边界
+8. [面试一口答](面试一口答.md) — 考前速刷:30 个高频问题"张口就来"
 
 ## 重点回顾(自测)
 
@@ -28,6 +29,12 @@
 - [ ] sendfile 零拷贝链路;SSE 必须 proxy_buffering off
 - [ ] 502/504 区别 + access log 双时间差定位法
 - [ ] POST 重试幂等炸弹(proxy_next_upstream)
+- [ ] **auth_request 子请求机制:为什么鉴权端点必须加 `internal`**
+- [ ] **`auth_request_set $var $upstream_http_x_xxx` —— 抓鉴权响应头注入后端,让后端免验签**
+- [ ] **先鉴权再限流的顺序理由:假 token 不该消耗限流配额**
+- [ ] **`proxy_pass http://$var` 带变量时 upstream keepalive 失效(动态路由的代价)**
+- [ ] **`split_clients` 按百分比灰度 vs `map` 按 header 灰度,各自适用场景**
+- [ ] **网关是流量入口不是安全边界:绕过直连后端时鉴权完全不生效**
 
 ## 跑实验
 
@@ -64,8 +71,25 @@ docker stop nginx-lab
 |------|------|
 | `conf/nginx.conf` | 主实验配置(本机版,upstream=127.0.0.1),一个文件覆盖 01-05 篇 |
 | `conf/nginx-docker.conf` | Docker 版,upstream 用 host.docker.internal(容器内 127.0.0.1 是容器自己) |
+| `conf/gateway.conf` | **第七节最小网关**(本机版):auth_request 鉴权 + limit_req + map 灰度 + 身份透传 |
+| `conf/gateway-docker.conf` | 第七节 Docker 版,已在 nginx:1.27-alpine 上实测跑通 |
 | `conf/gen-certs.sh` | 自签证书生成(原理在 notes/tls/05) |
-| `experiments/` | Go 验证脚本 + 两个零 TLS 后端,`go run .` 全跑 |
+| `experiments/` | Go 验证脚本 + 两个零 TLS 后端,`go run .` 全跑,`go run . 7` 只跑网关一节 |
+
+**第七节单独跑(网关需手动起 nginx)**
+
+```bash
+cd notes/nginx/experiments
+go run . 7            # 起 8071(v1)/8072(v2) 后端 + 9090 鉴权服务
+                      # 缺 nginx 时会打印启动指引而不是崩掉
+
+# 另开终端,Docker 起 nginx(不用装)
+cd ../conf && mkdir -p logs
+docker run --rm --name gw-lab -p 8090:8090 \
+  -v "$(pwd)/gateway-docker.conf":/etc/nginx/nginx.conf:ro \
+  -v "$(pwd)/logs":/var/log/nginx \
+  nginx:1.27-alpine
+```
 
 ## 与其他模块的衔接
 

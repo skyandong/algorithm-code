@@ -3,13 +3,15 @@
 // 对应笔记: 05-性能调优与排查.md
 //
 // ① gzip: 同一接口,带不带 Accept-Encoding,响应头 Content-Encoding 不同。
-//    conf: gzip on + gzip_types application/json + gzip_min_length 100 + gzip_proxied any
-//    后端 /hello 返回 >1KB 的 JSON,足够触发压缩。
+//
+//	conf: gzip on + gzip_types application/json + gzip_min_length 100 + gzip_proxied any
+//	后端 /hello 返回 >1KB 的 JSON,足够触发压缩。
 //
 // ② keepalive: 复用连接 vs 每次新建连接,100 次请求的耗时差。
-//    nginx→上游的 keepalive 在 conf 里(upstream keepalive 32 + Connection "")。
-//    客户端侧同样有这个开关(Transport.DisableKeepAlives),
-//    两端任一处不开,都要为每个请求付一次 TCP 握手成本。
+//
+//	nginx→上游的 keepalive 在 conf 里(upstream keepalive 32 + Connection "")。
+//	客户端侧同样有这个开关(Transport.DisableKeepAlives),
+//	两端任一处不开,都要为每个请求付一次 TCP 握手成本。
 package main
 
 import (

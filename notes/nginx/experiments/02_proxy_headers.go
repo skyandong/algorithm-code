@@ -10,7 +10,8 @@
 //	                      ↑ TLS 已在 nginx 终止,后端收到的仍是明文 HTTP!
 //
 // 结论: 后端感知"用户是否走 HTTPS"的唯一途径是 X-Forwarded-Proto,
-//       这正是本模块铁律(TLS 只终止在 nginx)的可验证形态。
+//
+//	这正是本模块铁律(TLS 只终止在 nginx)的可验证形态。
 package main
 
 import (
