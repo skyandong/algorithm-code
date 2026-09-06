@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: gofmt · vet · test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: gofmt
+        run: |
+          # notes/mysql/ent 是依赖未声明的孤儿历史代码，不纳入检查，见 notes/mysql/README.md
+          bad=$(gofmt -l . | grep -v '/ent/' || true)
+          if [ -n "$bad" ]; then
+            echo "以下文件未通过 gofmt，请本地执行 gofmt -w："
+            echo "$bad"
+            exit 1
+          fi
+
+      - name: vet
+        run: |
+          set -u
+          fail=0
+          # 动态发现所有 go module：新增 module 无需改动本文件
+          mods=$(find . -name go.mod -not -path './.workbuddy/*' -exec dirname {} \; | sort)
+          for mod in $mods; do
+            echo "─── vet $mod"
+            cd "$GITHUB_WORKSPACE/$mod"
+            if [ "$mod" = "./notes/mysql" ]; then
+              # ent 依赖 entgo.io/ent 但未在 go.mod 声明，只校验其余包
+              pkgs=$(go list ./... 2>/dev/null | grep -v '/ent' || true)
+            else
+              pkgs="./..."
+            fi
+            if ! go vet $pkgs; then
+              echo "::error file=$mod::vet 未通过"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: test
+        run: |
+          set -u
+          fail=0
+          # 只跑不依赖外部服务的测试。
+          #   - notes/akafka 的测试需要真实 Kafka broker，会挂起到超时，故不纳入
+          #   - 其余 notes/*、demos/* 实验多为可运行 demo，本身无测试
+          # 新增不依赖外部服务的测试后，按 "模块|包" 格式加进下面的列表。
+          while IFS='|' read -r mod pkg; do
+            [ -z "$mod" ] && continue
+            echo "─── test $mod $pkg"
+            if ! (cd "$GITHUB_WORKSPACE/$mod" && go test -count=1 -timeout 120s "$pkg"); then
+              echo "::error file=$mod::test 未通过"
+              fail=1
+            fi
+          done <<EOF
+          .|./...
+          demos/trtc-demo|./sig/
+          EOF
+          exit $fail

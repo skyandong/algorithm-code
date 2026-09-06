@@ -2,6 +2,10 @@
 
 个人 Go 学习与面试备战仓库。
 
+[![CI](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml/badge.svg)](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml)
+
+> **找答案先查 [INDEX.md](INDEX.md)** —— 110 篇笔记、约 106 万字，按「面试官会怎么问」组织的横向入口。
+
 ## 目录分层
 
 ```
@@ -47,3 +51,18 @@ algorithm-code/
 - 验证主模块用 `go vet ./...`（部分子目录包名与目录名冲突，`go build` 会误报）
 - 笔记新增遵循体例：`NN-主题.md` 分册 + README 索引（含数据锚点表）+ experiments 实验
 - 笔记体系的学习主线：golang（语言）→ design-pattern（范式）→ distributed（理论）→ system-design/microservice（应用设计）→ 各中间件（组件深度）→ interview（输出表达）
+
+## CI
+
+`.github/workflows/ci.yml` 在 push / PR 时自动发现所有 go module 并执行：
+
+- `gofmt` 全仓格式检查
+- `go vet` 遍历每个 module（新增 module 无需改配置）
+- `go test` 只跑不依赖外部服务的部分：主模块全量 + `demos/trtc-demo` 的 `./sig/`
+
+两点例外：
+
+- `notes/mysql/ent` 是依赖未声明的孤儿历史代码，gofmt 与 vet 均跳过
+- `notes/akafka` 的测试需要真实 Kafka broker，不纳入 CI。本地跑：`cd notes/akafka/docker && docker compose up -d`
+
+本机没有 `go` 时，用仓库外的工具链：`export PATH=/Users/tal/sdk/go1.26.3/bin:$PATH`
