@@ -5,7 +5,8 @@ package main
 //	② 服务端流 / ③ 客户端流 / ④ 双向流
 //	⑤ metadata 附加自定义头（服务端拦截器会读 x-uid）
 //	⑥ deadline 超时控制（ctx 到期，服务端业务被自动取消）
-//	⑦ TLS 凭证（8889，信任自签 CA 的正规写法，见 tls.go）
+//
+// TLS 不在 RPC 层做：终止只在 nginx 网关，客户端连 nginx 的 HTTPS/h2 端口即可。
 
 import (
 	"context"
@@ -42,7 +43,6 @@ func main() {
 	demoClientStream(ctx, client)
 	demoBidiStream(ctx, client)
 	demoDeadline(client)
-	demoTLS()
 }
 
 // ① 一元 + 错误详情解包：status.FromError → 遍历 details → Any 解包成 BizError
@@ -154,41 +154,5 @@ func demoDeadline(client hello.HelloServiceClient) {
 			break
 		}
 		fmt.Println("超时前收到:", reply.Message)
-	}
-}
-
-// ⑦ TLS：信任自签 CA + 校验 SAN 的正规写法（tls.go 提供凭证）
-func demoTLS() {
-	fmt.Println("------ ⑦ TLS 凭证 ------")
-	creds := tlsCreds()
-	if creds == nil {
-		fmt.Println("未找到证书（notes/nginx/conf/gen-certs.sh 生成后重试），跳过")
-		return
-	}
-
-	conn, err := grpc.NewClient("localhost:8889", grpc.WithTransportCredentials(creds))
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer conn.Close()
-
-	stream, err := hello.NewHelloServiceClient(conn).StreamHello(
-		metadata.AppendToOutgoingContext(context.Background(), "x-uid", "tls-user"),
-		&hello.HelloRequest{Name: "tls-user"},
-	)
-	if err != nil {
-		fmt.Println("TLS 调用失败:", err)
-		return
-	}
-	for {
-		reply, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("TLS 加密通道收到:", reply.Message)
 	}
 }

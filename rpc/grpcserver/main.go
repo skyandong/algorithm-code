@@ -113,7 +113,8 @@ func main() {
 
 	hello.RegisterHelloServiceServer(s, &server{})
 
-	startTLSListener() // 8889: TLS 版监听（有证书才起）
+	// TLS 不在这里做：终止只在 nginx 网关层，后端服务只听明文，
+	// 对外加密由 nginx 承担（见 notes/nginx 设计基线）。
 
 	log.Println("gRPC 服务运行在 :8888（四种流模式 + 拦截器）")
 	if err := s.Serve(lis); err != nil {
