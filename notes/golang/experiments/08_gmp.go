@@ -40,6 +40,26 @@ func RunGMPExperiments() {
 
 	fmt.Println("\n========== 第5节: channel 阻塞 vs 系统调用阻塞 ==========")
 	gmpBlockCompare()
+
+	fmt.Println("\n========== 第6节: 调度循环与 netpoller（笔记 08 第 2/4 节）==========")
+	gmpSchedNetpoll()
+}
+
+// gmpSchedNetpoll 笔记 08 第 2/4 节：findRunnable 的找活优先级；网络 IO 为什么不占 M。
+func gmpSchedNetpoll() {
+	fmt.Println("M 的调度循环 findRunnable 找活优先级（从高到低）:")
+	fmt.Println("  ① runnext：P 私有的「下一个就跑」槽位（局部性最好，握手交接）")
+	fmt.Println("  ② P 本地队列（256 容量环形数组，无锁访问）")
+	fmt.Println("  ③ 全局队列（有锁，每 61 次调度优先查一次，防全局饥饿）")
+	fmt.Println("  ④ netpoll：顺手捞网络就绪的 G（见下）")
+	fmt.Println("  ⑤ work-stealing：偷别的 P 本地队列一半任务（随机选受害者，越偷越均衡）")
+	fmt.Println()
+	fmt.Println("netpoller（第 4 节）: 网络 fd 全注册到 epoll/kqueue，就绪了才把 G 扔回运行队列")
+	fmt.Println("  - 网络 IO 阻塞 = G park、M 继续跑别的 G（M 不陪绑）")
+	fmt.Println("  - 系统调用阻塞（普通文件 IO/cgo）= M 陪绑，P 会被 hand off 给别的 M（第 5 节实验）")
+	fmt.Println("  - 这就是「10 万 goroutine 等网络不炸内存」的根源：等的只是 2KB 栈 + g 结构，不是线程")
+	fmt.Println()
+	fmt.Println("验证: 第 5 节 gmpBlockCompare 已实测 channel 阻塞（M 空闲）与系统调用阻塞（M 陪绑）的对比")
 }
 
 // gmpBasic 第1节：P 的数量语义。P = GOMAXPROCS，M 按需创建。
@@ -73,7 +93,7 @@ func gmpGrowth() {
 	close(done) // 广播退出
 	time.Sleep(100 * time.Millisecond)
 	fmt.Printf("全部结束后 NumGoroutine = %d（回到基线附近）\n", runtime.NumGoroutine())
-	fmt.Println("（千级 goroutine 秒建秒回收：2KB 初始栈 + 用户态调度，见笔记 §7）")
+	fmt.Println("（千级 goroutine 秒建秒回收：2KB 初始栈 + 用户态调度，见笔记 第 7 节）")
 }
 
 // gmpGosched 第3节：Gosched 提供确定性的立即让出；抢占只是兜底。
@@ -171,6 +191,6 @@ func gmpBlockCompare() {
 	fmt.Printf("  16 个 G 阻塞在系统调用上：线程数 %d -> %d（每个阻塞的 G 都占一个 M，runtime 只能新建 M）\n", base, threads())
 	wg2.Wait()
 
-	fmt.Println("（对比结论：channel 阻塞 park 的是 G；系统调用阻塞陪绑的是 M —— 两条路径分离，见笔记 §3/§8-Q2）")
+	fmt.Println("（对比结论：channel 阻塞 park 的是 G；系统调用阻塞陪绑的是 M —— 两条路径分离，见笔记第 3 节/第 8 节的 Q2）")
 	fmt.Println("（数量少于现有线程数时 runtime 复用 idle M，不一定新建；超过则必然增长）")
 }

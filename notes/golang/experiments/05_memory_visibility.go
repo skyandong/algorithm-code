@@ -44,6 +44,30 @@ func RunVisibilityExperiments() {
 
 	fmt.Println("\n===== 6. 正确的 sync.Once =====")
 	demoCorrectOnce()
+
+	fmt.Println("\n===== 附: happens-before 规则速览与 race detector（笔记 05 第 2/3/9/10 节）=====")
+	demoHappensBeforeNotes()
+}
+
+// demoHappensBeforeNotes 笔记 05 第 2/3/9/10 节：同步原语建立 happens-before；-race 用矢量时钟检测违规。
+func demoHappensBeforeNotes() {
+	fmt.Println("happens-before 建立边（后一个操作可见前一个的写入）:")
+	fmt.Println("  ① go 语句启动新 goroutine：go 之前的写 → 子 goroutine 全部可见")
+	fmt.Println("  ② channel：第 n 次发送 happens-before 对应接收完成；close → 零值接收")
+	fmt.Println("  ③ Mutex/RWMutex：第 n 次 Unlock → 第 n+1 次 Lock 返回后的读全可见")
+	fmt.Println("  ④ sync.Once：Once.Do(f) 返回 → f 里的写对一切调用者可见")
+	fmt.Println("  ⑤ atomic：顺序一致性（SeqCst），读写构成全序（Go 1.19+ 类型化 API 推荐）")
+	fmt.Println("  ⑥ WaitGroup：Done → Wait 返回")
+	fmt.Println()
+	fmt.Println("为什么裸读写不可靠（第 2/3 节）: 编译器重排 + CPU 缓存/写缓冲 —— 上面的 demoDataRace")
+	fmt.Println("没有同步边，reader 可能永远看到 ready=0；「碰巧对」不代表下次对，靠猜不如建边")
+	fmt.Println()
+	fmt.Println("race detector（第 10 节）: go run/build/test -race，基于矢量时钟的 happens-before 检测")
+	fmt.Println("  - 报告「无同步边的并发访问同一内存」，误报几乎为零，但可能漏报（那段调度没跑到）")
+	fmt.Println("  - 代价: 内存 ×5~10、CPU ×2~20 → 只用于测试/CI，生产构建不开")
+	fmt.Println("  - 检测的是数据竞争本身，不是竞争导致的错误值——竞争是因，诡异输出是果")
+	fmt.Println()
+	fmt.Println("机制对比速览（第 9 节）: mutex=互斥+可见 / atomic=单字无锁 / channel=传递数据顺带同步 / Once=单次初始化")
 }
 
 // demoDataRace 复现笔记 5 第 1 节：writer 写 data/ready，reader 忙等 ready。

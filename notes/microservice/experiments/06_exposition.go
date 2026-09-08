@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// 实验 06：手写 Prometheus 文本暴露格式（笔记 07 §6）
+// 实验 06：手写 Prometheus 文本暴露格式（笔记 07 第 6 节）
 // 实现: 三类指标的 # HELP / # TYPE 与样本行生成, 外加三条硬约束的校验
 // 演示: 一个支付服务 /metrics 的完整文本输出
 // 锚点: ① 每个指标名的 # TYPE 只出现一次（重复会让 Prometheus 抓取失败）
@@ -103,7 +103,7 @@ func formatValue(v float64) string {
 	return strconv.FormatFloat(v, 'g', -1, 64)
 }
 
-// plusInf: 桶序列的最后一个上界必须是 +Inf（07 §2）
+// plusInf: 桶序列的最后一个上界必须是 +Inf（07 第 2 节）
 var plusInf = math.Inf(1)
 
 func sampleLine(name string, labels map[string]string, v float64) string {
@@ -201,7 +201,7 @@ func RunExpositionExperiments() {
 		labelSet: map[string]map[string]string{"": nil},
 	}
 
-	// 延迟 histogram: 桶边界贴 SLO 设（07 §3: 桶宽决定分位数误差）
+	// 延迟 histogram: 桶边界贴 SLO 设（07 第 3 节: 桶宽决定分位数误差）
 	duration := &histogram{
 		desc: desc{
 			name: "http_request_duration_seconds",
@@ -249,7 +249,7 @@ func RunExpositionExperiments() {
 	escOK := strings.Contains(escaped, `\"`) && strings.Contains(escaped, `\n`) && strings.Contains(escaped, `\\`)
 	fmt.Printf("%s 锚点③ 转义: %s\n", mark(escOK), escaped)
 
-	// 桶的累计语义（07 §2: le 桶是累计的, 不是独立的）
+	// 桶的累计语义（07 第 2 节: le 桶是累计的, 不是独立的）
 	cum := duration.values[`route="/pay"`]
 	cumOK := true
 	for i := 1; i < len(cum); i++ {

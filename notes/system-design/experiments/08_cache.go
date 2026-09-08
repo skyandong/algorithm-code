@@ -175,5 +175,5 @@ func RunCacheExperiments() {
 		maxPile, (1-float64(maxPile)/1000)*100, mark(maxPile < 1000/10))
 
 	fmt.Println("\n→ 结论: 三问的解法分别把『重建次数/回源次数/到期堆积』从 N 压到 1/常数——")
-	fmt.Println("  本质都是控制回源速率, 保护容量最贵的 DB 层（笔记 08 §2）")
+	fmt.Println("  本质都是控制回源速率, 保护容量最贵的 DB 层（笔记 08 第 2 节）")
 }

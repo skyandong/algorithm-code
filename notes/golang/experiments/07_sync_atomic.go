@@ -43,6 +43,9 @@ func RunSyncExperiments() {
 
 	fmt.Println("\n========== 第6节: sync.Map 语义 ==========")
 	syncMap()
+
+	fmt.Println("\n========== 第2节补充: Mutex 的自旋 —— 什么时候忙等划算 ==========")
+	syncSpin()
 }
 
 // syncMutex 第1节：Mutex 的三个可观察语义。
@@ -248,4 +251,24 @@ func syncMap() {
 
 	fmt.Println("适用: ①key 写一次读多次且集合稳定 ②多 goroutine 写不相干的 key")
 	fmt.Println("反场景: 持续写同一批 key / 需要精确快照 → map+Mutex 更好")
+}
+
+// syncSpin 笔记 07 第 2 节：Mutex 先自旋几次再休眠——自旋换的是「唤醒成本」。
+func syncSpin() {
+	fmt.Println("自旋 = 抢锁失败后先忙等几轮（4 次 30 周期级的 procyield），赌锁马上就释放")
+	fmt.Println("划算的条件（同时满足才自旋）:")
+	fmt.Println("  ① 多核（自旋只在空烧 CPU，单核空转白费——对方线程都没机会跑）")
+	fmt.Println("  ② 本 P 的运行队列为空（本地没活干，等等无妨）")
+	fmt.Println("  ③ 正在自旋的 goroutine 数 < GOMAXPROCS/2（限制空烧总量）")
+	fmt.Println("自旋失败 → gopark 进信号量队列（semaphore）休眠，唤醒走 goready，成本 ~us 级")
+	fmt.Println()
+	// 可观察对照：无竞争锁 = 纯 CAS 快路径（见第1节 ×100万耗时）；竞争短临界区 = 自旋大概率命中
+	var mu sync.Mutex
+	start := time.Now()
+	for i := 0; i < 1000000; i++ {
+		mu.Lock()
+		mu.Unlock()
+	}
+	fmt.Printf("对照: 无竞争 Lock/Unlock×100万 = %v（快路径连自旋都不需要，一次 CAS 进出）\n", time.Since(start))
+	fmt.Println("WHY 默认自旋: 唤醒一个休眠 goroutine 要几十 us，而临界区常常几十 ns 就出来——赌对就是赚")
 }

@@ -120,7 +120,7 @@ scrape_configs:
 | `file_sd_configs` | 任何场景的兜底 | 读一个 JSON/YAML 文件，外部系统写它——**万能逃生舱** |
 | `ec2_sd_configs` / 云厂商 | 云主机 | |
 
-**relabel 是服务发现的伴侣**：发现出来的目标带一堆元数据（`__meta_kubernetes_pod_name` 等，`__` 前缀的标签抓取后会被丢弃），`relabel_configs` 决定"要不要抓、job 叫什么、label 怎么改"。**`metric_relabel_configs` 则在指标入库前改标签——丢弃高基数标签就在这里做**（07 篇 §4 的治理手段之一）。
+**relabel 是服务发现的伴侣**：发现出来的目标带一堆元数据（`__meta_kubernetes_pod_name` 等，`__` 前缀的标签抓取后会被丢弃），`relabel_configs` 决定"要不要抓、job 叫什么、label 怎么改"。**`metric_relabel_configs` 则在指标入库前改标签——丢弃高基数标签就在这里做**（07 篇第 4 节 的治理手段之一）。
 
 ---
 

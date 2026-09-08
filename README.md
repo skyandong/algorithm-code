@@ -36,13 +36,12 @@ algorithm-code/
 ├── web/               # Web 框架实验
 │   ├── hertzserver/       # CloudWeGo Hertz
 │   └── sse/               # Server-Sent Events（go-kratos）
-├── ai/                # AI/LLM 实验
-│   └── eino/              # CloudWeGo Eino：ADK 编排、RAG、向量检索、工具调用
 └── demos/             # 其他独立 demo
     ├── http3/             # QUIC / HTTP3
     ├── oss-lab/           # 对象存储（aws-sdk-go-v2 S3 接口）
     ├── tracing/           # OpenTelemetry 链路追踪
     ├── pprof-lab/         # pprof 排障实战场（带病服务 + 手抓 profile 产物 + Web UI 工作流）
+    ├── eino/              # CloudWeGo Eino（独立仓库 sven-eino）：ADK 编排、RAG、向量检索；文档 https://www.cloudwego.io/zh/docs/eino/
     └── trtc-demo/         # 腾讯云 TRTC
 ```
 

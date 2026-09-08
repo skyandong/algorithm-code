@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// 实验 07：Registry + Collector——并发安全的指标注册表（笔记 07 §6、12 §3）
+// 实验 07：Registry + Collector——并发安全的指标注册表（笔记 07 第 6 节、笔记 12 第 3 节）
 // 实现: Collector 接口(Describe/Collect) + Registry 快照式 Gather + 无锁累加
 // 演示: ① 100 goroutine 并发累加是否丢失 ② 快照式 Gather 与"边读边序列化"的一致性差异
 // 锚点: ① 并发累加总数精确（atomic CAS, 热路径不加 mutex）
@@ -41,7 +41,7 @@ func (ls labelSet) toMap() map[string]string {
 	return m
 }
 
-// floatCell: 用 float64 位模式做原子累加（12 §3: 热路径必须无锁）
+// floatCell: 用 float64 位模式做原子累加（12 第 3 节: 热路径必须无锁）
 type floatCell struct {
 	bits uint64
 	ls   labelSet
@@ -72,7 +72,7 @@ type collector07 interface {
 // counterVec: Counter——只增
 type counterVec struct {
 	d     desc
-	mu    sync.RWMutex // 读路径走 RLock（12 §3: 热路径无锁竞争）
+	mu    sync.RWMutex // 读路径走 RLock（12 第 3 节: 热路径无锁竞争）
 	cells map[string]*floatCell
 	order []string
 }
@@ -83,7 +83,7 @@ func newCounterVec(d desc) *counterVec {
 
 func (c *counterVec) Describe() desc { return c.d }
 
-// With: 热路径——先无锁命中已有 cell, 未命中才加锁创建（12 §3 两级缓存）
+// With: 热路径——先无锁命中已有 cell, 未命中才加锁创建（12 第 3 节 两级缓存）
 func (c *counterVec) With(ls labelSet) *floatCell {
 	key := ls.key()
 	if cell := c.loadFast(key); cell != nil {
@@ -166,7 +166,7 @@ func (h *histVec) With(ls labelSet) *histCell {
 	return c
 }
 
-// Observe: 桶是累计的——所有上界 >= v 的桶都要 +1（07 §2）
+// Observe: 桶是累计的——所有上界 >= v 的桶都要 +1（07 第 2 节）
 func (h *histVec) Observe(ls labelSet, v float64) {
 	c := h.With(ls)
 	for i, ub := range h.buckets {

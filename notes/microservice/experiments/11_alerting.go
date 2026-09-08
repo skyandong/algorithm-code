@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-// 实验 11：告警规则求值引擎 + Alertmanager 收敛（笔记 10 §2 §3）
+// 实验 11：告警规则求值引擎 + Alertmanager 收敛（笔记 10 第 2 节 第 3 节）
 // 实现: Pending/Firing 状态机（for 抗抖动）+ group_by 分组 + 抑制规则
 // 演示: 一次机房故障在 10 个实例上触发 5 条规则 = 50 条告警, 看它们怎么收敛成 1 条通知
-// 锚点: ① 抖动 20s 而 for=60s → 告警始终 Pending, 从不打扰人（10 §2）
+// 锚点: ① 抖动 20s 而 for=60s → 告警始终 Pending, 从不打扰人（10 第 2 节）
 //       ② 真实故障持续 → Pending 转 Firing, 通知发出
 //       ③ 无分组 = 50 条通知; group_by [job] = 1 条（group_wait 攒批）
 //       ④ 抑制: critical 抑制同 job 的 warning, 50 条告警只剩 20 条进通知
@@ -153,7 +153,7 @@ func groupAlerts(alerts []*alert, groupBy []string) []notification {
 	return out
 }
 
-// inhibit: 高等级告警存在时, 静默同 job 的低等级告警（10 §3）
+// inhibit: 高等级告警存在时, 静默同 job 的低等级告警（10 第 3 节）
 func inhibit(alerts []*alert) (kept, suppressed []*alert) {
 	criticalJobs := map[string]bool{}
 	for _, a := range alerts {
@@ -218,7 +218,7 @@ func RunAlertingExperiments() {
 	fmt.Printf("  不分组           → %d 条通知（每条 1 条告警）\n", len(noGroup))
 	fmt.Printf("  group_by [job]  → %d 条通知（含全部 %d 条告警）\n", len(byJob), len(byJob[0].alerts))
 	fmt.Printf("  group_by [alertname] → %d 条通知\n", len(byName))
-	fmt.Printf("%s 锚点③ group_by 收敛: %d 条通知 → %d 条（把通知数量与故障规模解耦, 10 §3）\n\n",
+	fmt.Printf("%s 锚点③ group_by 收敛: %d 条通知 → %d 条（把通知数量与故障规模解耦, 10 第 3 节）\n\n",
 		mark(len(noGroup) == total && len(byJob) == 1), len(noGroup), len(byJob))
 
 	// ---- 锚点 ④: 抑制 ----
@@ -229,7 +229,7 @@ func RunAlertingExperiments() {
 	fmt.Printf("%s 锚点④ 抑制规则: critical 存在时静默同 job 的 warning, 最终 %d 条告警进 %d 条通知\n",
 		mark(len(suppressed) == 30 && len(kept) == 20), len(kept), len(final))
 
-	fmt.Println("  最终通知摘要（10 §2: summary 必须自带足够信息）:")
+	fmt.Println("  最终通知摘要（10 第 2 节: summary 必须自带足够信息）:")
 	keptByName := groupAlerts(kept, []string{"alertname"})
 	fmt.Printf("    [FIRING] pay-service: %d 条告警触发（%d critical / %d warning）\n",
 		len(kept), countSev(kept, "critical"), countSev(kept, "warning"))

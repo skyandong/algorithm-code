@@ -9,7 +9,7 @@ import (
 )
 
 // 实验 02：配置中心热更新闭环
-// 实现: watch 模拟（推送 channel）→ 校验 → atomic.Pointer 整体换快照（笔记 02 §2）
+// 实现: watch 模拟（推送 channel）→ 校验 → atomic.Pointer 整体换快照（笔记 02 第 2 节）
 // 验证: ① 更新瞬间并发读者读到的快照 100% 自洽（要么完整旧版要么完整新版, 无中间态）
 //       ② 更新风暴的随机延迟摊开
 // 锚点: 中间态计数 = 0; 随机延迟后应用时间分布覆盖 0~maxJitter。
@@ -21,7 +21,7 @@ type configSnapshot struct {
 	MaxConns int
 }
 
-// validate: 应用前的校验（笔记 02 §2 的第③步）——坏配置拒绝应用
+// validate: 应用前的校验（笔记 02 第 2 节 的第③步）——坏配置拒绝应用
 func validate(c *configSnapshot) error {
 	if c.Timeout <= 0 || c.Timeout > 30000 {
 		return fmt.Errorf("timeout %dms 非法（应为 (0, 30000]）", c.Timeout)

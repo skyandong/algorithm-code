@@ -6,7 +6,7 @@ import (
 )
 
 // 实验 03：完整熔断器（三态机 + 滑动窗口 + 探活）+ 令牌桶
-// 实现: 纯函数状态转移表（笔记 03 §2）+ 环形数组滑动窗口（请求维度）
+// 实现: 纯函数状态转移表（笔记 03 第 2 节）+ 环形数组滑动窗口（请求维度）
 // 演示: 正常 → 下游故障 → 熔断 open（快速失败）→ 冷却 → half-open 探活 → 恢复 closed
 // 锚点: 熔断期间请求被快速拒绝; 探活成功后恢复正常放行; 令牌桶允许突发。
 
@@ -261,7 +261,7 @@ func RunCircuitBreakerExperiments() {
 	fmt.Printf("突发取 12 个: 成功 %d 拒绝 %d（攒的令牌允许一次用掉 = 突发流量放行）\n", burstOK, burstRejected)
 	fmt.Printf("等 %d tick 攒回后再取 10 个: 成功 %d\n", tbTick, refillOK)
 	fmt.Printf("锚点: 突发放行 %d 个 + 攒回后再放行 10 个 → %s\n", burstOK, mark(burstOK == 10 && burstRejected == 2 && refillOK == 10))
-	fmt.Println("  （对比漏桶: 出口恒速, 不允许突发——保护下游节奏, 见笔记 03 §4）")
+	fmt.Println("  （对比漏桶: 出口恒速, 不允许突发——保护下游节奏, 见笔记 03 第 4 节）")
 }
 
 // ---- 令牌桶 ----

@@ -44,6 +44,9 @@ func RunGenericsExperiments() {
 
 	fmt.Println("\n========== 第6节: 泛型 vs 接口装箱对照 ==========")
 	genVsInterface()
+
+	fmt.Println("\n========== 第7节: 实现机制 —— GC shape 分组 + 字典 ==========")
+	genGCShape()
 }
 
 // genBasic 第1节：泛型函数、推断与显式实例化。
@@ -266,4 +269,14 @@ func SumGeneric[T cmp.Ordered](xs []T) T {
 		sum += x
 	}
 	return sum
+}
+
+// genGCShape 第7节（笔记第 4 节）：实现不是 C++ 式完全单态化，而是 GC shape 分组 + 字典。
+func genGCShape() {
+	fmt.Println("实现模型: 编译器把实例按 GC shape（内存布局）分组，同 shape 共享一份实例化代码")
+	fmt.Println("  - 所有指针 *T 同 shape（内部都是 8B 指针）→ *int/*string 共享代码，类型差异靠「字典」参数补齐")
+	fmt.Println("  - 值类型按布局分组: int64/uint64 同 shape；大小相同但 GC 位图不同的类型不同组")
+	fmt.Println("  - 字典 = 编译期生成的静态元数据（类型的 GC 位图/大小/equal 函数），运行时随调用传入")
+	fmt.Println("WHY 不用 stenciling 全展开: 二进制膨胀 + 跨包无法预编译；WHY 不用接口装箱: 值拷贝+分配（第6节实测）")
+	fmt.Println("推论: 泛型 ≈ 零成本但有字典间接的少量开销；同一调用点的实例化信息可被内联优化掉")
 }

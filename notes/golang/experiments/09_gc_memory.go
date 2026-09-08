@@ -207,6 +207,27 @@ func gcGOGC() {
 	limit := debug.SetMemoryLimit(-1) // -1 只查询不修改
 	fmt.Printf("当前 GOMEMLIMIT = %s（Go 1.19+，软上限：接近时 GC 提频用 CPU 换内存）\n", humanLimit(limit))
 	fmt.Println("（容器常见组合：GOGC=off + GOMEMLIMIT=limit×80%，平时不主动 GC、逼近上限才收）")
+
+	gcTheoryNotes()
+}
+
+// gcTheoryNotes 笔记 09 第 3/4/7 节：栈增长、三色标记/写屏障、GC 慢的定位方向（理论速览）。
+func gcTheoryNotes() {
+	fmt.Println("—— 栈内存（第 3 节）——")
+	fmt.Println("goroutine 初始栈 2KB（线程通常 1~8MB），不够用运行时检测 stackguard 溢出并拷贝翻倍")
+	fmt.Println("连续栈（可移动）: 旧栈整体拷到新栈、指针重写；上限默认 1GB（maxstacksize，64 位平台），超了直接 fatal")
+	fmt.Println("代价: 栈被移动后依赖栈地址的 unsafe 代码会踩坑；栈增长检测点在函数序言（微小调用开销）")
+	fmt.Println()
+	fmt.Println("—— 三色标记 + 混合写屏障（第 4 节）——")
+	fmt.Println("三色: 白=未扫（终态回收）灰=已扫未扫其引用 黑=已扫且引用全灰；STW 只在标记两端（~百 us 级）")
+	fmt.Println("混合写屏障: 标记期间被覆盖的指针或新指针标灰，保证并发标记的正确性——栈全程免屏障是关键设计")
+	fmt.Println("Green Tea（Go 1.26 默认）: 按 8KiB 内存页批量扫描 + SIMD，扫描开销降 10~40%")
+	fmt.Println()
+	fmt.Println("—— GC 慢的三个定位方向（第 7 节）——")
+	fmt.Println("① 触发太频繁 → 分配速率高：sync.Pool 复用、减少临时对象（GODEBUG=gctrace=1 看 3->12MB 间隔）")
+	fmt.Println("② 单次标记太长 → 存活堆大或 mark assistance 抢 CPU：GOGC 调大、看 gctrace 里 mark 耗时")
+	fmt.Println("③ Sweep/CPU 侵蚀 → 释放量小但对象多（小对象海量）：对象合并/池化")
+	fmt.Println("现场命令: GODEBUG=gctrace=1 ./app 输出形如 4@12.3+5.6+3.2 SwEEP，gcpacertrace=1 看 pacing")
 }
 
 func memMB(b uint64) float64 { return float64(b) / (1 << 20) }

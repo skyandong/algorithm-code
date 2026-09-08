@@ -10,6 +10,8 @@
 
 slice 在运行时就是一个三字段结构体（`runtime.slice`；旧代码里的 `reflect.SliceHeader` 已于 Go 1.20 起废弃，改用 `unsafe.Slice`/`unsafe.SliceData`）：
 
+> 源码位置：`$GOROOT/src/runtime/slice.go`（Go 1.26.3 中共 561 行，第 16 行起）。这是 runtime 内部未导出类型，不能 import，只能读源码。
+
 ```go
 type slice struct {
 	array unsafe.Pointer // 指向底层数组
@@ -17,6 +19,16 @@ type slice struct {
 	cap   int
 }
 ```
+
+这个文件除了 `slice` 定义外，还包含 slice 的全套运行时操作（读源码优先看这几个）：
+
+| 函数 | 职责 | 对应的 Go 代码 |
+| --- | --- | --- |
+| `makeslice` / `makeslice64` / `makeslicecopy` | 分配底层数组，溢出检查（len/cap 越界就 `panicmakeslicelen/cap`） | `make([]T, len, cap)` |
+| `growslice` / `growsliceNoAlias` / `growsliceBuf` | 扩容：算新容量、分配新数组、搬旧数据、清空新尾部 | `append` 超 cap 时 |
+| `nextslicecap` | 扩容策略计算（256 阈值平滑公式，见第 3 节） | 被 `growslice` 调用 |
+| `slicecopy` | 按元素宽度 memmove 拷贝 | `copy(a, b)` |
+| `moveSlice` 系列 | 搬迁数据时的 GC 屏障处理（含指针/不含指针走不同路径） | `growslice` 内部 |
 
 关键推论：
 
@@ -116,8 +128,14 @@ cap: 1 2 4 8 16 32 64 128 256 512 848 1280 1792 2560 3408 5120 7168 9216 12288 .
 ```go
 // 写法一：截断 —— O(1)
 a = a[:len(a)-1]
-// 坑：底层数组末尾仍持有该元素（指针元素 = 阻止 GC），补救（截断前或后皆可）：
-a[len(a)] = nil // 截断后 len 已减 1，这里正是被删元素的原槽位
+// 坑：底层数组末尾仍持有该元素（元素含指针时 = 阻止 GC），补救两种姿势：
+a[len(a)-1] = nil          // 姿势一：截断「前」清槽位（SliceTricks 标准写法）
+a[:cap(a)][len(a)] = nil   // 姿势二：截断「后」借 reslice 到 cap 清 —— 直接写 a[len(a)] = nil 会 panic
+// WHY：截断后 len 已减 1，索引上限是 len-1，直接 a[len(a)] 越界（实测 index out of range）；
+//      a[:cap(a)] 把 len 重新扩到 cap，原被删元素落在新 len 之内，才能索引到
+// 注意：= nil 只对含指针的元素编译得过（指针/接口/string/slice/含指针字段的结构体）；
+//      值类型 []int 等赋不了 nil，但也本来就不阻止 GC，无需补救；通用形式 var zero T
+// Go 1.21+：clear(a[len(a):cap(a)]) 截断后一步清光整个尾部（姿势二的批量版，任意元素类型通用）
 
 // 写法二：copy 覆盖 —— 保序，O(n)
 a = append(a[:i], a[i+1:]...)
@@ -126,14 +144,27 @@ a = append(a[:i], a[i+1:]...)
 // 写法三：swap-delete —— O(1)，不保序
 a[i] = a[len(a)-1]
 a = a[:len(a)-1]
-// 优点：被删元素立刻被覆盖，无尾部残留；集合语义（去重、缓存淘汰）首选
+// 优点：被删槽位立刻被覆盖，GC 不泄漏；注意 a[len(a)] 处留有被移元素的副本（a[:cap(a)] 可读）
+// 集合语义（去重、缓存淘汰）首选
 ```
 
 | 写法 | 复杂度 | 保序 | 尾部残留 |
 | --- | --- | --- | --- |
 | `a = a[:len-1]` | O(1) | 尾部删除无所谓 | **有**（泄漏点） |
 | `append(a[:i], a[i+1:]...)` | O(n) | ✅ | 有（同上） |
-| swap-delete | O(1) | ❌ | 无 |
+| swap-delete | O(1) | ❌ | 无泄漏（新尾槽位留有副本，可读） |
+
+**整段清空：`a = a[:0]` / `a = nil` / `clear(a)` 语义不同**：
+
+```go
+a = a[:0] // len=0、cap 不变：底层数组保留复用，后续 append 不再分配
+a = nil   // len=cap=0：断开引用，无别名时整个数组可回收；下次 append 重新分配
+clear(a)  // len 不变：元素全部归零；要的是"归零"而不是"变短"时用
+```
+
+- `a = nil` 只断开**这一个 slice 头**：子 slice、其他别名仍钉住整块数组；且它不清数据；
+- `a[:0]` 复用是缓冲区高频优化，但元素含指针时泄漏点同上——重置前先 `clear(a[:oldLen])`；
+- 含敏感数据（token、密钥）的 slice，卫生清理靠 `clear`；截断和置 nil 都只是改引用。
 
 **大数组切小 slice 的泄漏**（高频线上问题）：
 
@@ -256,6 +287,8 @@ go func() { for { _ = m[1] } }()
 | 值类型是指针 | 需 LoadOrStore 等原子组合操作时注意竞态 | 读到的指针仍需原子更新（`atomic.Pointer[T]` 是常见搭档） |
 
 选型：写多 → Mutex/分片；读多写少（缓存、连接池元数据、一次性配置）→ sync.Map。
+
+版本分界：**上表是经典 read/dirty 模型（≤1.23）的行为**。Go 1.24 起 sync.Map 换 HashTrieMap（并发 trie），读路径仍无锁大胜全局锁，但「持续写新 key 比 Mutex+map 慢」这一条实测已反转（Go 1.26 上写新 key 也更快，实验有对照数据）——面试答选型口诀没问题，说得出这个版本变化是加分项。
 
 ---
 

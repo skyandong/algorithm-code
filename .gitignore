@@ -19,8 +19,8 @@ entc
 reasonix.toml
 .playwright-mcp/
 
-# ai: eino 为独立仓库（sven-eino），不并入本仓库
-ai/eino/
+# demos: eino 为独立仓库（sven-eino），不并入本仓库
+demos/eino/
 
 # rpc/web: 编译产物
 rpc/grpcclient/grpcclient

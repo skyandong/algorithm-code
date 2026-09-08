@@ -7,13 +7,13 @@ import (
 )
 
 // 实验 05：进程内 trace 上下文透传与 span 组装
-// 实现: 极简 OTel 语义——trace_id 全链路透传 + span(parent 指针) 树组装（笔记 05 §3）
+// 实现: 极简 OTel 语义——trace_id 全链路透传 + span(parent 指针) 树组装（笔记 05 第 3 节）
 // 演示: gateway → order-svc → db/redis, gateway → user-svc 的调用树
 // 锚点: ① 同一次请求的所有 span 共享同一 trace_id
 //       ② 树形结构正确（parent-child 关系与调用栈一致）
 //       ③ 总耗时 = 根 span 跨度; 各段耗时可定位慢段。
 
-// span: 最小要素（笔记 05 §3）
+// span: 最小要素（笔记 05 第 3 节）
 type span struct {
 	traceID  string
 	spanID   string

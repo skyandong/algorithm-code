@@ -13,7 +13,8 @@
 6. [并发模式](06-并发模式.md) — pipeline、fan-out/in、errgroup、semaphore、生命周期三问
 7. [错误处理即模式](07-错误处理即模式.md) — 三分法、语境公式、只处理一次、重试边界
 8. [反模式清单](08-反模式清单.md) — 12 条腐化路径 + review 信号总表
-9. [面试一口答](面试一口答.md) — 考前速刷：高频问题「张口就来」
+9. [DDD 领域驱动设计](09-DDD领域驱动设计.md) — 限界上下文/通用语言、实体与值对象、聚合根不变量、领域事件与仓储
+10. [面试一口答](面试一口答.md) — 考前速刷：高频问题「张口就来」
 
 ## 重点回顾(自测)
 
@@ -57,6 +58,7 @@ go run -race ./experiments/ concurrency
 |------|------|
 | `experiments/01-07_*.go` | 每篇笔记对应的可运行验证（08 反模式是清单无实验） |
 | `experiments/06_concurrency.go` | 含手写 mini errgroup（展示 x/sync/errgroup 的原理） |
+| `experiments/09_ddd.go` | DDD 战术五件套：贫血对照/值对象/聚合根/领域事件/仓储 |
 | `go.mod` | 独立 module `adesignpattern`（零外部依赖） |
 
 ## 与其他模块的衔接

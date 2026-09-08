@@ -44,6 +44,9 @@ func RunStringExperiments() {
 
 	fmt.Println("\n========== 第6节: string 与 map key ==========")
 	strMapKey()
+
+	fmt.Println("\n========== 第7节: 编译器优化清单（实验对照）==========")
+	strCompilerOpts()
 }
 
 // strHeader 第1节：string 是 (data, len) 头；子串共享底层内存。
@@ -204,4 +207,15 @@ func strMapKey() {
 	fmt.Println("map[[8]byte]T: ✓（定长数组按值比较，网络库零分配 key 的惯用法）")
 
 	fmt.Printf("结果: string key=%v [8]byte key=%v\n", m["b"], arr[[8]byte{1, 2}])
+}
+
+// strCompilerOpts 第7节：编译器优化清单 —— 每条都对应本实验可观察的证据。
+func strCompilerOpts() {
+	fmt.Println("1. 子串零拷贝        → 第1节：unsafe.StringData 指针相同（只造新头）")
+	fmt.Println("2. []byte(s) 免拷贝  → 第3节：不逃逸且不被修改时分配 0 字节")
+	fmt.Println("3. m[string(b)] 免分配 → 第3节：编译器特例，就地比较不落盘")
+	fmt.Println("4. + 拼接静态合并    → 编译期常量拼接折叠成一个字符串（go tool compile 可查）")
+	fmt.Println("5. string(b) 比较免分配 → 编译器把比较场景特化为 memcmp，不产生 string")
+	fmt.Println("6. 小字符串驻留      → 第2节：相同字面量共享只读段")
+	fmt.Println("边界: 所有免拷贝优化的前提都是「不逃逸 + 不可变」——一旦逃逸或被修改，立即退回真拷贝")
 }

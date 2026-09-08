@@ -32,7 +32,7 @@
 
 12. [Goroutine 面试题集](12-Goroutine面试题集.md) — 手写题 + 选择题 + 简答，19 题全解
 13. [名家并发模式汇总](13-名家并发模式汇总.md) — Dave Cheney/Kennedy/鸟窝等博客的实战模式沉淀
-14. [面试一口答](面试一口答.md) — 考前速刷：高频问题「张口就来」
+15. [面试一口答](面试一口答.md) — 考前速刷：高频问题「张口就来」
 
 ## 重点回顾(自测)
 
@@ -74,6 +74,15 @@
 - [ ] defer：参数立即求值、LIFO、命名返回值可改写、循环内累积
 - [ ] 调优闭环：压测复现 → pprof 定位 → benchstat 验证；优化性价比排序
 
+**测试**
+
+- [ ] TDD 红-绿-重构：先看它红、最小实现、忍住不做没被要求的事（YAGNI 执行机制）
+- [ ] 表驱动 + t.Run：用例名即规格；错误分支一等公民，errors.Is 对哨兵不比字符串
+- [ ] Fatal（前置条件）/ Error（独立断言）分工；t.Helper 报错定位到调用方
+- [ ] mock = 消费者侧最小接口 + 手写 stub（记录调用 + 注入失败）；时钟/随机注入函数值
+- [ ] 测试分层：CI 纯逻辑打底、-short 跳慢用例、集成依赖带守卫（requireKafka 模式）
+- [ ] 什么时候不 TDD：spike/一次性脚本/UI/并发时序；覆盖率是探针不是 KPI
+
 ## 跑实验
 
 ```bash
@@ -81,7 +90,7 @@ cd notes/golang
 go run ./experiments/ all        # 全部实验
 go run ./experiments/ sync       # 单跑某个：07 篇
 go run ./experiments/ string     # 02 篇
-# 可用名: visibility|channel|interview|masters|gmp|gcmemory|slicemap|interface|sync|context|performance|string|generics
+# 可用名: visibility|channel|interview|masters|gmp|gcmemory|slicemap|interface|sync|context|performance|string|generics|tdd
 
 # 竞态检测（并发篇必开）
 go run -race ./experiments/ visibility
@@ -95,8 +104,21 @@ go build -gcflags="-m -l" ./experiments/ 2>&1 | grep -E "escapes|moved to heap"
 | 文件 | 内容 |
 |------|------|
 | `experiments/NN_*.go` | 每篇笔记对应的可运行验证代码，`第N节` 与笔记章节对齐 |
+| `experiments/NN_*_test.go` | 每个实验的单元测试：纯逻辑用例 + demo 冒烟（断言关键输出） |
 | `experiments/main.go` | 实验分发入口，`go run ./experiments/ <名字>` |
 | `go.mod` | 独立 module `agolang`（Go 1.26） |
+
+## 跑测试（格式同 akafka 模块）
+
+```bash
+cd notes/golang
+make test        # 全量：纯逻辑 + demo 冒烟（约 12s）
+make test-unit   # 只跑纯逻辑（-short，约 1s）
+go test ./experiments/ -v     # 等价 make test
+go test ./experiments/ -short # 等价 make test-unit
+```
+
+测试分两类：**纯逻辑用例**直接断言实验里的可复用函数（泛型工具、blockingMap、WaitTimeout 等），任何环境可跑，CI 兜底；**demo 冒烟用例**完整跑一遍实验并断言关键结论输出（如 `部分删除`、`close of closed channel`），防止笔记结论与实验代码脱节，`-short` 时跳过。
 
 ## 与其他模块的衔接
 

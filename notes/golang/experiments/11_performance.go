@@ -61,6 +61,21 @@ func RunPerformanceExperiments() {
 
 	fmt.Println("\n========== 第6节: 标准 benchmark 与 pprof 命令提示 ==========")
 	perfBenchmarkGuide()
+
+	fmt.Println("\n========== 第8节: 线上排查标准路径（速查）==========")
+	perfOnlineTriage()
+}
+
+// perfOnlineTriage 笔记 11 第 8/9 节：线上问题 → 工具 → 动作的标准路径速查。
+func perfOnlineTriage() {
+	fmt.Println("症状 → 工具 → 动作:")
+	fmt.Println("  CPU 高   → pprof profile（30s 采样）→ 热点函数：正则/序列化/锁自旋； Compile 类问题见 demos/pprof-lab")
+	fmt.Println("  内存涨   → pprof heap（inuse_space）→ 对比 base 找增量；大数组子切片泄漏用 copy 修复（01 篇第 4 节）")
+	fmt.Println("  延迟毛刺 → GC 停顿? gctrace=1；否则 pprof block（等锁）+ mutex（锁竞争扩散）")
+	fmt.Println("  goroutine 涨 → pprof goroutine：数量 + 聚合栈，泄漏点通常是阻塞在无缓冲 channel/full 读写")
+	fmt.Println("  容器 OOM → GOMEMLIMIT 先兜底（×80%），再查 heap 增量与内存泄漏")
+	fmt.Println()
+	fmt.Println("性价比顺序（第 3 节）: 预分配 > 算法/数据结构 > 池化 > 并行化 > 微优化（先测量后动手）")
 }
 
 // perfAllocDelta 返回 f 的耗时与执行期间的累计堆分配字节（TotalAlloc 差值）。

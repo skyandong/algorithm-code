@@ -55,7 +55,7 @@ curl -s http://localhost:19093/api/v2/alerts  | python3 -m json.tool | head -40
 ```
 
 对比两边的条数——Prometheus 侧是**每条告警一个对象**，Alertmanager 侧按 `group_by: [job]`
-合并后**每个 job 一条通知**。这就是 10 篇 §3 说的"把通知数量与故障规模解耦"。
+合并后**每个 job 一条通知**。这就是 10 篇第 3 节 说的"把通知数量与故障规模解耦"。
 `experiments/11_alerting` 用纯 Go 复现了同样的收敛过程（50 条 → 1 条）。
 
 **④ 看板能读吗**（11 篇）
@@ -88,8 +88,8 @@ curl -s http://localhost:18080/metrics | head -20
 
 | 文件 | 对应笔记 | 内容 |
 |---|---|---|
-| `prometheus.yml` | 08 §4 | 三个时间参数、抓取目标、host.docker.internal 回连宿主机 |
-| `alert.rules.yml` | 10 §5 | 六条规则：存活、磁盘预测、CPU、错误率、P99、goroutine 泄漏 |
-| `alertmanager.yml` | 10 §3 | group_by/group_wait、critical 抑制 warning、分级路由 |
-| `grafana/dashboards/red-dashboard.json` | 11 §4 | RED 四行布局：Stat 总览 → QPS/错误率 → 延迟三线 → 饱和度 |
-| `grafana/provisioning/` | 11 §1 | 配置即代码，看板进 Git 而不是在 UI 上点 |
+| `prometheus.yml` | 08 第 4 节 | 三个时间参数、抓取目标、host.docker.internal 回连宿主机 |
+| `alert.rules.yml` | 10 第 5 节 | 六条规则：存活、磁盘预测、CPU、错误率、P99、goroutine 泄漏 |
+| `alertmanager.yml` | 10 第 3 节 | group_by/group_wait、critical 抑制 warning、分级路由 |
+| `grafana/dashboards/red-dashboard.json` | 11 第 4 节 | RED 四行布局：Stat 总览 → QPS/错误率 → 延迟三线 → 饱和度 |
+| `grafana/provisioning/` | 11 第 1 节 | 配置即代码，看板进 Git 而不是在 UI 上点 |

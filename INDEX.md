@@ -64,7 +64,7 @@
 | benchmark 规范与优化性价比排序 | [golang/11](notes/golang/11-性能调优实战.md) |
 | pprof / trace 实战与线上排查标准路径（高频） | [golang/11](notes/golang/11-性能调优实战.md)、[demos/pprof-lab](demos/pprof-lab) |
 | 火焰图怎么看：根在顶、宽度 ∝ 占比、正当热点与病灶同图 | [demos/pprof-lab](demos/pprof-lab) |
-| Go 的正则会灾难性回溯吗（RE2 纠偏，高频陷阱题） | [golang/11](notes/golang/11-性能调优实战.md) §10、[demos/pprof-lab](demos/pprof-lab) |
+| Go 的正则会灾难性回溯吗（RE2 纠偏，高频陷阱题） | [golang/11](notes/golang/11-性能调优实战.md) 第 10 节、[demos/pprof-lab](demos/pprof-lab) |
 | goroutine 泄漏怎么用 pprof 定位到具体行 | [demos/pprof-lab](demos/pprof-lab) |
 
 ## 4. MySQL
@@ -202,6 +202,16 @@
 | 错误三分法、包装语境、Is/As/Join（高频） | [golang/10](notes/golang/10-context与错误处理.md)、[design-pattern/07](notes/design-pattern/07-错误处理即模式.md) |
 | panic / recover 与 defer 的四个陷阱 | [golang/10](notes/golang/10-context与错误处理.md) |
 | 代码腐化的十二条路（反模式清单） | [design-pattern/08](notes/design-pattern/08-反模式清单.md) |
+| DDD 是什么？和设计模式什么关系 | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
+| 贫血模型为什么不好？充血怎么落 | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
+| 实体 vs 值对象判据（高频） | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
+| 聚合根三铁律、聚合怎么切（高频） | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
+| 领域事件 / 防腐层各解决什么 | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
+| TDD 循环是什么？为什么测试先行 | [golang/14](notes/golang/14-TDD测试驱动开发.md) |
+| 表驱动测试怎么写、错误用例怎么断言 | [golang/14](notes/golang/14-TDD测试驱动开发.md) |
+| Go 里怎么做 mock？要上框架吗 | [golang/14](notes/golang/14-TDD测试驱动开发.md)、[design-pattern/01](notes/design-pattern/01-设计原则的Go式解读.md) |
+| 集成测试依赖外部服务，CI 怎么处理 | [golang/14](notes/golang/14-TDD测试驱动开发.md)、[akafka/experiments](notes/akafka/experiments) |
+| 什么时候不该 TDD？覆盖率多少合格 | [golang/14](notes/golang/14-TDD测试驱动开发.md) |
 | 把学习项目讲成工程能力：STAR 模板 | [interview/讲项目](notes/interview/讲项目.md) |
 | 「这是学习项目吧？」怎么接 | [interview/讲项目](notes/interview/讲项目.md) |
 | 60 秒自我介绍口述脚本与反问清单 | [interview/讲项目](notes/interview/讲项目.md) |

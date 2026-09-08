@@ -372,7 +372,7 @@ struct {
     opaque signature<0..2^16-1>;
 } CertificateVerify;
 
-// 被签名内容 (RFC 8446 §4.4.3):
+// 被签名内容 (RFC 8446 第 4.4.3 节):
 //   64 字节 0x20 填充 + "TLS 1.3, server CertificateVerify" + 0x00 + Hash(transcript)
 ```
 

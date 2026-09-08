@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-// ---- 手写指标（笔记 12 §2，与 experiments/ 同思路，但这里是常驻服务）----
+// ---- 手写指标（笔记 12 第 2 节，与 experiments/ 同思路，但这里是常驻服务）----
 
 var (
 	requestsTotal = make(map[string]*uint64) // key: route|status|method
@@ -64,7 +64,7 @@ func fakeTraffic() {
 	}
 }
 
-// ---- 延迟 histogram（笔记 07 §2：桶累计语义）----
+// ---- 延迟 histogram（笔记 07 第 2 节：桶累计语义）----
 
 var latencyBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 var latencyCounts = make([]uint64, len(latencyBuckets)+1) // 最后一个是 +Inf 桶

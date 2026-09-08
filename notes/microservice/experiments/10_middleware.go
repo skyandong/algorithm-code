@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// 实验 10：HTTP 中间件埋 RED 指标（笔记 12 §1 §2 §6）
+// 实验 10：HTTP 中间件埋 RED 指标（笔记 12 第 1 节 第 2 节 第 6 节）
 // 实现: 复用 07 的并发安全 registry, 在中间件里埋 Rate/Errors/Duration, 业务代码零感知
 // 演示: 真实起一个 HTTP 服务, 并发打流量, 验证计数精确、路径归一化、埋点开销、panic 兜底
 // 锚点: ① 并发 1000 请求后计数精确无丢失（atomic 累加）
@@ -18,7 +18,7 @@ import (
 //       ③ 埋点 O(1) 无分配: 每次 Observe 在百纳秒量级
 //       ④ handler panic 被中间件兜住, 指标照记, 服务不挂（12 篇: 监控绝不能打挂业务）
 
-// routePattern: 路径归一化——把 /user/123 归成 /user/{id}（12 §5: 高基数第一禁忌）
+// routePattern: 路径归一化——把 /user/123 归成 /user/{id}（12 第 5 节: 高基数第一禁忌）
 // 真实框架里直接用 gin/hertz 的 ctx.FullPath(), 这里手写演示原理
 func routePattern(path string) string {
 	segments := strings.Split(strings.Trim(path, "/"), "/")
@@ -54,7 +54,7 @@ type statusRecorder struct {
 
 func (r *statusRecorder) WriteHeader(code int) { r.status = code }
 
-// metricsMiddleware: 唯一正确的埋点位置——中间件（12 §1）
+// metricsMiddleware: 唯一正确的埋点位置——中间件（12 第 1 节）
 func metricsMiddleware(reqs *counterVec, dur *histVec, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route := routePattern(r.URL.Path)
@@ -68,7 +68,7 @@ func metricsMiddleware(reqs *counterVec, dur *histVec, next http.Handler) http.H
 				rec.status = http.StatusInternalServerError
 			}
 			// 埋点放在 defer 里: 业务 panic 时请求也必须被记录——
-			// 恰恰是失败请求最有监控价值（12 §6: 埋点失败/业务失败都不该丢失可观测性）
+			// 恰恰是失败请求最有监控价值（12 第 6 节: 埋点失败/业务失败都不该丢失可观测性）
 			reqs.Inc(labelSet{{"route", route}, {"method", r.Method}, {"status", fmt.Sprintf("%d", rec.status)}})
 			dur.Observe(labelSet{{"route", route}}, time.Since(start).Seconds())
 			if panicked {

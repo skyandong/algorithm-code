@@ -11,12 +11,12 @@ import (
 	"time"
 )
 
-// 实验 13：手写 Collector 模式 Exporter（笔记 13 §5）
+// 实验 13：手写 Collector 模式 Exporter（笔记 13 第 5 节）
 // 实现: Describe/Collect 分离 + 多实例 target 参数 + 目标不可用时只让该实例 up=0 + Collect 超时
 // 演示: 起一个真实 HTTP /metrics 端点, 用 http.Get 抓一次（等价于 Prometheus 的一次 scrape）
 // 锚点: ① 每次抓取返回的指标名与 label 集完全稳定（Describe 的元信息不变）
 //       ② 单个目标不可用时, 只有它自己的 up=0, 其他实例照常输出
-//       ③ Collect 有超时——慢目标不会拖垮整轮抓取（13 §5 第一条纪律）
+//       ③ Collect 有超时——慢目标不会拖垮整轮抓取（13 第 5 节 第一条纪律）
 //       ④ 输出是合法 exposition: +Inf 桶存在且与 count 相等
 
 // backend: 被监控的内部系统（这里模拟一个队列服务）
@@ -27,7 +27,7 @@ type backend struct {
 	broken bool // 模拟不可用
 }
 
-// query: 问目标系统要状态; 带 1 秒超时（13 §5: 超时返回空, 绝不卡住）
+// query: 问目标系统要状态; 带 1 秒超时（13 第 5 节: 超时返回空, 绝不卡住）
 func (b *backend) query() (depth int, err error) {
 	if b.slow {
 		time.Sleep(3 * time.Second) // 超过 collectTimeout → 这次 collect 放弃该目标
@@ -40,13 +40,13 @@ func (b *backend) query() (depth int, err error) {
 
 const collectTimeout = 500 * time.Millisecond
 
-// queueExporter: 一个 Exporter 代理多个后端实例（13 §1: 集中式部署）
+// queueExporter: 一个 Exporter 代理多个后端实例（13 第 1 节: 集中式部署）
 type queueExporter struct {
 	mu       sync.Mutex
 	backends []*backend
 }
 
-// Describe: 元信息——必须在多次抓取之间保持稳定（13 §5 第四条纪律）
+// Describe: 元信息——必须在多次抓取之间保持稳定（13 第 5 节 第四条纪律）
 func (e *queueExporter) Describe() []desc {
 	return []desc{
 		{name: "queue_depth", help: "队列积压深度", typ: typeGauge},
@@ -65,7 +65,7 @@ func (e *queueExporter) Collect() []sample {
 	for _, b := range targets {
 		labels := map[string]string{"instance": b.addr}
 
-		// up 指标: 目标不可用 → 只让这个实例 up=0（13 §5 第二条纪律）
+		// up 指标: 目标不可用 → 只让这个实例 up=0（13 第 5 节 第二条纪律）
 		depth, err := e.queryWithTimeout(b)
 		if err != nil {
 			out = append(out, sample{name: "up", labels: labels, value: 0})

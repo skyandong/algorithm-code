@@ -5,7 +5,7 @@ import (
 )
 
 // 实验 07：时间轮（单轮 + 轮数字段）
-// 实现笔记 07 §2 的完整结构: 60 格环形数组, 每格挂任务链表, 指针每 tick 走一格;
+// 实现笔记 07 第 2 节 的完整结构: 60 格环形数组, 每格挂任务链表, 指针每 tick 走一格;
 // 轮数 > 0 的任务留守减一, 轮数 = 0 的执行摘除。
 // 用虚拟 tick 驱动（确定性输出, 3 次运行一致）。
 // 锚点: 1000 个跨多圈任务 100% 按预期 tick 触发; 取消的任务 0 执行。
@@ -33,7 +33,7 @@ func newTimeWheel() *timeWheel {
 }
 
 // add: 插入延迟 delay tick 的任务, 返回任务指针（可用于取消）
-// 计算: 轮数 = (delay-1)/60, 槽 = (now+delay)%60 —— 笔记 07 §2 公式
+// 计算: 轮数 = (delay-1)/60, 槽 = (now+delay)%60 —— 笔记 07 第 2 节公式
 func (w *timeWheel) add(id, delay int) *twTask {
 	round := (delay - 1) / wheelSlots
 	slot := (w.now + delay) % wheelSlots

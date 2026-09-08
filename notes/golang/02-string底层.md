@@ -2,7 +2,7 @@
 
 > **核心认知：** string 是「**(数据指针, 长度)**」二字段头——**没有 `\0` 终止符，长度显式存储，内容不可变**。不可变是全局契约：它让 string 可以安全地做 map key、被任意共享、编译器放心地驻留（intern）字面量；代价是每次「改」字符串都是新分配。string 的一切坑都来自两个转换：**string ↔ []byte 拷贝**（何时逃不出拷贝）和**零拷贝视图**（unsafe 何时安全）。工程口诀：拼接用 Builder + Grow，热路径转换单向设计，零拷贝只在边界库、绝不写。
 
-按 Go 1.26 语义说明，版本分界处单独标注。前置知识：slice 三字段头见 `01-slice与map底层.md`，unsafe 红线见 `03-interface与反射.md` §8。
+按 Go 1.26 语义说明，版本分界处单独标注。前置知识：slice 三字段头见 `01-slice与map底层.md`，unsafe 红线见 `03-interface与反射.md` 第 8 节。
 
 ---
 
@@ -32,7 +32,7 @@ type stringHeader struct {
 
 与 slice 头（ptr/len/cap）只差一个 cap——**string 是「不可变的 []byte 视图」**。三个直接推论：
 
-1. `len(s)` 是**字节数**，多字节 UTF-8 字符会让它大于「字符数」（§5 展开）；
+1. `len(s)` 是**字节数**，多字节 UTF-8 字符会让它大于「字符数」（第 5 节展开）；
 2. 子串 `s[i:j]` **不拷贝数据**：新头的 data = 原指针偏移 i×1，len = j-i。大字符串上反复切小片是零成本的（对比 `[]byte` 切片同样共享，但 []byte 还能写回）；
 3. 因为没有 `\0`，string 可以存**任意二进制数据**（包括 `\0` 本身）——`string(b)` 与 `[]byte(s)` 是安全的二进制管道。
 
@@ -55,7 +55,7 @@ fmt.Println(p1 == p2) // true —— 共享同一块底层内存（实验演示�
 
 **推论二：字面量驻留（intern）。** 编译期可确定的相同字符串字面量在只读段共享一份内存。`"hello" == "hello"` 两处引用的是同一块只读数据。
 
-**推论三：写 = 新分配。** 所有「修改」API（`strings.Replace`、`+`、`ToUpper`）都返回新串。循环里 `s += x` 是 O(n²) 事故的根源（§4）。
+**推论三：写 = 新分配。** 所有「修改」API（`strings.Replace`、`+`、`ToUpper`）都返回新串。循环里 `s += x` 是 O(n²) 事故的根源（第 4 节）。
 
 **零拷贝的边界（unsafe）**——`unsafe.String` 造出的 string 指向可变内存，**契约在你手里而非编译器手里**：
 
@@ -123,7 +123,7 @@ s := b.String()          // unsafe.String 零拷贝包装（Builder 防再次写
 
 1. `WriteString` 就是 `append` 到内部 buf（拷贝检查由 `copyCheck` 保证 Builder 不被值传递滥用）；
 2. `String()` 用 `unsafe.String` **零拷贝**导出——这是标准库里 unsafe 的正面示范（Builder 用 `addr` 字段记住自己，防止拷贝后两个 Builder 指向同一 buf）；
-3. `Grow(n)` 预分配 = slice 扩容治理的 string 版（`01` 篇 §3 同源）。
+3. `Grow(n)` 预分配 = slice 扩容治理的 string 版（`01` 篇第 3 节同源）。
 
 | 写法 | 复杂度 | 适用 |
 |---|---|---|
@@ -181,7 +181,7 @@ map key 的要求：**comparable**。string 完美满足且高效：
 | [N]byte | ✓ | 定长数组按值可比（比 string 少一次间接，网络库常用来当零分配 key） |
 | 含 slice/map 字段的结构体 | ✗ | 不可比 |
 
-`[]byte` 想当 key 的标准姿势就是 `string(b)` 转一次（§3 的 map 索引免拷贝特例正为此设计）。
+`[]byte` 想当 key 的标准姿势就是 `string(b)` 转一次（第 3 节 的 map 索引免拷贝特例正为此设计）。
 
 ---
 
@@ -192,9 +192,9 @@ map key 的要求：**comparable**。string 完美满足且高效：
 1. **常量折叠**：`"a" + "b" + "c"` 编译期合成 `"abc"`，零运行时成本；
 2. **`+` 多元拼接**：`a + b + c`（一个表达式）编译成 `runtime.concatstrings` 一次算总长、一次分配；
 3. **比较短路**：`==` 先比长度再比内容；`len` 不同立即 false；
-4. **map[string(b)] 免分配**（§3）；
+4. **map[string(b)] 免分配**（第 3 节）；
 5. **range string 免 []byte 化**：`for i := range s` 直接在字节上迭代，`utf8.DecodeRuneInString` 零拷贝解码（对比 `for range []byte(s)` 需要先拷贝）；
-6. **子串零拷贝**（§1）；
+6. **子串零拷贝**（第 1 节）；
 7. **switch string**：编译器按长度+首字符建跳转表，不是线性全比。
 
 验证手段统一是 `go build -gcflags="-m"` 看逃逸/内联判定（`09`/`11` 篇的工具链）。

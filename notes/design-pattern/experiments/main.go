@@ -22,6 +22,7 @@ func main() {
 		{"interface", RunInterfaceExperiments},
 		{"concurrency", RunConcurrencyExperiments},
 		{"errors", RunErrorsExperiments},
+		{"ddd", RunDDDExperiments},
 	}
 
 	if exp == "all" {
@@ -39,5 +40,5 @@ func main() {
 		}
 	}
 
-	fmt.Println("用法: go run ./experiments/ [all|principles|creational|structural|behavioral|interface|concurrency|errors]")
+	fmt.Println("用法: go run ./experiments/ [all|principles|creational|structural|behavioral|interface|concurrency|errors|ddd]")
 }

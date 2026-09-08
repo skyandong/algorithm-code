@@ -5,7 +5,7 @@ import (
 	"math"
 )
 
-// 实验 12：高基数爆炸演示（笔记 07 §4、12 §5）
+// 实验 12：高基数爆炸演示（笔记 07 第 4 节、笔记 12 第 5 节）
 // 实现: 按维度乘积计算 series 数, 估算内存与抓取体积, 演示路径归一化的收敛效果
 // 演示: 给一个看似无害的指标加上 user_id 标签会发生什么
 // 锚点: ① series 数是各 label 取值数的乘积——加一个高基数维度直接爆炸
@@ -95,5 +95,5 @@ func RunCardinalityExperiments() {
 		nAfter, nBoom/nAfter)
 	fmt.Printf("%s 锚点④ 治理有效: 抓取侧丢弃 label 是唯一'不用改业务代码'的兜底手段\n",
 		mark(math.Abs(nAfter-nHealthy) < 1e-9))
-	fmt.Println("  另一条路: 明细（trace_id/订单号）走 exemplar 挂在样本上——不产生新 series（12 §7）")
+	fmt.Println("  另一条路: 明细（trace_id/订单号）走 exemplar 挂在样本上——不产生新 series（12 第 7 节）")
 }

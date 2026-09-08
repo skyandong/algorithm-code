@@ -14,6 +14,10 @@
 //	Exp4：已关闭 channel 的接收语义 — 先读空缓冲，再返回零值 ok=false
 //	Exp5：阻塞中的接收者被 close 唤醒（得到零值 + ok=false）
 //	Exp6：阻塞中的发送者在 close 后 panic（recover 演示）
+//	Exp7：无缓冲 channel 直接交接（发送阻塞到接收者就绪）
+//	Exp8：缓冲满时发送阻塞（sendq 挂起），腾位后立即成功
+//	Exp9：close 补充语义 — 双重 close / 已关再发 / close(nil) 全 panic
+//	Exp10：nil/活跃/已关闭 × 发送/接收/close 状态转换表
 package main
 
 import (
@@ -41,6 +45,18 @@ func RunChannelExperiments() {
 
 	fmt.Println("\n===== 6. 阻塞中的发送者在 close 后 panic（recover 演示）=====")
 	demoCloseWakesSenderPanic()
+
+	fmt.Println("\n===== 7. 无缓冲 channel：发送者阻塞到接收者就绪（直接交接）=====")
+	demoUnbufferedHandoff()
+
+	fmt.Println("\n===== 8. 缓冲满时发送阻塞（环形队列无空位）=====")
+	demoBufferedFullBlock()
+
+	fmt.Println("\n===== 9. close 的补充语义：双重 close / 已关再发 / close nil =====")
+	demoCloseSemantics()
+
+	fmt.Println("\n===== 10. channel 状态转换表 =====")
+	demoStateTable()
 }
 
 // demoNilRecvNeverReady 笔记 6 第 5.1 节：从 nil channel 接收永远不会完成。
@@ -149,4 +165,89 @@ func demoCloseWakesSenderPanic() {
 	time.Sleep(100 * time.Millisecond)
 	close(ch)
 	wg.Wait()
+}
+
+// demoUnbufferedHandoff 笔记 06 第 8 节：无缓冲发送阻塞到接收者就绪，数据直接从 S->R 交接。
+func demoUnbufferedHandoff() {
+	ch := make(chan int)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		time.Sleep(200 * time.Millisecond) // 接收者 200ms 后才来
+		start := time.Now()
+		v := <-ch
+		fmt.Printf("接收者 %v 后收到 %d（数据直接从发送栈拷到接收栈，不经过缓冲）\n",
+			time.Since(start).Round(10*time.Millisecond), v)
+	}()
+
+	start := time.Now()
+	ch <- 42
+	fmt.Printf("发送返回耗时 %v（发送者一直阻塞到接收者就绪才完成交接）\n",
+		time.Since(start).Round(10*time.Millisecond))
+	wg.Wait()
+}
+
+// demoBufferedFullBlock 笔记 06 第 9 节：缓冲满时发送者进 sendq 阻塞。
+func demoBufferedFullBlock() {
+	ch := make(chan int, 2)
+	ch <- 1
+	ch <- 2 // 环形队列已满
+
+	select {
+	case ch <- 3:
+		fmt.Println("发送成功（不应出现）")
+	case <-time.After(200 * time.Millisecond):
+		fmt.Println("缓冲满：发送阻塞（sendq 挂起），timeout 兜底证明不会写入")
+	}
+
+	<-ch // 腾出一个空位
+	ch <- 3
+	fmt.Println("腾出空位后 ch <- 3 立即成功（有空位 = 直接写环形队列，不阻塞）")
+}
+
+// demoCloseSemantics 笔记 06 第 10 节：close 的三条红线 —— 双重 close、已关再发、close nil。
+func demoCloseSemantics() {
+	// 1) 双重 close：panic
+	func() {
+		defer func() { fmt.Println("双重 close → panic:", recover()) }()
+		ch := make(chan int)
+		close(ch)
+		close(ch)
+	}()
+
+	// 2) 向已关闭 channel 发送：不阻塞，立即 panic（nil channel 发送才阻塞）
+	func() {
+		defer func() { fmt.Println("已关闭再发送 → panic:", recover()) }()
+		ch := make(chan int)
+		close(ch)
+		ch <- 1
+	}()
+
+	// 3) close(nil channel)：panic（close 只认有 hchan 的活跃 channel）
+	func() {
+		defer func() { fmt.Println("close(nil) → panic:", recover()) }()
+		var ch chan int
+		close(ch)
+	}()
+
+	// 4) 已关闭的 channel 可以继续接收（读完缓冲返回零值，见第 11 节）——只有发送和 close 会炸
+	ch := make(chan int)
+	close(ch)
+	v, ok := <-ch
+	fmt.Printf("已关闭的 channel 接收: v=%d ok=%v（合法且永不阻塞）\n", v, ok)
+}
+
+// demoStateTable 笔记 06 第 13/14/15 节：nil/活跃/已关闭 × 发送/接收/关闭 的完整行为表。
+func demoStateTable() {
+	fmt.Println("状态       | 发送 send        | 接收 recv              | close")
+	fmt.Println("-----------+------------------+------------------------+-----------")
+	fmt.Println("nil        | 永久阻塞         | 永久阻塞               | panic")
+	fmt.Println("活跃(非nil) | 满则阻塞否则成功 | 空则阻塞否则成功       | 正常")
+	fmt.Println("已关闭     | panic            | 零值+false，永不阻塞   | panic(重复关)")
+	fmt.Println()
+	fmt.Println("区分 deadlock 与 nil 阻塞: nil channel 阻塞不报 deadlock（runtime 认为在等一个永不")
+	fmt.Println("就绪的 case）；select 全 nil 分支 + 无 default 才是 deadlock 检测的目标")
+	fmt.Println("nil 禁用 vs close 关闭（第 15 节）: ch=nil 只是变量指向，可随时恢复；close 是协议动作，不可逆")
 }

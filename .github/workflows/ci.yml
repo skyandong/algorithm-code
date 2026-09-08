@@ -68,6 +68,7 @@ jobs:
           # 只跑不依赖外部服务的测试。
           #   - notes/akafka 的集成用例开头调 requireKafka，探测不到 broker 就 Skip，
           #     没有 Kafka 的 runner 上只跑纯逻辑用例，可以安全纳入
+          #   - notes/golang 的实验无外部依赖，直接跑（纯逻辑 + demo 冒烟，约 12s）
           #   - 其余 notes/*、demos/* 实验多为可运行 demo，本身无测试
           # 新增不依赖外部服务的测试后，按 "模块|包" 格式加进下面的列表。
           while IFS='|' read -r mod pkg; do
@@ -81,5 +82,6 @@ jobs:
           .|./...
           demos/trtc-demo|./sig/
           notes/akafka|./experiments/
+          notes/golang|./experiments/
           EOF
           exit $fail
