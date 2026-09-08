@@ -12,14 +12,28 @@
 | [04](04-网关.md) | 网关 | 说不清 | 一张路由表 + 一条中间件链；灰度把发版变成路由权重调整 |
 | [05](05-可观测性.md) | 可观测性 | 看不见 | metrics 报警 → tracing 定位 → logging 取证，分辨率逐层放大的漏斗 |
 | [06](06-服务网格intro.md) | 服务网格 intro | （居住形态重组） | 把治理从 SDK 下沉到 sidecar——用运行时成本换工程组织成本 |
+| [07](07-指标体系与数据模型.md) | 指标体系与数据模型 | 看不见·指标 | 指标是**在采集端就聚合**的数字，series 数是它唯一的成本单位 |
+| [08](08-Prometheus架构与抓取.md) | Prometheus 架构与抓取 | 看不见·采集 | pull 让"抓不到"本身成为存活判定（up=0），代价只是抓不了短命任务 |
+| [09](09-PromQL实战.md) | PromQL 实战 | 看不见·查询 | 瞬时向量是点集、区间向量是串；Counter 必须先 rate 再聚合 |
+| [10](10-告警与Alertmanager.md) | 告警与 Alertmanager | 看不见·告警 | 告警做的是**减法**：基于症状、加 for 抗抖、一次故障一条通知 |
+| [11](11-Grafana与看板.md) | Grafana 与看板 | 看不见·展示 | 不存数据只查 PromQL；标准是值班的人 30 秒能判断健康与否 |
+| [12](12-Go服务埋点实战.md) | Go 服务埋点实战 | 看不见·埋点 | 埋点在热路径：O(1) 无锁、label 值域收敛，绝不打挂业务 |
+| [13](13-Exporter速查.md) | Exporter 速查 | 看不见·第三方 | Exporter 是不改动被监控方的前提下唯一的适配器方案 |
+| [14](14-监控场景题与排障手册.md) | 场景题与排障手册 | 看不见·排障 | 先影响面 → 再定性 → 再分层 → 最后才看资源（CPU 高总是症状） |
 
-配套：[面试一口答.md](面试一口答.md)（25 题 + 考前 60 秒串讲）。
+配套：[面试一口答.md](面试一口答.md)（38 题 + 考前 60 秒串讲）、[monitoring/](monitoring/)（可一键起的 Prometheus + Grafana + Alertmanager）。
+
+> 05 是**三支柱总纲**（概念层，约 160 行）；07~14 是**指标支柱的完整展开**（采集→存储→查询→告警→展示→埋点→排障），
+> 之所以单独展开，是因为三支柱里 tracing 有 `demos/tracing`、logging 有 `notes/elasticsearch`，
+> 唯独 metrics 只有概念没有落地——而它恰恰是告警的来源、也是面试问得最实的一块。
 
 ## 跑实验
 
 ```bash
 go run ./experiments/ all          # 全部
-go run ./experiments/ circuitbreaker   # 单跑（可选: registry/config/gateway/trace）
+go run ./experiments/ circuitbreaker   # 单跑（可选: registry/config/gateway/trace/
+                                   #        exposition/collector/histogram/promql/
+                                   #        middleware/alerting/cardinality/exporter）
 go run -race ./experiments/ all    # data race 检查（零告警）
 ```
 
@@ -34,6 +48,14 @@ go run -race ./experiments/ all    # data race 检查（零告警）
 | 03 熔断器 | closed→open（错误率 50%+样本 20）；open 期 19 个请求快速失败；冷却期后探活 2 连成恢复；令牌桶突发放行 10/12 | ✓ |
 | 04 网关 | 同 uid 20 次请求 100% 恒定同版本（灰度粘性）；分桶 20%±5；路由表热更新 404→200 | ✓ |
 | 05 trace | 5 个 span 全部同一 trace_id；parent 指针建树正确；db 40ms 占 order 78%（慢段定位） | ✓ |
+| 06 exposition | `# TYPE` 各指标恰好一次；`+Inf` 桶 == count；label 转义三种字符；le 桶单调不减 | ✓ |
+| 07 collector | 100 goroutine × 1000 次累加精确 100000 无丢失；快照偏差 0 vs 边读边写偏差 5.2% | ✓ |
+| 08 histogram | 细桶 P99 误差 0.09% vs 粗桶 23.34%（253 倍）；桶相加算全局 P99 正确；分位平均 0.55 ≠ 真值 1.00 | ✓ |
+| 09 promql | 重启场景下朴素算法 -9.20/s vs 修正算法 +8.13/s；窗口 10s 时 40/40 算不出；irate 1000 vs rate 147 | ✓ |
+| 10 middleware | 并发 1000 请求计数精确；路径归一化 100→1 条 series；埋点 136 ns/op；panic 被 recover 且指标照记 | ✓ |
+| 11 alerting | 抖动 20s（for=60s）0 条告警；50 条告警 group_by 后 1 条通知；抑制后 20 条 | ✓ |
+| 12 cardinality | 加 user_id 维度放大 100 万倍（25 万 → 2.5e11 series，698 TB）；归一化 1000→1 | ✓ |
+| 13 exporter | 坏实例只自己 up=0；两次 Collect 元信息完全一致；3s 慢目标被 500ms 超时截断 | ✓ |
 
 ## 重点回顾自测清单
 
@@ -50,6 +72,19 @@ go run -race ./experiments/ all    # data race 检查（零告警）
 - [ ] 三支柱的漏斗关系？四个黄金指标？为什么 P99 不用均值？
 - [ ] trace_id 怎么透传（进程内 context / 跨进程 header）？
 - [ ] 头部采样 vs 尾部采样（错误和慢请求 100% 保留的价值）？
+- [ ] **指标四类怎么选？为什么记速率用 Counter+rate 而不是 Gauge？**（07）
+- [ ] **Histogram vs Summary：为什么分位数不可加、桶可加？手算 P99？**（07/08）
+- [ ] **什么是高基数？user_id 进 label 会怎样？怎么治理？**（07/12）
+- [ ] **Prometheus 为什么用 pull？up=0 为什么是白送的告警？**（08）
+- [ ] **TSDB 三层结构（head/WAL/block）？保留期为什么只有 15 天？**（08）
+- [ ] **rate 和 irate 的区别与选型？窗口为什么必须 ≥4×interval？**（09）
+- [ ] **多实例全局 P99 怎么写 PromQL？为什么必须 by (le)？**（09）
+- [ ] **告警基于症状还是原因？for 字段解决什么问题？**（10）
+- [ ] **Alertmanager 的分组/抑制/静默分别是什么？group_wait 为什么等 30s？**（10）
+- [ ] **RED 看板四行布局？P50/P90/P99 三线一起画能看出什么？**（11）
+- [ ] **Go 埋点为什么必须原子操作？六条性能红线？**（12）
+- [ ] **Exporter 和直埋的区别？写 Exporter 的四条纪律？**（13）
+- [ ] **CPU 飙高 / P99 毛刺 / 内存上涨的排查顺序？（为什么资源放最后）**（14）
 - [ ] SDK vs sidecar 的 trade-off（三税 vs 两跳）？什么规模上网格才划算？
 
 ## 与其他模块的衔接

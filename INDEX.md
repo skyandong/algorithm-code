@@ -2,7 +2,7 @@
 
 按**面试官会怎么问**组织，而不是按文件罗列。所有路径相对仓库根目录。
 
-笔记正文共 110 篇、约 106 万字，散在 12 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
+笔记正文共 118 篇、约 113 万字，散在 12 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
 
 ## 怎么用
 
@@ -62,7 +62,10 @@
 | GOGC 与 GOMEMLIMIT 怎么配合 | [golang/09](notes/golang/09-内存管理与GC.md)、[golang/11](notes/golang/11-性能调优实战.md) |
 | sync.Pool 每轮 GC 都清空，为什么还值得用 | [golang/09](notes/golang/09-内存管理与GC.md) |
 | benchmark 规范与优化性价比排序 | [golang/11](notes/golang/11-性能调优实战.md) |
-| pprof / trace 实战与线上排查标准路径（高频） | [golang/11](notes/golang/11-性能调优实战.md) |
+| pprof / trace 实战与线上排查标准路径（高频） | [golang/11](notes/golang/11-性能调优实战.md)、[demos/pprof-lab](demos/pprof-lab) |
+| 火焰图怎么看：根在顶、宽度 ∝ 占比、正当热点与病灶同图 | [demos/pprof-lab](demos/pprof-lab) |
+| Go 的正则会灾难性回溯吗（RE2 纠偏，高频陷阱题） | [golang/11](notes/golang/11-性能调优实战.md) §10、[demos/pprof-lab](demos/pprof-lab) |
+| goroutine 泄漏怎么用 pprof 定位到具体行 | [demos/pprof-lab](demos/pprof-lab) |
 
 ## 4. MySQL
 
@@ -124,6 +127,16 @@
 | 网关 vs BFF vs LB，灰度路由怎么实现 | [microservice/04](notes/microservice/04-网关.md) |
 | 三支柱、四个黄金指标、trace 透传 | [microservice/05](notes/microservice/05-可观测性.md) |
 | sidecar 的 iptables 劫持与 SDK 模式 trade-off | [microservice/06](notes/microservice/06-服务网格intro.md) |
+| 指标四类怎么选？Histogram 能聚合而 Summary 不能的根源 | [microservice/07](notes/microservice/07-指标体系与数据模型.md) |
+| 高基数是什么？user_id 进 label 会怎样、怎么治 | [microservice/07](notes/microservice/07-指标体系与数据模型.md)、[microservice/12](notes/microservice/12-Go服务埋点实战.md) |
+| Prometheus 为什么用 pull？TSDB 三层结构（高频） | [microservice/08](notes/microservice/08-Prometheus架构与抓取.md) |
+| rate 和 irate 区别？Counter 重启归零怎么处理（高频） | [microservice/09](notes/microservice/09-PromQL实战.md) |
+| 多实例全局 P99 怎么写 PromQL？手算 P99 | [microservice/09](notes/microservice/09-PromQL实战.md)、[microservice/07](notes/microservice/07-指标体系与数据模型.md) |
+| 告警基于症状还是原因？for 抗抖、Alertmanager 分组抑制（高频） | [microservice/10](notes/microservice/10-告警与Alertmanager.md) |
+| RED 看板怎么设计？Grafana 存数据吗 | [microservice/11](notes/microservice/11-Grafana与看板.md) |
+| Go 服务怎么接监控？埋点为什么必须原子操作 | [microservice/12](notes/microservice/12-Go服务埋点实战.md) |
+| Exporter 和直埋的区别？MySQL/Redis/Kafka 各看什么指标 | [microservice/13](notes/microservice/13-Exporter速查.md) |
+| CPU 飙高 / P99 毛刺 / 内存上涨怎么查（资源为何放最后） | [microservice/14](notes/microservice/14-监控场景题与排障手册.md) |
 
 ## 7. 系统设计
 

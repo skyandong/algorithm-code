@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml/badge.svg)](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml)
 
-> **找答案先查 [INDEX.md](INDEX.md)** —— 110 篇笔记、约 106 万字，按「面试官会怎么问」组织的横向入口。
+> **找答案先查 [INDEX.md](INDEX.md)** —— 118 篇笔记、约 113 万字，按「面试官会怎么问」组织的横向入口。
 
 ## 目录分层
 
@@ -21,7 +21,7 @@ algorithm-code/
 │   ├── design-pattern/    # 8 篇：设计原则/创建/结构/行为/并发/错误/反模式
 │   ├── distributed/       # 7 篇：CAP/Raft/事务/锁/分片/时钟/故障检测
 │   ├── system-design/     # 8 篇：方法论估算/秒杀/短链/Feed/IM/分布式ID/延迟任务/缓存
-│   ├── microservice/      # 6 篇：注册发现/配置中心/熔断限流/网关/可观测/服务网格
+│   ├── microservice/      # 14 篇：注册发现/配置中心/熔断限流/网关/可观测（07~14 为指标监控落地）+ monitoring/ 一键监控栈
 │   ├── mysql/             # 14 篇：索引/事务/锁/执行计划/分库分表/主从（ent/ 依赖未声明，见其 README）
 │   ├── redis/             # 11 篇：底层/持久化/高可用/缓存三问/分布式锁/场景题
 │   ├── akafka/            # 3 篇：架构/消息保障/原理与消费者
@@ -42,6 +42,7 @@ algorithm-code/
     ├── http3/             # QUIC / HTTP3
     ├── oss-lab/           # 对象存储（aws-sdk-go-v2 S3 接口）
     ├── tracing/           # OpenTelemetry 链路追踪
+    ├── pprof-lab/         # pprof 排障实战场（带病服务 + 手抓 profile 产物 + Web UI 工作流）
     └── trtc-demo/         # 腾讯云 TRTC
 ```
 

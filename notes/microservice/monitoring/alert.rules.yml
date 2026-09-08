@@ -1,0 +1,71 @@
+# 告警规则（对应笔记 10 §5 的四条通用模板）
+# 原则: 基于症状（用户受影响）才配 page; 基于原因的只做 warning; "即将耗尽"用 predict_linear
+
+groups:
+  - name: availability
+    rules:
+      # ① 目标不可达——pull 模式白送的存活探针（08 §1）
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }}/{{ $labels.instance }} 抓取失败"
+          runbook_url: https://wiki/runbook/target-down
+
+  - name: node-resource
+    rules:
+      # ② 磁盘即将写满——预测性告警, 比"剩余 10%"聪明（10 §5）
+      - alert: DiskWillFillIn4Hours
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 4 * 3600) < 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} {{ $labels.mountpoint }} 预计 4 小时内写满"
+
+      # ③ CPU 高——基于原因, 只做 warning（10 §1: 不该叫醒人）
+      - alert: HighCPU
+        expr: 1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance) > 0.85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} CPU 使用率 > 85% 持续 15 分钟"
+
+  - name: go-service
+    rules:
+      # ④ 错误率——症状型, 且带流量守卫（09 §7: 没流量时分母为 0 会误报）
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+            / sum(rate(http_requests_total[5m])) by (job) > 0.01
+          and sum(rate(http_requests_total[5m])) by (job) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} 错误率 {{ $value | humanizePercentage }}"
+
+      # ⑤ 延迟——阈值从 SLO 反推, 不是拍脑袋（10 §5）
+      - alert: HighLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job)) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} P99 延迟 > 500ms"
+
+      # ⑥ 协程泄漏——Go 服务特有的先行指标（12 §4）
+      - alert: GoroutineLeak
+        expr: |
+          go_goroutines > 1000
+          and deriv(go_goroutines[30m]) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} goroutine 数持续上涨, 疑似泄漏"

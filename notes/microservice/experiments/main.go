@@ -28,6 +28,14 @@ func main() {
 		{"circuitbreaker", RunCircuitBreakerExperiments},
 		{"gateway", RunGatewayExperiments},
 		{"trace", RunTraceExperiments},
+		{"exposition", RunExpositionExperiments},
+		{"collector", RunCollectorExperiments},
+		{"histogram", RunHistogramExperiments},
+		{"promql", RunPromQLExperiments},
+		{"middleware", RunMiddlewareExperiments},
+		{"alerting", RunAlertingExperiments},
+		{"cardinality", RunCardinalityExperiments},
+		{"exporter", RunExporterExperiments},
 	}
 
 	if exp == "all" {

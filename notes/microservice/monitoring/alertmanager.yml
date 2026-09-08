@@ -1,0 +1,39 @@
+# Alertmanager 配置（对应笔记 10 §3: 分组 / 抑制 / 静默 / 路由）
+# 目标: 一次故障的几十条告警 → 一条通知, 且只叫醒该被叫醒的人
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  # group_by 决定"哪些告警算同一件事"——按 job 聚, 一次故障只发一条
+  group_by: [job]
+  group_wait: 30s        # 收到第一条后先攒 30s, 让同组的其他告警赶上来
+  group_interval: 5m     # 同组后续通知的间隔
+  repeat_interval: 4h    # 同一个告警多久重发一次（防疲劳）
+  routes:
+    - matchers:
+        - severity = "critical"
+      receiver: pager           # 电话/短信叫醒
+    - matchers:
+        - severity = "warning"
+      receiver: wechat-group    # 只发群, 不叫醒
+
+# 抑制: 高等级告警发生时, 静默它已知会引发的低等级告警（10 §3）
+inhibit_rules:
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: [job]
+
+receivers:
+  - name: default
+    webhook_configs:
+      - url: http://localhost:5001/     # 本地黑洞接收器, 演示用
+  - name: pager
+    webhook_configs:
+      - url: http://localhost:5001/pager
+  - name: wechat-group
+    webhook_configs:
+      - url: http://localhost:5001/group

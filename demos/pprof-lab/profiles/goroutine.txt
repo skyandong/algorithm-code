@@ -1,0 +1,78 @@
+goroutine profile: total 63
+51 @ 0x102385c0c 0x102319a98 0x1023196a8 0x10253df6c 0x10238d244
+#	0x10253df6b	main.leakGoroutine.func1+0x2b	/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:125
+
+2 @ 0x10234fe68 0x10238da48 0x10253d2f1 0x10253d275 0x10238d244
+#	0x10253d2f0	main.hashLoop+0xa0		/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:84
+#	0x10253d274	main.autoLoad.func2+0x24	/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:229
+
+2 @ 0x102385c0c 0x102365c44 0x102365c25 0x102387108 0x1023944a0 0x10253c9e8 0x10253c985 0x10253c981 0x10253d094 0x10238d244
+#	0x102387107	internal/sync.runtime_SemacquireMutex+0x27	/Users/tal/sdk/go1.26.3/src/runtime/sema.go:95
+#	0x10239449f	internal/sync.(*Mutex).lockSlow+0x16f		/Users/tal/sdk/go1.26.3/src/internal/sync/mutex.go:149
+#	0x10253c9e7	internal/sync.(*Mutex).Lock+0x87		/Users/tal/sdk/go1.26.3/src/internal/sync/mutex.go:70
+#	0x10253c984	sync.(*Mutex).Lock+0x24				/Users/tal/sdk/go1.26.3/src/sync/mutex.go:46
+#	0x10253c980	main.lockContend+0x20				/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:98
+#	0x10253d093	main.autoLoad.func1+0x23			/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:215
+
+2 @ 0x10253c860 0x10253d274 0x10238d244
+#	0x10253c85f	main.regexOnHotPath+0x9f	/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:56
+#	0x10253d273	main.autoLoad.func2+0x23	/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:230
+
+1 @ 0x10234790c 0x102384a14 0x1025267f4 0x102526620 0x102523e14 0x102538bd4 0x102539444 0x1024efb88 0x1024f1510 0x1024f7630 0x1024ee3fc 0x10238d244
+#	0x1025267f3	runtime/pprof.writeRuntimeProfile+0xb3	/Users/tal/sdk/go1.26.3/src/runtime/pprof/pprof.go:851
+#	0x10252661f	runtime/pprof.writeGoroutine+0x4f	/Users/tal/sdk/go1.26.3/src/runtime/pprof/pprof.go:784
+#	0x102523e13	runtime/pprof.(*Profile).WriteTo+0x143	/Users/tal/sdk/go1.26.3/src/runtime/pprof/pprof.go:408
+#	0x102538bd3	net/http/pprof.handler.ServeHTTP+0x413	/Users/tal/sdk/go1.26.3/src/net/http/pprof/pprof.go:273
+#	0x102539443	net/http/pprof.Index+0xa3		/Users/tal/sdk/go1.26.3/src/net/http/pprof/pprof.go:397
+#	0x1024efb87	net/http.HandlerFunc.ServeHTTP+0x37	/Users/tal/sdk/go1.26.3/src/net/http/server.go:2286
+#	0x1024f150f	net/http.(*ServeMux).ServeHTTP+0x18f	/Users/tal/sdk/go1.26.3/src/net/http/server.go:2828
+#	0x1024f762f	net/http.serverHandler.ServeHTTP+0xaf	/Users/tal/sdk/go1.26.3/src/net/http/server.go:3311
+#	0x1024ee3fb	net/http.(*conn).serve+0x51b		/Users/tal/sdk/go1.26.3/src/net/http/server.go:2073
+
+1 @ 0x102385c0c 0x10234aeb0 0x102384e20 0x1023c5118 0x1023c6284 0x1023c6275 0x10242c648 0x10243a514 0x102439a5c 0x1024f2794 0x1024f2450 0x10253cde4 0x10253cde5 0x10253c640 0x1023514b4 0x10238d244
+#	0x102384e1f	internal/poll.runtime_pollWait+0x9f		/Users/tal/sdk/go1.26.3/src/runtime/netpoll.go:351
+#	0x1023c5117	internal/poll.(*pollDesc).wait+0x27		/Users/tal/sdk/go1.26.3/src/internal/poll/fd_poll_runtime.go:84
+#	0x1023c6283	internal/poll.(*pollDesc).waitRead+0x213	/Users/tal/sdk/go1.26.3/src/internal/poll/fd_poll_runtime.go:89
+#	0x1023c6274	internal/poll.(*FD).Accept+0x204		/Users/tal/sdk/go1.26.3/src/internal/poll/fd_unix.go:613
+#	0x10242c647	net.(*netFD).accept+0x27			/Users/tal/sdk/go1.26.3/src/net/fd_unix.go:150
+#	0x10243a513	net.(*TCPListener).accept+0x23			/Users/tal/sdk/go1.26.3/src/net/tcpsock_posix.go:159
+#	0x102439a5b	net.(*TCPListener).Accept+0x2b			/Users/tal/sdk/go1.26.3/src/net/tcpsock.go:387
+#	0x1024f2793	net/http.(*Server).Serve+0x243			/Users/tal/sdk/go1.26.3/src/net/http/server.go:3434
+#	0x1024f244f	net/http.(*Server).ListenAndServe+0x7f		/Users/tal/sdk/go1.26.3/src/net/http/server.go:3360
+#	0x10253cde3	net/http.ListenAndServe+0x153			/Users/tal/sdk/go1.26.3/src/net/http/server.go:3675
+#	0x10253cde4	main.startSickServer+0x154			/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:200
+#	0x10253c63f	main.main+0xdf					/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:43
+#	0x1023514b3	runtime.main+0x2b3				/Users/tal/sdk/go1.26.3/src/runtime/proc.go:290
+
+1 @ 0x102385c0c 0x10234aeb0 0x102384e20 0x1023c5118 0x1023c6284 0x1023c6275 0x10242c648 0x10243a514 0x102439a5c 0x1024f2794 0x1024f2450 0x10253de6c 0x10253de6d 0x10238d244
+#	0x102384e1f	internal/poll.runtime_pollWait+0x9f		/Users/tal/sdk/go1.26.3/src/runtime/netpoll.go:351
+#	0x1023c5117	internal/poll.(*pollDesc).wait+0x27		/Users/tal/sdk/go1.26.3/src/internal/poll/fd_poll_runtime.go:84
+#	0x1023c6283	internal/poll.(*pollDesc).waitRead+0x213	/Users/tal/sdk/go1.26.3/src/internal/poll/fd_poll_runtime.go:89
+#	0x1023c6274	internal/poll.(*FD).Accept+0x204		/Users/tal/sdk/go1.26.3/src/internal/poll/fd_unix.go:613
+#	0x10242c647	net.(*netFD).accept+0x27			/Users/tal/sdk/go1.26.3/src/net/fd_unix.go:150
+#	0x10243a513	net.(*TCPListener).accept+0x23			/Users/tal/sdk/go1.26.3/src/net/tcpsock_posix.go:159
+#	0x102439a5b	net.(*TCPListener).Accept+0x2b			/Users/tal/sdk/go1.26.3/src/net/tcpsock.go:387
+#	0x1024f2793	net/http.(*Server).Serve+0x243			/Users/tal/sdk/go1.26.3/src/net/http/server.go:3434
+#	0x1024f244f	net/http.(*Server).ListenAndServe+0x7f		/Users/tal/sdk/go1.26.3/src/net/http/server.go:3360
+#	0x10253de6b	net/http.ListenAndServe+0x3b			/Users/tal/sdk/go1.26.3/src/net/http/server.go:3675
+#	0x10253de6c	main.startSickServer.func7+0x3c			/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:195
+
+1 @ 0x102385c0c 0x1023650ac 0x10253cf40 0x10238d244
+#	0x10253cf3f	main.autoLoad+0x10f	/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:236
+
+1 @ 0x102385c0c 0x102389ad0 0x10253ca18 0x10253d094 0x10238d244
+#	0x102389acf	time.Sleep+0x14f		/Users/tal/sdk/go1.26.3/src/runtime/time.go:363
+#	0x10253ca17	main.lockContend+0xb7		/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:101
+#	0x10253d093	main.autoLoad.func1+0x23	/Users/tal/code/mine/algorithm-code/demos/pprof-lab/main.go:215
+
+1 @ 0x102389560 0x1023b3664 0x1023b2a08 0x1023c5ac0 0x1023c5aad 0x1023c5a15 0x10242ba98 0x102433684 0x1024e8d28 0x10238d244
+#	0x10238955f	syscall.syscalln+0x1f				/Users/tal/sdk/go1.26.3/src/runtime/sys_darwin.go:38
+#	0x1023b3663	syscall.syscall+0x23				/Users/tal/sdk/go1.26.3/src/syscall/syscall_darwin.go:365
+#	0x1023b2a07	syscall.read+0x47				/Users/tal/sdk/go1.26.3/src/syscall/zsyscall_darwin_arm64.go:1245
+#	0x1023c5abf	syscall.Read+0x19f				/Users/tal/sdk/go1.26.3/src/syscall/syscall_unix.go:183
+#	0x1023c5aac	internal/poll.ignoringEINTRIO+0x18c		/Users/tal/sdk/go1.26.3/src/internal/poll/fd_unix.go:738
+#	0x1023c5a14	internal/poll.(*FD).Read+0xf4			/Users/tal/sdk/go1.26.3/src/internal/poll/fd_unix.go:161
+#	0x10242ba97	net.(*netFD).Read+0x27				/Users/tal/sdk/go1.26.3/src/net/fd_posix.go:68
+#	0x102433683	net.(*conn).Read+0x33				/Users/tal/sdk/go1.26.3/src/net/net.go:196
+#	0x1024e8d27	net/http.(*connReader).backgroundRead+0x37	/Users/tal/sdk/go1.26.3/src/net/http/server.go:702
+

@@ -1,0 +1,33 @@
+# Prometheus 主配置（对应笔记 08 §4）
+# 三个时间参数的关系: scrape_timeout < scrape_interval, evaluation_interval 与 scrape_interval 同值
+
+global:
+  scrape_interval: 15s        # 多久抓一次（rate() 的窗口必须 >= 4 倍 = 60s）
+  scrape_timeout: 10s         # 必须小于 scrape_interval, 否则慢抓取会堆积
+  evaluation_interval: 15s    # 告警规则求值间隔, 与抓取同值（更快没意义, 更慢延迟告警）
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
+scrape_configs:
+  # 监控系统自己也要被监控（08 §2: up 指标是 pull 模式最值钱的副产品）
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 主机指标（node_exporter, 13 篇）
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # 自己的 Go 服务: 在宿主机上跑起来后, 用 host.docker.internal 让容器回连宿主机
+  # 跑法: cd notes/microservice && go run ./monitoring/serve-metrics.go（监听 18080）
+  - job_name: go-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:18080']

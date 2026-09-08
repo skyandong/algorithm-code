@@ -36,3 +36,6 @@ notes/nginx/experiments/nginx
 
 # workbuddy project data
 .workbuddy/
+
+# pprof-lab: 编译产物
+demos/pprof-lab/pprof-lab

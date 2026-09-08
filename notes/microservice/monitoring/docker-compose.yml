@@ -1,0 +1,57 @@
+services:
+  # 采集与存储: Prometheus（08 篇）
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: obs-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # 让容器能回连宿主机上的 Go 服务
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+
+  # 告警运营: Alertmanager（10 篇）——分组/抑制/静默/路由
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: obs-alertmanager
+    ports:
+      - "19093:9093"   # 宿主 9093 可能被本地 Kafka 占用, 映射到 19093
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--cluster.listen-address='   # 单机运行: 关掉 gossip 集群, 否则找不到 advertise 地址会退出
+
+  # 展示: Grafana（11 篇）——不存数据, 只查 PromQL
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: obs-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  # 主机指标 Exporter（13 篇）——Linux 上每机一个, 读本机 /proc
+  # 注意: macOS 的 Docker Desktop 不能把宿主根目录挂成 shared/slave,
+  # 所以这里不挂 /:/host, node-exporter 会读容器自身的 /proc（即 Docker VM 的指标）。
+  # 在 Linux 宿主机上想拿真实宿主机指标, 把下面两行取消注释:
+  #   pid: host
+  #   volumes: [ "/:/host:ro,rslave" ]
+  #   command: [ '--path.rootfs=/host' ]
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: obs-node-exporter
+    ports:
+      - "9100:9100"
