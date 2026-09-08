@@ -66,7 +66,8 @@ jobs:
           set -u
           fail=0
           # 只跑不依赖外部服务的测试。
-          #   - notes/akafka 的测试需要真实 Kafka broker，会挂起到超时，故不纳入
+          #   - notes/akafka 的集成用例开头调 requireKafka，探测不到 broker 就 Skip，
+          #     没有 Kafka 的 runner 上只跑纯逻辑用例，可以安全纳入
           #   - 其余 notes/*、demos/* 实验多为可运行 demo，本身无测试
           # 新增不依赖外部服务的测试后，按 "模块|包" 格式加进下面的列表。
           while IFS='|' read -r mod pkg; do
@@ -79,5 +80,6 @@ jobs:
           done <<EOF
           .|./...
           demos/trtc-demo|./sig/
+          notes/akafka|./experiments/
           EOF
           exit $fail

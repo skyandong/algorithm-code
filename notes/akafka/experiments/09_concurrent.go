@@ -108,11 +108,8 @@ func slidingWindowCommit() {
 				naive = r.Offset
 			}
 
-			// 正确做法：滑动窗口 —— 只有当 nextToCommit 连续完成才推进
-			for completed[nextToCommit] {
-				delete(completed, nextToCommit)
-				nextToCommit++
-			}
+			// 正确做法：滑动窗口 —— 只推进到「连续处理完」的边界
+			nextToCommit = advanceWindow(completed, nextToCommit)
 
 			mu.Unlock()
 		}(r)
@@ -123,4 +120,17 @@ func slidingWindowCommit() {
 	fmt.Printf("  滑动窗口提交只推进到 offset=%d（最长连续前缀）\n", nextToCommit)
 	fmt.Println("  差异：若在乱序处理中进程崩溃，naive 提交会丢中间未完成的消息；")
 	fmt.Println("        滑动窗口提交的 offset 之前全部处理完，恢复后从该处继续，不丢不重。")
+}
+
+// advanceWindow 滑动窗口推进：从 next 起，把「连续已完成」的 offset 移出窗口并前进，
+// 返回新的提交边界（= 最长连续前缀之后的那一个 offset）。
+//
+// 关键点：遇到第一个未完成的 offset 就停 —— 提交点绝不能越过空洞，
+// 否则空洞里的消息在进程崩溃后再也消费不到。
+func advanceWindow(completed map[int64]bool, next int64) int64 {
+	for completed[next] {
+		delete(completed, next)
+		next++
+	}
+	return next
 }

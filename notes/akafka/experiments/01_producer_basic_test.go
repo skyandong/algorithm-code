@@ -1,11 +1,11 @@
 // 案例1 生产者的单元测试（syncProduce / asyncProduce / batchProduce）
 // 共享的消费验证辅助函数（consumeKeys / seenKeys）也定义在此文件。
 //
-// 依赖本地 Kafka（notes/akafka 下执行 make up 启动）。
+// 依赖本地 Kafka（notes/akafka 下执行 make up 启动）；连不上时自动跳过。
 //
 // 运行：
 //
-//	go test ./experiments/ -v -timeout 120s
+//	go test ./experiments/ -v -timeout 300s
 package main
 
 import (
@@ -89,6 +89,8 @@ func seenKeys(t *testing.T, topic string, d time.Duration, opts ...kgo.Opt) map[
 
 // TestSyncProduce 验证同步发送的 5 条 order-* 消息全部到达 broker。
 func TestSyncProduce(t *testing.T) {
+	requireKafka(t)
+
 	syncProduce()
 
 	want := []string{"order-0", "order-1", "order-2", "order-3", "order-4"}
@@ -98,6 +100,8 @@ func TestSyncProduce(t *testing.T) {
 
 // TestAsyncProduce 验证异步发送的 10 条 event-* 消息全部到达 broker。
 func TestAsyncProduce(t *testing.T) {
+	requireKafka(t)
+
 	asyncProduce()
 
 	want := make([]string, 10)
@@ -110,6 +114,8 @@ func TestAsyncProduce(t *testing.T) {
 
 // TestBatchProduce 验证批量发送的 20 条 batch-key-* 消息全部到达 broker。
 func TestBatchProduce(t *testing.T) {
+	requireKafka(t)
+
 	batchProduce()
 
 	want := make([]string, 20)

@@ -159,10 +159,7 @@ func printLagReport(ctx context.Context) {
 	fmt.Fprintln(w, "GROUP\tTOPIC\tPARTITION\tCOMMITTED\tHW\tLAG\tSTATUS")
 	fmt.Fprintln(w, "-----\t-----\t---------\t---------\t--\t---\t------")
 	for _, l := range lags {
-		status := "✓ 正常"
-		if l.Lag > lagAlertThreshold {
-			status = "⚠ 告警"
-		}
+		status := lagStatus(l.Lag)
 		fmt.Fprintf(w, "%s\t%s\t%d\t%d\t%d\t%d\t%s\n",
 			l.GroupID, l.Topic, l.Partition, l.CommitOffset, l.HighWater, l.Lag, status)
 	}
@@ -171,6 +168,14 @@ func printLagReport(ctx context.Context) {
 
 	// 工程实践：上报 Prometheus
 	// gauge.WithLabelValues(group, topic, partition).Set(float64(lag))
+}
+
+// lagStatus 按阈值判定分区积压状态：超过 lagAlertThreshold 即告警。
+func lagStatus(lag int64) string {
+	if lag > lagAlertThreshold {
+		return "⚠ 告警"
+	}
+	return "✓ 正常"
 }
 
 func produceMessages(ctx context.Context) {

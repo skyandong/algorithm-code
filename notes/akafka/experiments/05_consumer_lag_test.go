@@ -11,8 +11,17 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+// TestLagStatus 阈值边界：等于阈值算正常，超过才告警。
+func TestLagStatus(t *testing.T) {
+	assert.Equal(t, "✓ 正常", lagStatus(0))
+	assert.Equal(t, "✓ 正常", lagStatus(lagAlertThreshold))
+	assert.Equal(t, "⚠ 告警", lagStatus(lagAlertThreshold+1))
+}
+
 // TestPrintLagReport 验证有积压时 lag 报表正常打印且 lag-demo-group 有已提交 offset。
 func TestPrintLagReport(t *testing.T) {
+	requireKafka(t)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

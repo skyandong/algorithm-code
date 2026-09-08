@@ -18,6 +18,8 @@ func TestProcessRecord(t *testing.T) {
 
 // TestConsume 验证消费者能消费 demo-basic 且 ctx 取消后正常退出。
 func TestConsume(t *testing.T) {
+	requireKafka(t)
+
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers),
 		kgo.ConsumerGroup(groupIDDemo),

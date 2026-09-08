@@ -12,6 +12,8 @@ import (
 
 // TestPipelineServices 验证流水线运行后 orders 中出现订单事件。
 func TestPipelineServices(t *testing.T) {
+	requireKafka(t)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

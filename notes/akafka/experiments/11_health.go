@@ -77,16 +77,8 @@ func showTopicHealth(ctx context.Context, adm *kadm.Client) {
 		}
 		replicas := t.Partitions.NumReplicas()
 		// 统计 ISR < Replicas 的分区（副本掉队）
-		var underISR []int32
-		for _, p := range parts {
-			if len(p.ISR) < len(p.Replicas) {
-				underISR = append(underISR, p.Partition)
-			}
-		}
-		status := "✓ 健康"
-		if len(underISR) > 0 {
-			status = "⚠ 副本掉队"
-		}
+		underISR := underISRPartitions(parts)
+		status := topicStatus(underISR)
 		underStr := "-"
 		if len(underISR) > 0 {
 			underStr = fmt.Sprint(underISR)
@@ -94,6 +86,26 @@ func showTopicHealth(ctx context.Context, adm *kadm.Client) {
 		fmt.Fprintf(w, "  %s\t%d\t%d\t%s\t%s\n", t.Topic, len(parts), replicas, underStr, status)
 	}
 	w.Flush()
+}
+
+// underISRPartitions 返回 ISR 副本数少于 Replicas 的分区号（副本掉队或宕机）。
+// 单副本 topic 永远不会掉队，因为 Replicas == ISR == [leader]。
+func underISRPartitions(parts []kadm.PartitionDetail) []int32 {
+	var under []int32
+	for _, p := range parts {
+		if len(p.ISR) < len(p.Replicas) {
+			under = append(under, p.Partition)
+		}
+	}
+	return under
+}
+
+// topicStatus 按 ISR 掉队情况给出 topic 健康状态。
+func topicStatus(underISR []int32) string {
+	if len(underISR) > 0 {
+		return "⚠ 副本掉队"
+	}
+	return "✓ 健康"
 }
 
 // showGroupHealth 消费者组状态与 lag。

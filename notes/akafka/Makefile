@@ -1,6 +1,6 @@
 GO := /Users/tal/sdk/go1.26.3/bin/go
 
-.PHONY: up down run-01 run-02 run-03 run-04 run-05 run-06 run-07 run-08 run-09 run-10 run-11 topics
+.PHONY: up down run-01 run-02 run-03 run-04 run-05 run-06 run-07 run-08 run-09 run-10 run-11 topics test test-unit
 
 # 启动 Kafka + Kafka UI
 up:
@@ -56,6 +56,14 @@ list-groups:
 lag:
 	docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
 		--describe --group $(GROUP)
+
+# 全部单测（需要 Kafka：make up + make topics；没起 Kafka 时集成用例自动跳过）
+test:
+	$(GO) test ./experiments/ -v -timeout 300s
+
+# 只跑纯逻辑用例（-short 会跳过所有 requireKafka 的集成用例）
+test-unit:
+	$(GO) test ./experiments/ -short -v -timeout 60s
 
 run-01:
 	@echo "=== 运行案例1：生产者基础 ==="

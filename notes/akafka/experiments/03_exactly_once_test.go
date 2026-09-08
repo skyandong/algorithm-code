@@ -11,6 +11,8 @@ import (
 
 // TestIdempotentProduce 验证幂等发送的 txn-001 消息到达 account-debit。
 func TestIdempotentProduce(t *testing.T) {
+	requireKafka(t)
+
 	idempotentProduce()
 
 	missing := consumeKeys(t, topicDebit, []string{"txn-001"})
@@ -19,6 +21,8 @@ func TestIdempotentProduce(t *testing.T) {
 
 // TestTransactionalProduce 验证事务提交的 txn-100 消息到达全部 3 个 topic。
 func TestTransactionalProduce(t *testing.T) {
+	requireKafka(t)
+
 	transactionalProduce()
 
 	for _, topic := range []string{topicDebit, topicCredit, topicAudit} {
@@ -29,6 +33,8 @@ func TestTransactionalProduce(t *testing.T) {
 
 // TestTransactionalWithAbort 验证回滚的 txn-abort 消息对 read_committed 消费者不可见。
 func TestTransactionalWithAbort(t *testing.T) {
+	requireKafka(t)
+
 	transactionalWithAbort()
 
 	seen := seenKeys(t, topicDebit, 3*time.Second, kgo.FetchIsolationLevel(kgo.ReadCommitted()))

@@ -47,6 +47,37 @@ go run ./experiments/ health    # = make run-11
 go run ./experiments/ all       # 运行可自动结束的案例（1、3、7~11）
 ```
 
+## 单元测试
+
+```bash
+make test        # 全量（需要 make up + make topics）
+make test-unit   # 只跑纯逻辑用例，秒级完成，不需要 Kafka
+```
+
+用例分两类，都放在 `experiments/` 下：
+
+- **纯逻辑用例**：不连 Kafka，验证解析、统计、判定等函数（`make test-unit` 跑的就是这些）
+- **集成用例**：真连 `localhost:9092`，开头调 `requireKafka` —— 连不上就 `Skip`，
+  所以没起 Kafka 时 `make test` 也不会红，只是集成部分被跳过
+  （也支持 `go test -short` 主动跳过）
+
+覆盖范围：
+
+| 案例 | 纯逻辑用例 | 集成用例 |
+|------|-----------|---------|
+| 1 生产者 | — | 同步/异步/批量三种发送的消息到达 |
+| 2 消费者组 | `processRecord` 空消息体判定 | ctx 取消后优雅退出 |
+| 3 Exactly-Once | — | 幂等发送、事务三 topic、回滚对 read_committed 不可见 |
+| 4 死信队列 | `processOrder` 非法 JSON、`MessageEnvelope` 序列化往返 | 坏消息重试 3 次后入 DLQ |
+| 5 积压监控 | `lagStatus` 阈值边界 | lag 报表输出 + 组已提交 offset |
+| 6 流水线 | — | 四个服务跑通后 orders 出现订单事件 |
+| 7 顺序性 | `parseStatus`、`statusIndex`、`countOrderViolations`、`sortedKeys`、`dispatchByKey`（分发后 0 错乱） | 同 key 单分区、按 key 分发端到端 |
+| 8 存储读路径 | `sortedPartitions` | 写入后 end offset 增长、按时间戳定位落在 [start,end] |
+| 9 位移提交 | `advanceWindow`（连续前缀推进 / 遇空洞停住 / 补洞后一次推进） | 滑动窗口提交端到端 |
+| 10 分区倾斜 | `printDistribution` 倾斜判定与输出 | 均匀 key 铺满 6 分区、热点 key 全挤 1 分区 |
+| 11 健康巡检 | `underISRPartitions`、`topicStatus` | 集群概览 / topic 健康 / 消费者组巡检输出 |
+| 入口 | `cases` 表唯一性、`usage` 输出全部案例名 | — |
+
 ## 案例说明
 
 | 案例 | 代码 | 场景 | 核心知识点 |

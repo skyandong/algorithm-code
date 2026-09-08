@@ -169,21 +169,41 @@ func concurrentOutOfOrderDemo() {
 	fmt.Printf("  顺序错乱的状态数：%d\n", broken)
 }
 
+// dispatchWorkerNum 进程内 worker 数：与分区数无关，只是消费端并行度。
+const dispatchWorkerNum = 4
+
 // keyDispatchInOrderDemo 正确做法：按 key 哈希分发到固定 worker，同 key 串行。
 func keyDispatchInOrderDemo() {
 	fmt.Println("\n--- 4. 按 key 分发到固定 worker：同 key 串行，顺序恢复 ---")
 
-	const workerNum = 4
+	records := fetchAll(context.Background(), topicOrdering, 15)
+	finished := dispatchByKey(records)
 
-	ctx := context.Background()
-	records := fetchAll(ctx, topicOrdering, 15)
+	fmt.Println("  实际完成顺序：")
+	for i, f := range finished {
+		fmt.Printf("    %2d. %s\n", i+1, f)
+	}
 
+	broken := countOrderViolations(finished)
+	if broken == 0 {
+		fmt.Println("  ✓ 每个订单的 5 个状态严格按 CREATED → PAID → SHIPPED → DELIVERED → COMPLETED 推进")
+	} else {
+		fmt.Printf("  ✗ 仍有 %d 处错乱\n", broken)
+	}
+	fmt.Printf("\n  注意：worker 数 %d 与分区数无关 —— 这是进程内并行，不影响分区内顺序\n", dispatchWorkerNum)
+}
+
+// dispatchByKey 按 hash(key) % workerNum 分发到固定 worker，每个 worker 串行处理自己的队列，
+// 返回实际完成顺序（形如 "ORD-1001/PAID"）。
+//
+// 抽成纯函数是为了能脱离 Kafka 单测：顺序保证来自分发策略本身，与消息从哪来无关。
+func dispatchByKey(records []*kgo.Record) []string {
 	type job struct {
 		key    string
 		status string
 	}
 	// 每个 worker 一个带缓冲的队列，同一 key 只进一个队列
-	queues := make([]chan job, workerNum)
+	queues := make([]chan job, dispatchWorkerNum)
 	for i := range queues {
 		queues[i] = make(chan job, 64)
 	}
@@ -195,7 +215,7 @@ func keyDispatchInOrderDemo() {
 	)
 
 	// 启动 worker：每个 worker 串行消费自己的队列
-	for i := 0; i < workerNum; i++ {
+	for i := 0; i < dispatchWorkerNum; i++ {
 		wg.Add(1)
 		go func(q chan job) {
 			defer wg.Done()
@@ -214,7 +234,7 @@ func keyDispatchInOrderDemo() {
 			continue
 		}
 		key := string(r.Key)
-		idx := int(crc32.ChecksumIEEE([]byte(key))) % workerNum
+		idx := int(crc32.ChecksumIEEE([]byte(key))) % dispatchWorkerNum
 		queues[idx] <- job{key: key, status: parseStatus(r.Value)}
 	}
 	for i := range queues {
@@ -222,18 +242,7 @@ func keyDispatchInOrderDemo() {
 	}
 	wg.Wait()
 
-	fmt.Println("  实际完成顺序：")
-	for i, f := range finished {
-		fmt.Printf("    %2d. %s\n", i+1, f)
-	}
-
-	broken := countOrderViolations(finished)
-	if broken == 0 {
-		fmt.Println("  ✓ 每个订单的 5 个状态严格按 CREATED → PAID → SHIPPED → DELIVERED → COMPLETED 推进")
-	} else {
-		fmt.Printf("  ✗ 仍有 %d 处错乱\n", broken)
-	}
-	fmt.Printf("\n  注意：worker 数 %d 与分区数无关 —— 这是进程内并行，不影响分区内顺序\n", workerNum)
+	return finished
 }
 
 // countOrderViolations 统计顺序错乱：对每个 key，检查状态推进是否违反了状态机下标顺序。
