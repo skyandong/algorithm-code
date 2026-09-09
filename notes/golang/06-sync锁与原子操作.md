@@ -2,7 +2,7 @@
 
 > **核心认知：** Go 的锁是「**信号量排队 + 双模式调度策略**」，不是操作系统教科书里的原始互斥量——Mutex 内部维护等待队列，但**让不让新来的插队**是一个调度策略问题（正常模式 vs 饥饿模式）。atomic 是 Lock-free 的地基（CAS 单条 CPU 指令），但只能保护单个机器字。选型口诀：**一个字用 atomic，一段临界区用 Mutex，读远多于写才考虑 RWMutex，跨 goroutine 传递数据/所有权用 channel**。锁保护的是「不变量」（invariant），不是「代码」——想清楚哪些数据在什么约束下必须一致，锁的边界自然就出来了。
 
-按 Go 1.26 语义说明，版本分界处单独标注。前置知识：happens-before 与 data race 见 `05-并发内存可见性与sync.Once.md`，channel 与并发模式见 `06`/`13`。
+本文基于 Go 1.26 的实际行为编写。前置知识：happens-before 与 data race 见 `04-并发内存可见性与sync.Once.md`，channel 与并发模式见 `05`/`12`。
 
 ---
 
@@ -25,7 +25,7 @@
 ### 1.1 state 字段：一个 int32 装下全部状态
 
 ```go
-// sync/mutex.go（简化）
+// src/internal/sync/mutex.go（简化；sync.Mutex 的本体在这里）
 const (
     mutexLocked = 1 << iota // 1: 已锁定
     mutexWoken              // 2: 有 goroutine 被唤醒
@@ -41,7 +41,7 @@ type Mutex struct {
 
 Lock 的快路径就是一次 CAS：`CompareAndSwapInt32(&m.state, 0, mutexLocked)`——无人竞争时加锁不进内核、不进调度器，和一次 atomic 操作同价。慢路径才会 `semacquire` 排队睡眠。
 
-### 1.2 正常模式 vs 饥饿模式（Go 1.9+）
+### 1.2 正常模式 vs 饥饿模式
 
 | | 正常模式（默认） | 饥饿模式 |
 |---|---|---|
@@ -101,12 +101,13 @@ WHY 自旋有意义：持锁者的临界区往往极短（几十 ns），唤醒-
 ### 3.1 实现核心：一个 int64 记账
 
 ```go
+// src/sync/rwmutex.go（节选）
 type RWMutex struct {
-    w           Mutex      // 写锁互斥（也是写者间排队用）
-    writerSem   uint32     // 写者等待信号量
-    readerSem   uint32     // 读者等待信号量
-    readerCount atomic.Int64 // >0: 读着的人数；<0: 写者在等（此时绝对值=排队读者数）
-    readerWait  atomic.Int64 // 写者离场前还需等待的读者数
+    w           Mutex        // 写锁互斥（也是写者间排队用）
+    writerSem   uint32       // 写者等待信号量
+    readerSem   uint32       // 读者等待信号量
+    readerCount atomic.Int32 // >0: 读着的人数；<0: 写者在等（此时绝对值=排队读者数）
+    readerWait  atomic.Int32 // 写者离场前还需等待的读者数
 }
 ```
 
@@ -125,7 +126,7 @@ RWMutex 的每个操作都要多维护两个信号量和 atomic 计数，单次�
 
 - 读临界区 < 100ns（比如只是读一个 int）：直接 Mutex，RWMutex 是负优化；
 - 读临界区是遍历大 map/深拷贝等微秒级工作、读写比 > 10:1：RWMutex 显著赚；
-- 中间地带：**先 benchmark 再换**（见 `11-性能调优实战.md` 的总纲）。
+- 中间地带：**先 benchmark 再换**（见 `10-性能调优实战.md` 的总纲）。
 
 工程红线：RWMutex 保护的数据在读临界区里必须真的只读。「读」方法里顺手 put 一个缓存/写一个统计字段，是 data race 高发区——`go test -race` 必开。
 
@@ -155,7 +156,7 @@ WaitGroup 计数归零、Wait 返回后，可以重新 Add 复用。但「归零
 
 ### 4.3 WaitGroup 没有「带超时的 Wait」
 
-标准库故意不给。工程实现是 `context` + goroutine 竞速（见 `12-Goroutine面试题集.md` 题 5 的手写），或直接用 `golang.org/x/sync/errgroup` 的 `ctx` 版本——后者同时解决「错误收集 + 取消传播 + 并发上限」三件事，是生产代码的正解：
+标准库故意不给。工程实现是 `context` + goroutine 竞速（见 `11-Goroutine面试题集.md` 题 5 的手写），或直接用 `golang.org/x/sync/errgroup` 的 `ctx` 版本——后者同时解决「错误收集 + 取消传播 + 并发上限」三件事，是生产代码的正解：
 
 ```go
 g, ctx := errgroup.WithContext(ctx)
@@ -189,7 +190,7 @@ atomic 包提供**单个机器字的原子读写与 RMW**（read-modify-write）
 
 1. **只保护一个字**。「用两个 atomic int 表示一个二元状态」是经典错误——两次 atomic 之间没有原子性，中间态会被观察到。要么合成一个字（位运算/把两个 int32 打包进一个 int64/atomic.Pointer 换整个结构体），要么上锁；
 2. **没有原子浮点**。`atomic.AddInt64` 不接受 float，需要时用 `atomic.Pointer[float64]` CAS 整体换，或 `math.Float64bits` 打包；
-3. **atomic.Value 的 Store 必须存同一个具体类型**（nil 会 panic、类型变了会 panic）。Go 1.19+ 用泛型 `atomic.Pointer[T]` 替代，类型安全且可存 nil；
+3. **atomic.Value 的 Store 必须存同一个具体类型**（nil 会 panic、类型变了会 panic）。用泛型 `atomic.Pointer[T]` 替代 `atomic.Value`，类型安全且可存 nil；
 
 ```go
 // 配置热更新的标准姿势：整个配置一次性换指针
@@ -208,7 +209,7 @@ atomic 变量只保证「正确」，不保证「快」。多个 CPU 核各自�
 
 C++/Java 有 acquire/release 等多种内存序，Go 故意只暴露一种：**Go 内存模型的同步语义**（本质是顺序一致的 happens-before）。`atomic` 操作之间、atomic 与 mutex/channel 之间都建立 happens-before。
 
-工程上记住推论就够：**一次 atomic.Store 发布数据 + 别的 goroutine atomic.Load 到同一位置后，Store 之前的所有普通写对新读者可见**（release/acquire 效应）。这也是 `05` 篇「用 atomic.Bool 替代裸 bool 做 ready 标志」能修复可见性问题的原因。
+工程上记住推论就够：**一次 atomic.Store 发布数据 + 别的 goroutine atomic.Load 到同一位置后，Store 之前的所有普通写对新读者可见**（release/acquire 效应）。这也是 `04` 篇「用 atomic.Bool 替代裸 bool 做 ready 标志」能修复可见性问题的原因。
 
 ```go
 var ready atomic.Bool
@@ -247,7 +248,7 @@ b.Write(...)
 三条必须刻在脑子里的语义：
 
 1. **Pool 里的对象可能在任意时刻被丢弃**（没有「一定命中」的保证）——Get 拿不到就 New，所以 New 必须提供；
-2. **每次 GC（STW 的两轮标记扫描）都会清空 Pool**（Go 1.13 起分主/victim 两代：GC 后主代降级为 victim，再下次 GC 才真正丢弃——给对象两个 GC 周期的存活机会，减轻「GC 一来缓存全光」的抖动）；
+2. **每次 GC（STW 的两轮标记扫描）都会清空 Pool**（起分主/victim 两代：GC 后主代降级为 victim，再下次 GC 才真正丢弃——给对象两个 GC 周期的存活机会，减轻「GC 一来缓存全光」的抖动）；
 3. **Put 之后再 Get 可能拿到同一个对象**——所以放回前必须 Reset，状态残留是最高频事故。
 
 ### 6.2 工程定位
@@ -258,31 +259,27 @@ sync.Pool 解决的是「**高频率、短生命周期、分配成本高**的对
 - 缓存（GC 就清了，跨请求语义不保）；
 - free list（没有容量、没有淘汰策略）。
 
-一句话：Pool 换的是 **GC 压力**，不是「省一次分配」——先有 benchmark 证明分配是热点，再上 Pool（见 `11` 篇优化性价比排序：sync.Pool 排在逃逸治理之后）。
+一句话：Pool 换的是 **GC 压力**，不是「省一次分配」——先有 benchmark 证明分配是热点，再上 Pool（见 `10` 篇优化性价比排序：sync.Pool 排在逃逸治理之后）。
 
 ---
 
 ## 7. sync.Map：为读多写少而生
 
-### 7.1 结构：读快写的双 map
+### 7.1 结构：并发哈希 trie（HashTrieMap）
 
 ```go
-// Go 1.23 及以前的实现（读路径零锁的来源）
-type Map struct {
-    mu     Mutex
-    read   atomic.Pointer[readOnly] // 只读 map + amended 标志
-    dirty  map[any]*entry           // 含新写入的完整数据
-    misses int                       // read 未命中次数，满阈值(dirty长度)把 dirty 升级为 read
+// src/internal/sync/hashtriemap.go（节选）
+type HashTrieMap[K comparable, V any] struct {
+	inited   atomic.Uint32
+	initMu   Mutex
+	root     atomic.Pointer[indirect[K, V]] // 根节点：按 hash 前缀逐层下行
+	keyHash  hashFunc
+	valEqual equalFunc
+	seed     uintptr
 }
 ```
 
-- **读**：先走 read（atomic 加载，无锁），命中即返回——这是它快的唯一原因；
-- **写新 key**：拿 mu 写 dirty；read 里没有的 key 读写都要走 dirty，misses 攒够后 dirty 晋升为新 read（旧的进垃圾）；
-- **删**：打 nil 标记（惰性删除），不立即回收 entry。
-
-### 7.2 版本分界：Go 1.24 换成 HashTrieMap
-
-Go 1.24 起 sync.Map 内部改为**哈希 trie（HAMT 变体）**：写不再走「双 map + 整体晋升」，而是按 hash 前缀逐层定位子树，写锁粒度降到子树级别。收益：**写多场景和 key 集合持续增长（append-only）的场景不再退化**，整体内存更平稳。对外 API 和语义不变，「什么场景该用」的结论也不变。
+内部是**哈希 trie（HAMT 变体）**：按 key hash 的前缀逐层定位子树，**读路径无锁**（沿 atomic 指针下行），**写锁粒度到子树级**——不相干 key 的写入互不竞争。key 集合持续增长的场景也不退化，整体内存平稳。没有对外 len()，Range 是最终一致遍历。
 
 ### 7.3 适用场景（面试标准答案）
 
@@ -291,7 +288,7 @@ Go 1.24 起 sync.Map 内部改为**哈希 trie（HAMT 变体）**：写不再走
 1. **key 写一次、读多次，key 集合基本不变**（缓存类：连接池按 host 索引、路由表、单例注册表）；
 2. **多个 goroutine 读写、覆盖不同的 key**（分片状写入，key 之间不相干）。
 
-反场景（用普通 map + Mutex 更好）：**持续写同一批 key、写读混合、需要 Range 快照语义精确一致、需要 len()**——sync.Map 没有 len()（Go 1.24 之前没有，之后依然没有对外 len），Range 是最终一致遍历。数字记忆：写多读少时 sync.Map 可能比 mutex+map **慢数倍**。
+反场景（用普通 map + Mutex 更好）：**持续写同一批 key、写读混合、需要 Range 快照语义精确一致、需要 len()**——sync.Map 没有对外 len()，Range 是最终一致遍历。数字记忆：写多读少时 sync.Map 可能比 mutex+map **慢数倍**。
 
 ---
 
@@ -305,7 +302,7 @@ Go 1.24 起 sync.Map 内部改为**哈希 trie（HAMT 变体）**：写不再走
 | 一批子任务等齐 / 带错误收集 | errgroup > WaitGroup | errgroup 顺便解决取消传播 |
 | 高频短命对象减 GC | sync.Pool | Put 前 Reset；不是缓存不是连接池 |
 | 读多写少共享 map | sync.Map | key 稳定 / 分片写入两个场景 |
-| 跨 goroutine 传数据/所有权/事件 | channel | 见 `06`/`13`；锁保护状态，channel 传递数据 |
+| 跨 goroutine 传数据/所有权/事件 | channel | 见 `05`/`12`；锁保护状态，channel 传递数据 |
 
 最后的选型元规则：**锁保护的是不变量，不是代码行**。先写出「任何时候必须为真的约束」（如 `m 里的 item 和磁盘上的文件必须一致`），每条不变量对应一把锁、明确谁加谁解，比背十种锁的 API 更能避免死锁。
 
@@ -340,10 +337,10 @@ Wait 返回发生在计数归零时；若在子 goroutine 里才 Add，主流程
 不能。两个 atomic 字之间没有原子性，读者能观察到中间态。合成一个字（位打包/atomic.Pointer 换整个结构体快照）或上锁。另记：没有原子浮点 Add；atomic.Value 必须同类型，泛型时代用 atomic.Pointer[T]。
 
 **Q9：sync.Pool 什么时候清空？放回前要做什么？**
-每次 GC 周期清理（Go 1.13+ 主/victim 两级，对象活两个 GC 周期）。放回前必须 Reset 清状态，否则下个使用者拿到脏数据。定位：减 GC 压力，不是缓存/连接池/free list。
+每次 GC 周期清理（主/victim 两级，对象活两个 GC 周期）。放回前必须 Reset 清状态，否则下个使用者拿到脏数据。定位：减 GC 压力，不是缓存/连接池/free list。
 
 **Q10：sync.Map 的适用场景？**
-① key 写一次读多次且集合稳定（注册表/路由）；② 多 goroutine 写不相干的 key。内部：Go 1.23- 是 read/dirty 双 map + misses 晋升，Go 1.24 起换 HashTrieMap（写锁子树级）。写多场景用 map+Mutex 更快；没有 len()。
+① key 写一次读多次且集合稳定（注册表/路由）；② 多 goroutine 写不相干的 key。内部：HashTrieMap 哈希 trie（写锁子树级）。写多场景用 map+Mutex 更快；没有 len()。
 
 **Q11：锁和 channel 怎么选？**
 锁保护**共享状态的不变量**（「任何时候 m 与磁盘一致」）；channel **传递数据/所有权/事件**（「这个数据现在归你」）。官方口诀：share memory by communicating。混用判断：如果 goroutine 之间是「围绕一份数据反复读写」，锁；如果是「流水线生产-消费」，channel。

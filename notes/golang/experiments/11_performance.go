@@ -1,6 +1,6 @@
 // # 性能调优实战实验
 //
-// 对应笔记：notes/golang/11-性能调优实战.md
+// 对应笔记：notes/golang/10-性能调优实战.md
 //
 // 运行（接入 main.go 后）：
 //
@@ -14,6 +14,18 @@
 //	第4节：大结构体值传递 vs 指针传递（//go:noinline 排除内联干扰）
 //	第5节：GC 触发观测（NextGC ≈ 2×live 的 GOGC 语义 + NumGC 增长）
 //	第6节：标准 benchmark / pprof 命令行提示（main 包跑不了 go test）
+//
+// —— runtime 源码对照 ——
+//
+// src/testing/benchmark.go（b.Loop 的设计要点，简化示意）
+//
+//	func (b *B) Loop() bool {
+//		// 首次调用：决定总轮数并开始计时；此后每次调用返回 true
+//		// 全部结束：只统计循环体耗时——setup 天然排除在计时外，
+//		//          且循环体结果被框架持有，编译器无法把它优化掉
+//	}
+//
+// 经典路径对照：b.N 手动翻倍猜轮数 + ResetTimer/StopTimer 手工圈定计时区间
 package main
 
 import (
@@ -237,11 +249,11 @@ func perfGCObservation() {
 func perfBenchmarkGuide() {
 	fmt.Println(`标准 benchmark 写法（独立 _test.go 文件，main 包无法运行 go test）：
 
-    var sink any // 包级 sink：防止死代码被优化（Go 1.24+ 用 b.Loop 可省）
+    var sink any // 包级 sink：防止死代码被优化（用 b.Loop 可省）
 
     func BenchmarkWork(b *testing.B) {
         setup()
-        for b.Loop() { // Go 1.24+：自动管理 N、排除 setup 计时、防循环体被优化
+        for b.Loop() { // 自动管理 N、排除 setup 计时、防循环体被优化
             sink = work()
         }
     }

@@ -1,6 +1,6 @@
 // # Interface 与反射实验
 //
-// 对应笔记：notes/golang/03-interface与反射.md
+// 对应笔记：notes/golang/02-interface与反射.md
 //
 // 运行：
 //
@@ -17,6 +17,21 @@
 //	Exp7：reflect 性能开销 —— 直接赋值 vs 缓存 Value vs 全路径
 //	Exp8：unsafe.String 零拷贝与工程红线（共享内存被改）
 //	附加：JSON 序列化 nil vs 空 切片（null vs []）
+//
+// —— runtime 源码对照 ——
+//
+// src/runtime/runtime2.go
+// type eface struct { // 空 interface{}
+//
+//		_type *_type         // 动态类型元数据
+//		data  unsafe.Pointer // 数据指针（值大时指向堆副本）
+//	}
+//
+// type iface struct { // 带方法集的 interface
+//
+//		tab  *itab          // itab：接口类型 + 动态类型 + 方法表 + hash
+//		data unsafe.Pointer
+//	}
 package main
 
 import (

@@ -1,6 +1,6 @@
 // # 名家博客并发模式实验
 //
-// 对应笔记：notes/golang/13-名家并发模式汇总.md
+// 对应笔记：notes/golang/12-名家并发模式汇总.md
 //
 // 运行：
 //
@@ -16,6 +16,30 @@
 //	Exp6：谢孟军 — Fibonacci + close + range
 //	Exp7：Go 官方博客 — Pipeline 模式 gen→sq→sq
 //	Exp8：select + 超时模式
+//
+// —— runtime 源码对照 ——
+//
+// golang.org/x/sync/errgroup/group.go（errgroup 全部核心，简化示意）
+//
+//	type Group struct {
+//		cancel  func()       // WithContext 时创建：任一任务出错即调用，取消派生 ctx
+//		wg      sync.WaitGroup
+//		errOnce sync.Once    // 只记录第一个错误
+//		err     error
+//	}
+//
+//	func (g *Group) Go(f func() error) {
+//		g.wg.Add(1)
+//		go func() {
+//			defer g.wg.Done()
+//			if err := f(); err != nil {
+//				g.errOnce.Do(func() {
+//					g.err = err
+//					if g.cancel != nil { g.cancel() }
+//				})
+//			}
+//		}()
+//	}
 package main
 
 import (

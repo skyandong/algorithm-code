@@ -2,7 +2,7 @@
 
 > **核心认知：** context 是 Go 把「**取消、超时、截止、请求级元数据**」标准化成一棵树的方案——每个 With* 派生一个子节点，父节点取消沿着树**广播**给所有后代，任何一处阻塞在 IO/Channel 上的 goroutine 都能被及时释放。错误处理的对应认知是：**error 是值，比较的是树不是字符串**——`%w` 包一层形成错误链，`errors.Is/As` 沿链查找，于是「哨兵错误判断」和「结构化取值」都不再依赖脆弱的错误消息文本。这两件事共同构成 Go 服务端代码的骨架：**所有函数第一个参数是 ctx，所有返回以 error 结尾**。
 
-按 Go 1.26 语义说明，版本分界处单独标注。前置知识：channel 关闭广播语义见 `06-Channel内部与nil语义.md`，goroutine 泄漏见 `12`/`13`。
+本文基于 Go 1.26 的实际行为编写。前置知识：channel 关闭广播语义见 `05-Channel内部与nil语义.md`，goroutine 泄漏见 `11`/`12`。
 
 ---
 
@@ -46,7 +46,7 @@ reqCtx 超时（或客户端断开）→ Done channel 关闭 → dbCtx/rpcCtx/wo
 
 两个易错点：
 
-1. **Done() 是关闭 channel，不是发送值**。所以监听端标准写法永远是 `select { case <-ctx.Done(): return ctx.Err() ... }`——关闭对所有接收者同时可见（广播），这正是 `06` 篇「closed channel 永远可读」语义的应用；
+1. **Done() 是关闭 channel，不是发送值**。所以监听端标准写法永远是 `select { case <-ctx.Done(): return ctx.Err() ... }`——关闭对所有接收者同时可见（广播），这正是 `05` 篇「closed channel 永远可读」语义的应用；
 2. **ctx 取消不等于 goroutine 自动停止**。取消只是「信号已拉响」，阻塞在 `ctx.Done()`、`select`、或支持 ctx 的 IO（net/http、database/sql、grpc 调用）上的代码会被唤醒；**正在跑纯 CPU 循环的代码根本不知道取消发生**。context 是协作式取消，每个长循环都有义务主动检查。
 
 ```go
@@ -70,8 +70,8 @@ for {
 | `WithTimeout(parent, d)` | 相对超时 | 是（同上，见下） |
 | `WithDeadline(parent, t)` | 绝对截止时刻 | 是 |
 | `WithValue(parent, k, v)` | 挂请求级 KV | —（无资源） |
-| `WithoutCancel(parent)` | 继承 Value 但**剥离取消**（Go 1.21+） | — |
-| `AfterFunc(ctx, f)`（Go 1.21+） | ctx 取消时异步执行 f | 返回 stop 函数 |
+| `WithoutCancel(parent)` | 继承 Value 但**剥离取消** | — |
+| `AfterFunc(ctx, f)` | ctx 取消时异步执行 f | 返回 stop 函数 |
 
 **为什么 WithTimeout/WithCancel 必须 `defer cancel()`，哪怕函数马上返回？** 两个原因：
 
@@ -84,7 +84,7 @@ ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 defer cancel()
 ```
 
-`WithoutCancel` 是 Go 1.21 的高频新解法：**请求结束后仍要完成的收尾工作**（审计落库、发消息），用 `context.WithoutCancel(reqCtx)`——保留链路上的 trace/user 等 Value，但不再被请求取消连坐。之前只能重新 `context.Background()` 把 Value 丢光。
+`WithoutCancel` 是高频新解法：**请求结束后仍要完成的收尾工作**（审计落库、发消息），用 `context.WithoutCancel(reqCtx)`——保留链路上的 trace/user 等 Value，但不再被请求取消连坐。之前只能重新 `context.Background()` 把 Value 丢光。
 
 ---
 
@@ -134,13 +134,14 @@ ctx = context.WithValue(ctx, userKey, uid)
 面试能讲到这个深度就超过 90% 的候选人了。
 
 ```go
-// context 包内部（简化）
+// src/context/context.go（节选）
 type cancelCtx struct {
     Context                          // 父节点
     mu       sync.Mutex
     done     atomic.Value          // chan struct{}，惰性创建
     children map[canceler]struct{} // 活着的子节点
-    err      error                 // 非 nil 即已取消
+    err      atomic.Value          // 非 nil 即已取消
+    cause    error                 // WithCancelCause 的细粒度取消原因
 }
 ```
 
@@ -150,7 +151,7 @@ type cancelCtx struct {
 
 **done 惰性创建**：`Done()` 第一次被调用才真正创建 channel——大量从不监听取消的 ctx（只用来传 Value/超时由调用方用 Deadline 自己判断）就完全不用付 channel 的钱。
 
-Go 1.21 起 context 包内部还做了无锁化优化（done/children 用 atomic 状态机），取消百万级子树的成本大幅降低——但对外语义没有任何变化，这正是不依赖实现细节的反面教材（对比 `01` 篇 map 内部结构的告诫）。
+context 包内部还做了无锁化优化（done/children 用 atomic 状态机），取消百万级子树的成本大幅降低——但对外语义没有任何变化，这正是不依赖实现细节的反面教材（对比 `01` 篇 map 内部结构的告诫）。
 
 ---
 
@@ -192,13 +193,12 @@ func (e *ValidationError) Error() string { return e.Field + ": " + e.Msg }
 ### 6.1 %w 与 Unwrap：链是怎么形成的
 
 ```go
-// Go 1.13+
 err := fmt.Errorf("open db: %w", ErrConnRefused)
 // err 的树：fmt.wrapError{msg, ErrConnRefused}
 errors.Is(err, ErrConnRefused) // true —— 沿 Unwrap 链找 == 目标
 ```
 
-`%v` 只是拼字符串（链断了），`%w` 是「保留可判定性」的包装。错误链在 Go 1.20 后是**树**不只是链：`fmt.Errorf` 支持多个 `%w`，`errors.Join(e1, e2)` 生成多叉节点，`errors.Is/As` 会遍历整棵树。
+`%v` 只是拼字符串（链断了），`%w` 是「保留可判定性」的包装。错误链可以是**树**不只是链：`fmt.Errorf` 支持多个 `%w`，`errors.Join(e1, e2)` 生成多叉节点，`errors.Is/As` 会遍历整棵树。
 
 ### 6.2 errors.Is vs errors.As
 
@@ -307,13 +307,13 @@ for _, f := range files {
 }
 ```
 
-把循环体抽成函数，或 Go 1.22+ 后写 `defer` 在块级作用域…实际 Go 的 defer 仍是函数级，正解是抽函数。
+把循环体抽成函数，实际 Go 的 defer 是函数级作用域，正解是抽函数。
 
 **陷阱四：nil 函数 defer**
 
 `var f func(); defer f()` —— defer 执行时才调用 f，nil 函数调用 panic，且发生在 defer 展开期，recover 姿势不对就接不住。
 
-**性能补丁**（面试加分）：Go 1.13 开放编码 defer（open-coded defer，条件：非循环内、非动态嵌套）把 defer 成本降到 ~1ns，与手写调用序基本持平。「defer 很慢」是老黄历，可放心用于临界区收尾——但仍别在百万次循环里堆 defer。
+**性能补丁**（面试加分）：开放编码 defer（open-coded defer，条件：非循环内、非动态嵌套）把 defer 成本降到 ~1ns，与手写调用序基本持平。「defer 很慢」是老黄历，可放心用于临界区收尾——但仍别在百万次循环里堆 defer。
 
 ---
 
@@ -329,7 +329,7 @@ With* 时子 ctx 挂进父的 children 集合；cancel() 关闭自身 done chann
 不能。Deadline 取更早者：WithTimeout(parent, 10s) 而父还剩 3s，子实际 3s 取消。Value 继承父全部；取消链单向（父到子），子取消不影响父。
 
 **Q4：ctx.Done() 是发送还是关闭？为什么重要？**
-关闭。关闭是广播——任意多个监听者同时解除阻塞且不消费数据；发送只能唤醒一个且可能丢。这正是 channel 关闭语义（06 篇）在标准库的最大应用。
+关闭。关闭是广播——任意多个监听者同时解除阻塞且不消费数据；发送只能唤醒一个且可能丢。这正是 channel 关闭语义（05 篇）在标准库的最大应用。
 
 **Q5：context.Value 的适用边界？**
 只放请求级横切数据（traceID、用户身份），key 用私有类型；业务参数必须显式出现在函数签名。反面：三层以下偷偷读 Value、string key 撞车、强转 panic。
@@ -341,7 +341,7 @@ With* 时子 ctx 挂进父的 children 集合；cancel() 关闭自身 done chann
 不会。context 是协作式取消：只唤醒阻塞在 Done()/支持 ctx 的 IO 上的代码。CPU 循环必须自己周期性检查 Done()。这也是 Go 没有抢占式 kill goroutine 的原因（GMP 篇）。
 
 **Q8：errors.Is 和 errors.As 的区别？**
-Is 沿 Unwrap 树找「相等」的节点（哨兵：io.EOF、context.Canceled），或调用节点的 Is 方法；As 找「可赋值给目标类型」的节点，取结构化字段。共同前提：包装用 %w 而不是 %v（%v 断链）。Go 1.20+ 支持多 %w 与 errors.Join，判定遍历整棵树。
+Is 沿 Unwrap 树找「相等」的节点（哨兵：io.EOF、context.Canceled），或调用节点的 Is 方法；As 找「可赋值给目标类型」的节点，取结构化字段。共同前提：包装用 %w 而不是 %v（%v 断链）。支持多 %w 与 errors.Join，判定遍历整棵树。
 
 **Q9：为什么不能用 strings.Contains(err.Error(), "timeout") 判断超时？**
 依赖错误文本——消息重排/本地化/中间层改写即失效，且拼写错误编译期发现不了。正解：errors.Is(err, context.DeadlineExceeded) 或 errors.As(err, &netErr)+netErr.Timeout()。

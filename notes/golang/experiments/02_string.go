@@ -1,6 +1,6 @@
 // # string 底层实验
 //
-// 对应笔记：notes/golang/02-string底层.md
+// 对应笔记：notes/golang/01-slice与map底层.md（string 部分）
 //
 // 运行（接入 main.go 后）：
 //
@@ -14,6 +14,15 @@
 //	第4节：拼接三种写法对比（+ 循环 O(n²) vs Builder+Grow）
 //	第5节：len 字节 vs rune 字符、for range 字节偏移、截断碎码
 //	第6节：map key：string 可比 / []byte 不可比 / [N]byte 按值
+//
+// —— runtime 源码对照 ——
+//
+// src/runtime/string.go
+//
+//	type stringStruct struct {
+//		str unsafe.Pointer // 指向底层只读字节数组
+//		len int            // 字节数（不是 rune 数，无 \0 终止符）
+//	}
 package main
 
 import (
@@ -72,7 +81,7 @@ func strImmutable() {
 
 	// 零拷贝视图：契约交到你手里
 	b := []byte("hello")
-	s := unsafe.String(unsafe.SliceData(b), len(b)) // Go 1.20+ 标准写法
+	s := unsafe.String(unsafe.SliceData(b), len(b)) // 标准写法
 	b[0] = 'H'                                      // 改的是源 []byte
 	fmt.Printf("unsafe.String 零拷贝后改源 b: s=%q（s 跟着变了！红线：绝不修改零拷贝产物的底层）\n", s)
 

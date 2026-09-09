@@ -1,6 +1,6 @@
 // # 内存管理与 GC 实验
 //
-// 对应笔记：notes/golang/09-内存管理与GC.md
+// 对应笔记：notes/golang/08-内存管理与GC.md
 //
 // 运行（接入 main.go 后）：
 //
@@ -12,6 +12,19 @@
 //	第2节：runtime.MemStats 观察分配与 GC（Alloc/TotalAlloc/HeapInuse/NumGC）
 //	第3节：sync.Pool 复用 vs 每次新分配（TotalAlloc 与 NumGC 对比）
 //	第4节：GOGC 语义（关闭 GC 分配不触发；恢复后手动 GC）+ GOMEMLIMIT 查询
+//
+// —— runtime 源码对照 ——
+//
+// src/runtime/mheap.go（堆内存的分配/回收单位，简化示意）
+//
+//	type mspan struct {
+//		next       *mspan  // 链表
+//		spanclass  spanClass // 大小类别 + 是否含指针（决定是否需要扫描）
+//		nelems     uintptr // 槽位数（按 sizeclass 定长切分）
+//		allocBits  *gcBits // 分配位图
+//		gcmarkBits *gcBits // 标记位图——三色标记最终落到这里
+//		// sweep 阶段：allocBits = gcmarkBits，清零 markBits
+//	}
 package main
 
 import (
@@ -175,7 +188,7 @@ func gcSyncPool() {
 	fmt.Printf("sync.Pool 复用: 耗时 %9v  TotalAlloc +%7.1f MB  NumGC +%d\n",
 		poolCost, memMB(ms4.TotalAlloc-ms3.TotalAlloc), ms4.NumGC-ms3.NumGC)
 	fmt.Println("（池命中时每个 P 只分配极少数对象：分配量骤降、GC 几乎不触发）")
-	fmt.Println("（每轮 GC 会清空池，Go 1.13 起 victim 二级缓存把清空摊到两轮；高 churn 场景收益依然显著）")
+	fmt.Println("（每轮 GC 会清空池，victim 二级缓存把清空摊到两轮；高 churn 场景收益依然显著）")
 	_ = sink
 }
 
@@ -205,7 +218,7 @@ func gcGOGC() {
 		after.NumGC, memMB(after.HeapInuse))
 
 	limit := debug.SetMemoryLimit(-1) // -1 只查询不修改
-	fmt.Printf("当前 GOMEMLIMIT = %s（Go 1.19+，软上限：接近时 GC 提频用 CPU 换内存）\n", humanLimit(limit))
+	fmt.Printf("当前 GOMEMLIMIT = %s（软上限：接近时 GC 提频用 CPU 换内存）\n", humanLimit(limit))
 	fmt.Println("（容器常见组合：GOGC=off + GOMEMLIMIT=limit×80%，平时不主动 GC、逼近上限才收）")
 
 	gcTheoryNotes()

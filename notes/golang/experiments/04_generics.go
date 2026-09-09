@@ -1,6 +1,6 @@
 // # 泛型实验
 //
-// 对应笔记：notes/golang/04-泛型.md
+// 对应笔记：notes/golang/03-泛型.md
 //
 // 运行（接入 main.go 后）：
 //
@@ -11,9 +11,25 @@
 //	第1节：类型参数 + 推断 + 显式实例化 + var zero T
 //	第2节：约束：any / comparable / cmp.Ordered / ~近似（UserID 案例）
 //	第3节：泛型数据结构（Stack[T]）替代 any——值语义零装箱
-//	第4节：标准库 slices/maps/cmp（含 Go 1.23 迭代器）
+//	第4节：标准库 slices/maps/cmp（含迭代器）
 //	第5节：方法不能有类型参数——限制与包级函数绕法
 //	第6节：泛型 vs 接口：装箱分配对照（MemStats）
+//
+// —— runtime 源码对照 ——
+//
+// 泛型没有专属运行时结构：编译器按 GC shape 分组生成机器码，
+// 同 shape 类型共享一份实现，差异由字典（dict，编译期生成的类型描述符
+// 指针参数）在运行时查表补齐——这就是"GC shape + 字典"实现。
+//
+// src/internal/abi/type.go（字典指向的类型元数据，简化示意）
+//
+//	type Type struct {
+//		Size_    uintptr // 类型大小
+//		PtrBytes uintptr // 含指针的前缀字节数（GC 扫描用）
+//		Hash     uint32
+//		Kind_    uint8
+//		// ...Equal、GCData、Str 等字段
+//	}
 package main
 
 import (
@@ -168,7 +184,7 @@ func (s *Stack[T]) Pop() (T, bool) {
 // Len 栈大小。
 func (s *Stack[T]) Len() int { return len(s.items) }
 
-// genStdlib 第4节：标准库泛型工具（Go 1.21+，迭代器 Go 1.23+）。
+// genStdlib 第4节：标准库泛型工具（含迭代器）。
 func genStdlib() {
 	xs := []int{5, 2, 8, 1}
 	slices.Sort(xs) // cmp.Ordered，值语义零装箱
@@ -180,7 +196,7 @@ func genStdlib() {
 	slices.SortFunc(people, func(a, b Person) int { return cmp.Compare(a.Age, b.Age) })
 	fmt.Printf("SortFunc by Age = %v（cmp.Compare 是 -1/0/1 积木）\n", people)
 
-	// maps：Go 1.23+ 迭代器（func(yield)，零分配）
+	// maps：迭代器（func(yield)，零分配）
 	m := map[string]int{"a": 1, "b": 2}
 	fmt.Print("maps.Keys 迭代器: ")
 	for k := range maps.Keys(m) {

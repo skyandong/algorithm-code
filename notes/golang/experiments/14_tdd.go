@@ -1,6 +1,6 @@
 // # TDD 实验（笔记 14）
 //
-// 对应笔记：notes/golang/14-TDD测试驱动开发.md
+// 对应笔记：notes/golang/13-TDD测试驱动开发.md
 //
 // 运行：go run ./experiments/ tdd
 //
@@ -9,6 +9,19 @@
 //	第1节：红-绿-重构——SplitBill 从最小实现到边界校验，测试逼出每个分支
 //	第2节：表驱动 mini 跑器——用例名即规格，错误用例一等公民
 //	第3节：手写 stub——消费者侧接口 + 记录调用 + 注入失败路径
+//
+// —— runtime 源码对照 ——
+//
+// src/testing/testing.go（t 背后的 TB 接口，节选）
+//
+//	type TB interface {
+//		Helper()                           // 标记辅助函数：报错行号指向调用方而非辅助函数
+//		Cleanup(f func())                  // 收尾函数，测试结束（含 Fatal）后 LIFO 执行
+//		Fatalf(format string, args ...any) // 前置条件失败：终止当前测试
+//		Errorf(format string, args ...any) // 独立断言失败：标记失败但继续执行
+//		Skip(args ...any)                  // 跳过当前测试（本仓 -short 分层的基础）
+//		// ...Short/Run/TempDir 等
+//	}
 package main
 
 import (

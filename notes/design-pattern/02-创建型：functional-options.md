@@ -2,7 +2,7 @@
 
 > **核心认知：** Go 没有构造函数重载，一个类型只有一种 `New(...)` 签名——**参数膨胀**（10 个参数、一半要默认值）是必然遭遇的问题。三个惯用解法按规模递进：**配置结构体**（5 个以内直传）、**functional options**（可选参数多、需要校验和文档）、**Builder**（多步构建有依赖关系）。而 Java 的 singleton 在 Go 里的正解是「包级变量 + sync.Once」——包本身就是单例容器，不需要一个 singleton 类。判断标准：**调用方代码是否自文档**（`WithTimeout(3s)` 一眼懂，`New(s, 5, nil, true, 3)` 是天书）。
 
-按 Go 1.26 语义说明。前置知识：sync.Once 双检查的内存语义见 `notes/golang/05-并发内存可见性与sync.Once.md`。
+按 Go 1.26 语义说明。前置知识：sync.Once 双检查的内存语义见 `notes/golang/04-并发内存可见性与sync.Once.md`。
 
 ---
 

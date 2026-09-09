@@ -1,6 +1,6 @@
 // # Goroutine 面试题实验
 //
-// 对应笔记：notes/golang/12-Goroutine面试题集.md（编程手写题 1-6）
+// 对应笔记：notes/golang/11-Goroutine面试题集.md（编程手写题 1-6）
 //
 // 运行：
 //
@@ -14,6 +14,18 @@
 //	题4：定时调用 + panic 恢复 — recover 必须在同一 goroutine
 //	题5：WaitGroup 支持 WaitTimeout — 超时返回 true 且调用方负责取消
 //	题6：多协程查询切片 + context 取消 — 找到即取消其他 worker
+//
+// —— runtime 源码对照 ——
+//
+// src/runtime/runtime2.go（阻塞在 channel 上的 G 的等待凭证，简化示意）
+//
+//	type sudog struct {
+//		g       *g             // 等待中的 goroutine
+//		elem    maybeTraceablePtr // 发送/接收的数据位置（可指向栈，栈收缩时调整）
+//		c       *hchan         // 等待的 channel
+//		success bool           // 唤醒后是否成功完成通信
+//		// select 下同一个 G 会挂进多个等待队列
+//	}
 package main
 
 import (
@@ -64,7 +76,7 @@ func (t *T) Print() {
 	fmt.Print(t.V)
 }
 
-// q19RangeClosure 题19：range 变量在 Go 1.22+ 每次迭代独立；
+// q19RangeClosure 题19：range 变量按迭代独立；
 // Incr 是指针接收者但作用于值副本，ts 元素不被修改；
 // Print 打印 0~9 各一次，顺序不确定。
 func q19RangeClosure() {

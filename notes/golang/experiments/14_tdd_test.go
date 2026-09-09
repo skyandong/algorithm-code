@@ -63,7 +63,7 @@ func TestStubNotifier(t *testing.T) {
 	failing := &tddStubNotifier{err: errors.New("下游超时")}
 	err := (&tddSettleService{notify: failing}).Settle("o2", 3000)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "通知失败", "服务侧必须包上语境（笔记 10 篇）")
+	assert.Contains(t, err.Error(), "通知失败", "服务侧必须包上语境（笔记 09 篇）")
 	assert.ErrorIs(t, err, failing.err, "%w 链必须可被 errors.Is 追溯")
 }
 

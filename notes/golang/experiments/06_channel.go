@@ -1,6 +1,6 @@
 // # Channel 与 nil channel 语义实验
 //
-// 对应笔记：notes/golang/06-Channel内部与nil语义.md
+// 对应笔记：notes/golang/05-Channel内部与nil语义.md
 //
 // 运行：
 //
@@ -18,6 +18,22 @@
 //	Exp8：缓冲满时发送阻塞（sendq 挂起），腾位后立即成功
 //	Exp9：close 补充语义 — 双重 close / 已关再发 / close(nil) 全 panic
 //	Exp10：nil/活跃/已关闭 × 发送/接收/close 状态转换表
+//
+// —— runtime 源码对照 ——
+//
+// src/runtime/chan.go（节选，省略 elemsize/elemtype/timer/bubble）
+//
+//	type hchan struct {
+//		qcount   uint           // 当前队列元素数
+//		dataqsiz uint           // 环形队列容量（make 的第二个参数）
+//		buf      unsafe.Pointer // 环形队列数据区
+//		sendx    uint           // 发送索引
+//		recvx    uint           // 接收索引
+//		closed   uint32         // 关闭标志
+//		recvq    waitq          // 被 <-ch 阻塞的接收者队列（sudog 链表）
+//		sendq    waitq          // 被 ch<- 阻塞的发送者队列
+//		lock     mutex          // 保护以上全部字段（含阻塞在这上面的 sudog 部分字段）
+//	}
 package main
 
 import (

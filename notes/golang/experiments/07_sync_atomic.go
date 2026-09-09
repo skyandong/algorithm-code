@@ -1,6 +1,6 @@
 // # sync 锁与原子操作实验
 //
-// 对应笔记：notes/golang/07-sync锁与原子操作.md
+// 对应笔记：notes/golang/06-sync锁与原子操作.md
 //
 // 运行（接入 main.go 后）：
 //
@@ -14,6 +14,15 @@
 //	第4节：atomic CAS 无锁计数 vs Mutex 计数吞吐对比 + atomic.Pointer 配置快照
 //	第5节：sync.Pool GC 清空与放回前 Reset
 //	第6节：sync.Map 读路径与 Range 最终一致语义
+//
+// —— runtime 源码对照 ——
+//
+// src/internal/sync/mutex.go（sync.Mutex 的本体，src/sync/mutex.go 是薄包装）
+//
+//	type Mutex struct {
+//		state int32 // 复合状态字：locked/woken/starving 位 + 等待者计数（高位）
+//		sema  uint32 // 信号量：唤醒阻塞等待者的队列锚点
+//	}
 package main
 
 import (
@@ -232,7 +241,7 @@ func syncMap() {
 	m.Store("route-a", 1)
 	m.Store("route-b", 2)
 
-	// Load：读多场景零锁快路径（Go 1.24+ HashTrieMap，读无锁）
+	// Load：读多场景零锁快路径（HashTrieMap，读无锁）
 	v, ok := m.Load("route-a")
 	fmt.Printf("Load 命中: %v %v\n", v, ok)
 

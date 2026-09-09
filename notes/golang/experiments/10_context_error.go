@@ -1,6 +1,6 @@
 // # Context 与错误处理实验
 //
-// 对应笔记：notes/golang/10-context与错误处理.md
+// 对应笔记：notes/golang/09-context与错误处理.md
 //
 // 运行（接入 main.go 后）：
 //
@@ -14,6 +14,19 @@
 //	第4节：errors.Is/As 沿错误树判定 + Join 多错误
 //	第5节：panic/recover 的位置限制 + 跨 goroutine 无效
 //	第6节：defer 参数立即求值 + 命名返回值改写
+//
+// —— runtime 源码对照 ——
+//
+// src/context/context.go（可取消 ctx 的核心字段，简化示意）
+//
+//	type cancelCtx struct {
+//		Context             // 内嵌父 ctx——取消沿这条链向上根传播
+//		mu       sync.Mutex
+//		done     atomic.Value          // Done() 返回的 channel，惰性创建
+//		children map[canceler]struct{} // 直接子节点：cancel 时逐个关闭
+//		err      atomic.Value          // 取消原因（context.Canceled 等），atomic 包装
+//		cause    error                 // WithCancelCause 的更细取消原因
+//	}
 package main
 
 import (
@@ -130,7 +143,7 @@ func ctxLeak() {
 	fmt.Println("后果: root 活多久它们活多久（timer + children 引用）——goroutine/RSS 缓慢上涨的经典来源")
 	rootCancel() // 收尾：把泄漏的一并取消（实验环境清理）
 
-	// WithoutCancel：继承 Value、剥离取消（Go 1.21+）
+	// WithoutCancel：继承 Value、剥离取消
 	type ctxKey struct{}
 	parent, pcancel := context.WithTimeout(context.WithValue(context.Background(), ctxKey{}, "trace-42"), 50*time.Millisecond)
 	defer pcancel()
@@ -164,7 +177,7 @@ func errChain() {
 		fmt.Printf("errors.As 取出: field=%s msg=%s（类型判定不依赖错误文本）\n", target.Field, target.Msg)
 	}
 
-	// Join 多错误（Go 1.20+）：树形遍历
+	// Join 多错误：树形遍历
 	joined := errors.Join(errConnRefused, chained)
 	fmt.Printf("errors.Join: Is(errConnRefused)=%v, As(validationError)=%v（遍历整棵错误树）\n",
 		errors.Is(joined, errConnRefused), errors.As(joined, &target))

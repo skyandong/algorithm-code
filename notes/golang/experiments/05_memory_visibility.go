@@ -1,6 +1,6 @@
 // # 内存可见性与 sync.Once 实验
 //
-// 对应笔记：notes/golang/05-并发内存可见性与sync.Once.md
+// 对应笔记：notes/golang/04-并发内存可见性与sync.Once.md
 //
 // 运行：
 //
@@ -15,6 +15,31 @@
 //	Exp4：mutex 建立同步关系 — Lock/Unlock 同时保证可见性
 //	Exp5：错误的双重检查 Once — 外层无锁读 done 是 data race
 //	Exp6：正确的 sync.Once — 初始化只执行一次
+//
+// —— runtime 源码对照 ——
+//
+// src/sync/once.go（Do 的核心路径，逐行对应源码）
+//
+//	type Once struct {
+//		_    noCopy
+//		done atomic.Bool // done 放首字段：热路径内联时寻址更紧凑
+//		m    Mutex
+//	}
+//
+//	func (o *Once) Do(f func()) {
+//		if !o.done.Load() { // 快路径：一次原子读，无锁
+//			o.doSlow(f)
+//		}
+//	}
+//
+//	func (o *Once) doSlow(f func()) {
+//		o.m.Lock()
+//		defer o.m.Unlock()
+//		if !o.done.Load() { // 双检查：拿到锁后必须再查一次
+//			defer o.done.Store(true) // Store 延迟到 f 返回后——保证 Do 返回时 f 已完成
+//			f()
+//		}
+//	}
 package main
 
 import (
@@ -56,7 +81,7 @@ func demoHappensBeforeNotes() {
 	fmt.Println("  ② channel：第 n 次发送 happens-before 对应接收完成；close → 零值接收")
 	fmt.Println("  ③ Mutex/RWMutex：第 n 次 Unlock → 第 n+1 次 Lock 返回后的读全可见")
 	fmt.Println("  ④ sync.Once：Once.Do(f) 返回 → f 里的写对一切调用者可见")
-	fmt.Println("  ⑤ atomic：顺序一致性（SeqCst），读写构成全序（Go 1.19+ 类型化 API 推荐）")
+	fmt.Println("  ⑤ atomic：顺序一致性（SeqCst），读写构成全序（类型化 API 推荐）")
 	fmt.Println("  ⑥ WaitGroup：Done → Wait 返回")
 	fmt.Println()
 	fmt.Println("为什么裸读写不可靠（第 2/3 节）: 编译器重排 + CPU 缓存/写缓冲 —— 上面的 demoDataRace")

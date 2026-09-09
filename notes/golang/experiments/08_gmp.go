@@ -1,6 +1,6 @@
 // # 运行时调度器 GMP 实验
 //
-// 对应笔记：notes/golang/08-运行时调度器GMP.md
+// 对应笔记：notes/golang/07-运行时调度器GMP.md
 //
 // 运行（接入 main.go 后）：
 //
@@ -11,8 +11,24 @@
 //	第1节：GOMAXPROCS / NumCPU / NumGoroutine 基本观察
 //	第2节：批量启动 goroutine，观察 NumGoroutine 增长与回落
 //	第3节：runtime.Gosched() 主动让出（单 P 下对比）
-//	第4节：纯 CPU 循环与信号异步抢占（Go 1.14+ 不再饿死其他 G）
+//	第4节：纯 CPU 循环与信号异步抢占（不再饿死其他 G）
 //	第5节：channel 阻塞不占线程 vs 阻塞系统调用占用 M（hand off 的直接观测）
+//
+// —— runtime 源码对照 ——
+//
+// src/runtime/runtime2.go（调度主体，节选字段，简化示意）
+//
+//	type g struct {
+//		stack        stack   // 栈区间（lo/hi 指针）
+//		stackguard0  uintptr // 栈溢出检查点，被改成 stackPreempt 即请求抢占
+//		preempt      bool    // 抢占标志（SIGURG 信号处理器置位）
+//		sched        gobuf   // 切换时保存的寄存器现场（sp/pc/g...）
+//		atomicstatus atomic.Uint32 // 运行状态（_Grunnable/_Grunning/_Gwaiting...）
+//		m            *m      // 当前绑定的 M（仅运行中非 nil）
+//	}
+//
+// src/runtime/proc.go
+// // sysmon 发现 G 连续运行超 forcePreemptNS(10ms) → preemptM → 向 M 发 SIGURG
 package main
 
 import (
@@ -73,7 +89,7 @@ func gmpBasic() {
 	runtime.GOMAXPROCS(prev)
 
 	fmt.Println("注意：M 数量 ≠ P —— M 按需创建，默认上限 10000（debug.SetMaxThreads 可调）")
-	fmt.Println("（Go 1.25+ 在 Linux 下 GOMAXPROCS 会自动感知 cgroup CPU limit 并动态更新）")
+	fmt.Println("（在 Linux 下 GOMAXPROCS 会自动感知 cgroup CPU limit 并动态更新）")
 }
 
 // gmpGrowth 第2节：goroutine 很便宜，千级共存毫不费力。
@@ -113,7 +129,7 @@ func gmpGosched() {
 	go gmpYieldLetter(&wg, "A")
 	go gmpYieldLetter(&wg, "B")
 	wg.Wait()
-	fmt.Println("  <- Gosched：基本确定性交替；不必等 10ms 抢占兜底（Go 1.14+，尾部乱序来自写 stdout 的系统调用）")
+	fmt.Println("  <- Gosched：基本确定性交替；不必等 10ms 抢占兜底（尾部乱序来自写 stdout 的系统调用）")
 }
 
 // gmpPrintLetter 不让出，全靠抢占点。
@@ -133,14 +149,14 @@ func gmpYieldLetter(wg *sync.WaitGroup, s string) {
 	}
 }
 
-// gmpPreempt 第4节：无函数调用的纯 CPU 循环，Go 1.14+ 靠信号（SIGURG）抢占。
+// gmpPreempt 第4节：无函数调用的纯 CPU 循环，靠信号（SIGURG）异步抢占。
 func gmpPreempt() {
 	prev := runtime.GOMAXPROCS(1) // 单 P：若抢占失效，tick 会被饿死
 	defer runtime.GOMAXPROCS(prev)
 
 	done := make(chan int64)
 	go func() {
-		var sum int64 // 循环体内零函数调用 → 不是协作式抢占点（Go 1.13 前的盲区）
+		var sum int64 // 循环体内零函数调用 → 不是协作式抢占点（协作式的盲区）
 		for i := int64(0); i < 1<<31; i++ {
 			sum += i
 		}
@@ -155,7 +171,7 @@ func gmpPreempt() {
 
 	sum := <-done
 	fmt.Printf("纯 CPU goroutine 完成（sum=%d）：同 P 的其他 G 没被饿死\n", sum)
-	fmt.Println("机制：sysmon 发现 G 连续运行超 10ms → 向 M 发 SIGURG → asyncPreempt 强制进入调度器（Go 1.14+）")
+	fmt.Println("机制：sysmon 发现 G 连续运行超 10ms → 向 M 发 SIGURG → asyncPreempt 强制进入调度器")
 }
 
 // gmpBlockCompare 第5节：channel 阻塞挂起 G 不占线程；系统调用阻塞占用 M、P 被 hand off。

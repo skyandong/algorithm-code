@@ -2,7 +2,7 @@
 
 > **核心认知：** Go 调度器把「任务（G）」「执行流（M）」「执行资格与资源（P）」三者解耦。G 是 goroutine，M 是 OS 线程，P 是 M 执行 G 所需的上下文（本地运行队列、mcache 等）。goroutine 轻量的根源不是 G 本身，而是这套机制能让 M 在 G 阻塞时立刻换下一个 G 跑：阻塞在 channel/网络上是 G 挂起、M 不停；阻塞在系统调用里是 M 陪绑、P 被移交给别的 M。P 的数量 = GOMAXPROCS，M 按需创建。
 
-本文按 Go 1.26 语义说明；版本分界处单独标注。
+本文基于 Go 1.26（本机 1.26.3）的实际行为编写。
 
 ---
 
@@ -125,14 +125,14 @@ netpoller 的两个接入点：
 
 ## 5. 抢占：协作式 → 基于信号的异步抢占
 
-### 5.1 Go 1.14 之前：只有协作式抢占
+### 5.1 协作式抢占：函数调用点的检查
 
 编译器在**每个函数的序言**插入栈检查（为栈增长 `morestack` 预留的检查点），runtime 复用这个检查点做抢占：把 G 的 `stackguard0` 设成 `stackPreempt`，G 下一次函数调用进入检查逻辑时发现需要抢占，让出 CPU。
 
 死穴：**没有函数调用的循环是盲区**。
 
 ```go
-// 纯 CPU 循环，循环体内零函数调用 —— Go 1.13 及以前无法抢占
+// 纯 CPU 循环，循环体内零函数调用 —— 没有协作式抢占点，无法让出
 for {
     sum += i
     i++
@@ -141,7 +141,7 @@ for {
 
 WHY 这是致命问题：GC 开始/结束需要短暂 STW（stop the world），而 STW 要求所有 G 到达安全点。一个纯 CPU 循环能把 STW 从亚毫秒拖到几十毫秒甚至秒级（GC 卡住 → 内存堆积 → 延迟雪崩），也会把同 P 上的其他 G 饿死。
 
-### 5.2 Go 1.14+：基于信号的异步抢占
+### 5.2 基于信号的异步抢占
 
 sysmon 发现某个 G 已连续运行超过 **10ms**（`forcePreemptNS`），直接向它所在的 M 发信号（类 Unix 平台用 **SIGURG**）：
 
@@ -160,7 +160,7 @@ WHY 选 SIGURG：几乎无人在意它——SIGSEGV/SIGABRT 留给故障，SIGUS
 
 ## 6. GOMAXPROCS：语义与容器的坑
 
-语义：**同时执行 Go 代码的 M 上限 = P 数量**。默认 `runtime.NumCPU()`（逻辑核，含超线程；Go 1.5 起默认 >1）。
+语义：**同时执行 Go 代码的 M 上限 = P 数量**。默认 `runtime.NumCPU()`（逻辑核，含超线程）。
 
 ### 6.1 k8s CPU limit 的经典事故
 
@@ -168,11 +168,11 @@ CFS quota 按 100ms 周期结算：`cpu: "2"` = 每周期 200ms CPU 时间，超
 
 | 场景 | GOMAXPROCS | 后果 |
 | --- | --- | --- |
-| 64 核节点 + limit 2 核 + Go ≤1.24 | 64（按宿主机核数） | 64 个 P 抢 2 核配额 → 每周期提前耗尽 → throttle 硬暂停 → 尾延迟尖刺（p99 从 10ms 飙到几百 ms）；GC 并发标记进一步烧配额 |
-| 同上 + Go 1.25+（Linux） | 自动 = 2 | 正常 |
-| 同上 + `uber-go/automaxprocs` | init 时读 cgroup 设好 | 等效民间方案（Go 1.25 前的主流解） |
+| 64 核节点 + limit 2 核（未显式设置时） | 64（按宿主机核数） | 64 个 P 抢 2 核配额 → 每周期提前耗尽 → throttle 硬暂停 → 尾延迟尖刺（p99 从 10ms 飙到几百 ms）；GC 并发标记进一步烧配额 |
+| 同上（Linux，runtime 默认行为） | 自动 = 2 | 正常 |
+| 同上 + `uber-go/automaxprocs` | init 时读 cgroup 设好 | 等效民间方案 |
 
-Go 1.25 起的默认行为（Linux）：runtime 读 cgroup v2 CPU 带宽限制，quota 非整数时**向上取整**，且定期重读（cgroup 限制运行时可变）。手动设置优先：`GOMAXPROCS` 环境变量或 `runtime.GOMAXPROCS()` 调用会关闭自动行为；`GODEBUG=containermaxprocs=0`/`updatemaxprocs=0` 可单独禁用。CPU requests 不参与计算。
+runtime 默认行为（Linux）：runtime 读 cgroup v2 CPU 带宽限制，quota 非整数时**向上取整**，且定期重读（cgroup 限制运行时可变）。手动设置优先：`GOMAXPROCS` 环境变量或 `runtime.GOMAXPROCS()` 调用会关闭自动行为；`GODEBUG=containermaxprocs=0`/`updatemaxprocs=0` 可单独禁用。CPU requests 不参与计算。
 
 ### 6.2 实战认知
 
@@ -186,12 +186,12 @@ Go 1.25 起的默认行为（Linux）：runtime 读 cgroup v2 CPU 带宽限制�
 
 | 维度 | goroutine | OS 线程 |
 | --- | --- | --- |
-| 初始栈 | 2KB（Go 1.4 起；更早 8KB），按需翻倍 | MB 级（Linux 默认软限制 8MB），创建即保留地址空间 |
+| 初始栈 | 2KB，按需翻倍 | MB 级（Linux 默认软限制 8MB），创建即保留地址空间 |
 | 创建成本 | ns~µs 级，只是初始化几个结构体 | µs 级 + 内核对象 + 栈 |
 | 切换成本 | 用户态换寄存器（`gogo`），百 ns 级，不进内核 | 内核上下文切换，µs 级（缺页、cache/TLB 污染另算） |
 | 可共存数量 | 百万级常规操作 | 千级就要精细调优 |
 
-WHY 能做到：栈按需增长（`morestack` 分配 2 倍新栈 → 拷贝内容 → 重定向指针，Go 1.3 起的"连续栈"方案）+ 切换不进内核（调度数据全在用户态）。代价：goroutine 不能像线程那样被内核直接调度、`LockOSThread` 才能绑定。
+WHY 能做到：栈按需增长（`morestack` 分配 2 倍新栈 → 拷贝内容 → 重定向指针的"连续栈"方案）+ 切换不进内核（调度数据全在用户态）。代价：goroutine 不能像线程那样被内核直接调度、`LockOSThread` 才能绑定。
 
 ---
 
@@ -199,7 +199,7 @@ WHY 能做到：栈按需增长（`morestack` 分配 2 倍新栈 → 拷贝内�
 
 **Q1：为什么要有 P？GM 模型不行吗？**
 
-Go 1.0 就是 GM：全局一个运行队列，所有 M 抢全局锁 → 高核数下锁竞争把调度拖垮。引入 P 后：(1) 本地队列无锁；(2) mcache、内存分配上下文绑定 P，分配快路径零竞争；(3) work-stealing 自然负载均衡。一句话：**P 把"资源局部性"固化下来，用无锁的本地队列替代全局锁队列**。
+最早的 runtime 是 GM：全局一个运行队列，所有 M 抢全局锁 → 高核数下锁竞争把调度拖垮。引入 P 后：(1) 本地队列无锁；(2) mcache、内存分配上下文绑定 P，分配快路径零竞争；(3) work-stealing 自然负载均衡。一句话：**P 把"资源局部性"固化下来，用无锁的本地队列替代全局锁队列**。
 
 **Q2：G 阻塞在 channel 上，M 和 P 会怎样？**
 
@@ -223,19 +223,6 @@ G 被 `gopark` 挂起、进入 channel 的等待队列；M 与 P **完全不受�
 
 ---
 
-## 9. 版本分界速查
-
-| 版本 | 变化 |
-| --- | --- |
-| Go 1.3 | 连续栈替代分段栈 |
-| Go 1.4 | goroutine 初始栈 8KB → 2KB |
-| Go 1.5 | GOMAXPROCS 默认 = 逻辑核数；并发 GC |
-| Go 1.14 | 基于信号（SIGURG）的异步抢占，纯 CPU 循环不再饿死调度 |
-| Go 1.25 | Linux 下 GOMAXPROCS 感知 cgroup CPU limit，支持动态更新 |
-| Go 1.26 | 本文语义基线 |
-
----
-
 本篇对应实验: experiments/08_gmp.go
 
 ```bash
@@ -247,5 +234,5 @@ go run ./experiments/ gmp
 1. GOMAXPROCS / NumCPU / NumGoroutine 基本观察与修改
 2. 批量启动 1000 个 goroutine，观察 NumGoroutine 增长与回收
 3. 单 P 下 `runtime.Gosched()` 确定性让出 vs 抢占的偶然性
-4. 纯 CPU 循环 + tick：验证 Go 1.14+ 信号抢占不饿死其他 G
+4. 纯 CPU 循环 + tick：验证信号异步抢占不饿死其他 G
 5. channel 阻塞不增线程 vs 阻塞系统调用增加线程（hand off 的直接观测）
