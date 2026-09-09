@@ -212,6 +212,10 @@
 | Go 里怎么做 mock？要上框架吗 | [golang/14](notes/golang/14-TDD测试驱动开发.md)、[design-pattern/01](notes/design-pattern/01-设计原则的Go式解读.md) |
 | 集成测试依赖外部服务，CI 怎么处理 | [golang/14](notes/golang/14-TDD测试驱动开发.md)、[akafka/experiments](notes/akafka/experiments) |
 | 什么时候不该 TDD？覆盖率多少合格 | [golang/14](notes/golang/14-TDD测试驱动开发.md) |
+| CRUD 不该用 DDD，那用什么？——事务脚本（高频） | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
+| 六边形/洋葱/整洁架构是什么关系（高频） | [design-pattern/10](notes/design-pattern/10-架构风格.md) |
+| CQRS 是什么、分几级落地、代价在哪 | [design-pattern/10](notes/design-pattern/10-架构风格.md)、[system-design/02](notes/system-design/02-秒杀系统.md) |
+| 事件溯源优缺点、和审计日志的区别 | [design-pattern/10](notes/design-pattern/10-架构风格.md)、[akafka/05](notes/akafka/05-存储与读路径.md) |
 | 把学习项目讲成工程能力：STAR 模板 | [interview/讲项目](notes/interview/讲项目.md) |
 | 「这是学习项目吧？」怎么接 | [interview/讲项目](notes/interview/讲项目.md) |
 | 60 秒自我介绍口述脚本与反问清单 | [interview/讲项目](notes/interview/讲项目.md) |

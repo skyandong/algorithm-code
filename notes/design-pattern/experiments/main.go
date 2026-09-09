@@ -23,6 +23,7 @@ func main() {
 		{"concurrency", RunConcurrencyExperiments},
 		{"errors", RunErrorsExperiments},
 		{"ddd", RunDDDExperiments},
+		{"arch", RunArchitectureExperiments},
 	}
 
 	if exp == "all" {
@@ -40,5 +41,5 @@ func main() {
 		}
 	}
 
-	fmt.Println("用法: go run ./experiments/ [all|principles|creational|structural|behavioral|interface|concurrency|errors|ddd]")
+	fmt.Println("用法: go run ./experiments/ [all|principles|creational|structural|behavioral|interface|concurrency|errors|ddd|arch]")
 }

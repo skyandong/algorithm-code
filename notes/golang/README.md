@@ -28,7 +28,11 @@
 10. [context 与错误处理](10-context与错误处理.md) — 取消树传播、Value 边界、%w 错误链、panic/recover、defer 陷阱
 11. [性能调优实战](11-性能调优实战.md) — benchmark 规范、pprof/trace 闭环、GC 调优、线上排查路径
 
-**面试冲刺篇（12-14）**
+**测试篇（14）：质量是设计出来的**
+
+14. [TDD 测试驱动开发](14-TDD测试驱动开发.md) — 红-绿-重构循环、表驱动与子测试、手写 stub 与消费者侧接口、测试金字塔与守卫模式
+
+**面试冲刺篇（12-13）**
 
 12. [Goroutine 面试题集](12-Goroutine面试题集.md) — 手写题 + 选择题 + 简答，19 题全解
 13. [名家并发模式汇总](13-名家并发模式汇总.md) — Dave Cheney/Kennedy/鸟窝等博客的实战模式沉淀
@@ -128,3 +132,5 @@ go test ./experiments/ -short # 等价 make test-unit
 - `algorithms/` — 数据结构实现；Go 底层（01 篇）是面试里「语言内建数据结构」的参考答案
 - `algorithms/stack` — slice 版栈的具体类型实现，对照 04 篇 `Stack[T]` 泛型版
 - `web/` — HTTP 服务：context 传播与错误码映射的落地场景
+- `notes/design-pattern/01` — 消费者侧接口是 TDD「mock 免费」的理论基础（14 篇第 5 节）
+- `notes/design-pattern/09` — DDD 领域层零依赖 = 可测试性的验收标准，两篇互为印证

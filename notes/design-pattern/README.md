@@ -13,8 +13,9 @@
 6. [并发模式](06-并发模式.md) — pipeline、fan-out/in、errgroup、semaphore、生命周期三问
 7. [错误处理即模式](07-错误处理即模式.md) — 三分法、语境公式、只处理一次、重试边界
 8. [反模式清单](08-反模式清单.md) — 12 条腐化路径 + review 信号总表
-9. [DDD 领域驱动设计](09-DDD领域驱动设计.md) — 限界上下文/通用语言、实体与值对象、聚合根不变量、领域事件与仓储
-10. [面试一口答](面试一口答.md) — 考前速刷：高频问题「张口就来」
+9. [DDD：领域驱动设计](09-DDD领域驱动设计.md) — 通用语言/限界上下文/防腐层、实体值对象聚合根、领域事件与仓储、事务脚本对照与升级信号
+10. [架构风格](10-架构风格.md) — 分层漏层病、六边形端口适配器、CQRS、事件溯源、事件驱动、组合决策
+11. [面试一口答](面试一口答.md) — 考前速刷：高频问题「张口就来」
 
 ## 重点回顾(自测)
 
@@ -39,6 +40,14 @@
 - [ ] 错误只处理一次：中间层只包不记、顶层唯一日志 + 对外语义
 - [ ] Canceled 绝不重试（方向信号）；重试要幂等 + 上限 + 退避
 - [ ] 反模式识别：I:Impl 同名 / GetInstance / common 上帝包 / any+type switch
+- [ ] DDD 层次：原则管评判、模式管解法、DDD 管边界；战略（通用语言+限界上下文）vs 战术（聚合根三铁律）
+- [ ] 实体 vs 值对象：要不要身份；聚合按不变量切不按表切；跨聚合只存 ID
+- [ ] 贫血在 CRUD 场景不是罪——事务脚本（handler-service-dao）是 Fowler 三档里的正确档位
+- [ ] 脚本→领域模型的升级信号：规则漂移 3 处 / 状态机长出 if-else / 并发靠改前再查
+- [ ] 六边形=洋葱=整洁：依赖只准指向领域；验收 `go list -deps` 看不到驱动包
+- [ ] CQRS 分三级：同库两模型（默认）→ 读写分离库 → 独立读存储；判据是读写形状差
+- [ ] 事件溯源：事实序列即真相，状态是缓存视图；代价=快照+模式演进+投影
+- [ ] 事件溯源 vs 审计日志：日志可删可漏是旁路；事实是唯一真相无篡改入口
 
 ## 跑实验
 
@@ -46,7 +55,7 @@
 cd notes/design-pattern
 go run ./experiments/ all          # 全部实验
 go run ./experiments/ structural   # 单跑：03 篇
-# 可用名: principles|creational|structural|behavioral|interface|concurrency|errors
+# 可用名: principles|creational|structural|behavioral|interface|concurrency|errors|ddd|arch
 
 # 并发实验必开 race
 go run -race ./experiments/ concurrency
@@ -59,6 +68,7 @@ go run -race ./experiments/ concurrency
 | `experiments/01-07_*.go` | 每篇笔记对应的可运行验证（08 反模式是清单无实验） |
 | `experiments/06_concurrency.go` | 含手写 mini errgroup（展示 x/sync/errgroup 的原理） |
 | `experiments/09_ddd.go` | DDD 战术五件套：贫血对照/值对象/聚合根/领域事件/仓储 |
+| `experiments/10_architecture.go` | 架构风格四段：漏层病/六边形端口/CQRS/事件溯源重放 |
 | `go.mod` | 独立 module `adesignpattern`（零外部依赖） |
 
 ## 与其他模块的衔接
@@ -66,7 +76,12 @@ go run -race ./experiments/ concurrency
 - `notes/golang/03` — interface 二元组/方法集（本模块 03 实验里 *T 方法集陷阱现场重演）
 - `notes/golang/06` — channel 关闭广播（并发模式的取消原语）
 - `notes/golang/10` — %w/Is/As 机制细节（07 篇的模式化上层）
+- `notes/golang/14` — TDD 的「mock 免费」建立在 01 篇消费者侧接口上；领域层零依赖=可测试性验收标准
 - `rpc/grpcserver/interceptor.go` — UnaryInterceptor：中间件模式的 RPC 实例
 - `rpc/grpcclient` — options 模式的消费方视角
 - `notes/redis/08` — 分布式锁 + 幂等键：重试边界的生产版
 - `demos/tracing` — 装饰器/中间件在可观测性上的落地（handler 包一层 span）
+- `notes/microservice/01` — 限界上下文 → 微服务拆分的理论依据
+- `notes/distributed/03` — 聚合间一致性走 Saga/本地消息表（09 篇铁律三、10 篇 EDA 的分布式延伸）
+- `notes/system-design/01` — 「先定存储模型再谈架构」与「先领域模型后实现」同一思维
+- `demos/sse`（kratos）— biz/data 分层 = DDD-lite：事务脚本和领域模型之间的中间档
