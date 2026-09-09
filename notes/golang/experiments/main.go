@@ -6,6 +6,7 @@ import (
 )
 
 // entries 实验入口表：名字 -> 入口函数（供 main 与测试共用）。
+// 注：slicemap（实验 01）已全部改为断言式单元测试，见 01_slice_map_test.go。
 var entries = []struct {
 	name string
 	run  func()
@@ -16,7 +17,6 @@ var entries = []struct {
 	{"masters", RunMastersExperiments},
 	{"gmp", RunGMPExperiments},
 	{"gcmemory", RunGCMemoryExperiments},
-	{"slicemap", RunSliceMapExperiments},
 	{"interface", RunInterfaceReflectionExperiments},
 	{"sync", RunSyncExperiments},
 	{"context", RunContextExperiments},
@@ -28,7 +28,7 @@ var entries = []struct {
 
 // usage 打印用法（列出全部实验名）。
 func usage() {
-	fmt.Println("用法: go run ./experiments/ [all|visibility|channel|interview|masters|gmp|gcmemory|slicemap|interface|sync|context|performance|string|generics|tdd]")
+	fmt.Println("用法: go run ./experiments/ [all|visibility|channel|interview|masters|gmp|gcmemory|interface|sync|context|performance|string|generics|tdd]")
 }
 
 func main() {
