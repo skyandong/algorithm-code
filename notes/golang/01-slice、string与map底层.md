@@ -46,12 +46,27 @@ fmt.Println(s)         // [10 99 30] ← s 被一起改了
 
 ```go
 s := make([]int, 0, 4) // len=0 cap=4
-_ = s[0]               // panic: index out of range [0] with length 0   ← 看 len
-_ = s[:1]              // 合法：1 <= cap 4                               ← 看 cap
+_ = s[0]               // panic: index out of range [0] with length 0   ← 索引看 len
+_ = s[:1]              // ok：high=1 <= cap=4                           ← 切片看 cap
+_ = s[:4]              // ok：high 到 cap
+_ = s[3:4]             // ok：low 也允许超过 len
 _ = s[:5]              // panic: slice bounds out of range [:5] with capacity 4
 ```
 
-两条 panic 消息本身就点破了这条规则：索引报 `with length`，切片报 `with capacity`。所以「len 之外、cap 之内」那段内存可以重新取景 —— `append` 原地写了数据、调用方 len 却没动时，`s[:n]` 就能把它读出来（实验 `TestAppendInside` 正是用这招证明「数据确实写进了共享数组」，调用方只是看不见）。反过来，这也是第 4 节「截断不清槽位」那条坑的来源：cap 内的残留数据一直可达。
+结果切片的两个字段各按自己那条线算：**`len = high - low`，`cap = cap(s) - low`**（下界把左边那段让出去，cap 跟着减）：
+
+| 表达式 | len | cap |
+|--------|-----|-----|
+| `s[:1]` | 1 | 4 |
+| `s[1:2]` | 1 | 3 |
+| `s[1:1]` | 0 | 3 |
+| `s[3:4]` | 1 | 1 |
+
+但有个例外容易踩：**上界的默认值是 `len(s)`，不是 cap**。所以 `s[low:]` 被当成 `s[low:len(s)]`——`s[1:]` 等于 `s[1:0]`，直接 panic（`slice bounds out of range [1:0]`）；想一路取到 cap 末尾必须显式写 `s[1:cap(s)]`。
+
+两条 panic 消息本身也点破了区别：索引报 `with length`，切片报 `with capacity`。
+
+这条规则让「len 之外、cap 之内」那段内存可以重新取景 —— `append` 原地写了数据、调用方 len 却没动时，`s[:n]` 就能把它读出来（实验 `TestAppendInside` 正是用这招证明「数据确实写进了共享数组」，调用方只是看不见）。反过来，这也是第 4 节「截断不清槽位」那条坑的来源：cap 内的残留数据一直可达。
 
 string 的子串同理零拷贝：
 
