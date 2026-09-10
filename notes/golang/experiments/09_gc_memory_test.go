@@ -12,6 +12,58 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// ===== 实验实现（原 09_gc_memory.go，已并入本文件）=====
+
+// gcSink 强制逃逸：写入包级变量的对象必须堆分配，防止编译器优化掉 new。
+var gcSink *[64]byte
+
+// gcAnySink 用于演示 interface 参数装箱逃逸。
+var gcAnySink any
+
+// 下面六个函数供 -gcflags="-m -l" 观察逃逸判定（-l 禁用内联使判定稳定）。
+//
+//go:noinline
+func escapeReturnPtr() *int {
+	x := 42
+	return &x // 栈帧销毁后 x 还要被调用方使用 → 堆
+}
+
+//go:noinline
+func escapeClosure() func() int {
+	x := 42
+	return func() int { return x + 1 } // 闭包延长了 x 的生命周期 → 堆
+}
+
+//go:noinline
+func escapeDynamicSlice(n int) []int {
+	s := make([]int, n) // 编译期不知道 n，栈上无法预留 → 堆
+	return s
+}
+
+//go:noinline
+func escapeInterfaceArg(v any) int {
+	gcAnySink = v // 参数存入全局 → 装箱对象逃逸
+	if n, ok := v.(int); ok {
+		return n
+	}
+	return -1
+}
+
+//go:noinline
+func noEscapeFixedSum() int {
+	s := make([]int, 4) // 大小已知且生命周期封闭在本函数 → 栈
+	s[0], s[1], s[2], s[3] = 1, 2, 3, 4
+	return s[0] + s[1] + s[2] + s[3]
+}
+
+//go:noinline
+func escapeSendToChannel(ch chan *int) {
+	x := 1024
+	ch <- &x // 指针跨 goroutine 传递 → 堆
+}
+
+// ===== 断言用例 =====
+
 func TestEscapeScenariosBehave(t *testing.T) {
 	assert.Equal(t, 42, *escapeReturnPtr())
 	assert.Equal(t, 43, escapeClosure()())

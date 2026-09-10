@@ -9,9 +9,44 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// ===== 实验实现（原 11_performance.go，已并入本文件）=====
+
+// 包级 sink：防止「结果未被使用」的分配/计算被编译器优化掉（benchmark 同款手法）。
+var (
+	perfSinkBytes  []byte
+	perfSinkString string
+	perfSinkSlice  []int
+	perfSinkInt    int
+)
+
+// perfBig 4KB 大结构体，用于值/指针传参对比。
+type perfBig struct{ data [4096]byte }
+
+//go:noinline
+func perfSumByValue(x perfBig) int { return int(x.data[0]) + int(x.data[1]) }
+
+//go:noinline
+func perfSumByPtr(x *perfBig) int { return int(x.data[0]) + int(x.data[1]) }
+
+// perfAllocDelta 返回 f 的耗时与执行期间的累计堆分配字节（TotalAlloc 差值）。
+// 先 runtime.GC() 拿到干净基线；TotalAlloc 只增不减，差值即本段新增分配。
+func perfAllocDelta(f func()) (time.Duration, uint64) {
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	t0 := time.Now()
+	f()
+	d := time.Since(t0)
+	runtime.ReadMemStats(&after)
+	return d, after.TotalAlloc - before.TotalAlloc
+}
+
+// ===== 断言用例 =====
 
 func TestPreallocBeatsDynamicAppend(t *testing.T) {
 	const n = 500_000

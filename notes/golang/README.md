@@ -106,8 +106,7 @@ go test -gcflags="-m -l" -run '^$' ./experiments/ 2>&1 | grep -E "escapes to hea
 
 | 文件 | 内容 |
 |------|------|
-| `experiments/NN_xxx_test.go` | 每个实验的断言式用例（无打印），用例名与笔记章节对齐 |
-| `experiments/NN_xxx.go` | 只保留被用例引用的实现（类型/函数）；纯演示型实验已无对应 .go（05~08） |
+| `experiments/NN_xxx_test.go` | 每个实验的全部内容：实现（类型/函数）+ 断言用例，无打印 |
 | `go.mod` | 独立 module `agolang`（Go 1.26） |
 
 ## 跑测试

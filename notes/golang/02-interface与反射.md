@@ -265,4 +265,4 @@ bs := unsafe.Slice(unsafe.StringData(s), len(s))
 
 ---
 
-本篇对应实验：experiments/03_interface_reflection.go、03_interface_reflection_test.go（断言式单测，无打印）
+本篇对应实验：experiments/03_interface_reflection_test.go（实现与断言同文件，无打印）

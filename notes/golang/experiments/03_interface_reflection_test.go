@@ -1,9 +1,11 @@
 // 实验 03（interface 与反射），断言验证
 // 对应笔记：notes/golang/02-interface与反射.md
+// 源码对照：src/runtime/runtime2.go
 package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"runtime"
 	"testing"
@@ -11,6 +13,49 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+// ===== 实验实现（原 03_interface_reflection.go，已并入本文件）=====
+
+// point 用于观察装箱拷贝。
+type point struct{ X, Y int }
+
+// boxingSink 强制装箱对象逃逸（不写全局的话编译器可能优化掉装箱）。
+var boxingSink any
+
+// receiver 同时具备值接收者与指针接收者方法。
+type receiver struct{}
+
+// ByValue 值接收者方法。
+func (receiver) ByValue() {}
+
+// ByPointer 指针接收者方法。
+func (*receiver) ByPointer() {}
+
+// myError 模拟线上事故：返回 *myError(nil) 时接口非 nil。
+type myError struct{ code int }
+
+// Error 实现 error 接口（指针接收者）。
+func (e *myError) Error() string { return fmt.Sprintf("code %d", e.code) }
+
+// doBad 反面教材：返回一个「有类型无值」的接口。
+func doBad() error {
+	var p *myError = nil
+	return p // iface: tab != nil, data == nil
+}
+
+// user 含导出与非导出字段，用于 reflect 观察。
+type user struct {
+	Name string // 导出字段
+	age  int    // 非导出字段
+}
+
+// reflectPerfUser 反射开销对照用：字段必须导出，否则 SetInt 会 panic。
+type reflectPerfUser struct {
+	Name string
+	Age  int
+}
+
+// ===== 断言用例 =====
 
 func TestInterfacePairIsValueCopy(t *testing.T) {
 	var i any = point{1, 2}
