@@ -48,19 +48,20 @@ func TestSliceHeader(t *testing.T) {
 
 // TestAppendSharedAndSeparated 第 2 节：追加何时共享底层数组
 func TestAppendSharedAndSeparated(t *testing.T) {
-	// len=3 是有意的：追加位置落在下标 3，
-	// 下面「b[3] 可访问」与「len=8 > cap=6 触发扩容」两条断言都依赖这个布局
-	a := make([]int, 3, 6)
+	// cap=1 是有意的：b 与 c 都往同一个预留槽位写，才能演示「后写的顶掉先写的」
+	a := make([]int, 0, 1)
 
 	b := append(a, 99)
 	assert.Equal(t, dataPtr(a), dataPtr(b), "未超 cap：b 与 a 共享底层数组")
 
 	c := append(a, 100)
-	assert.Equal(t, 100, b[3], "两次 append 写同一槽位，c 顶掉 b 的 99")
+	assert.Equal(t, 100, b[0], "两次 append 写同一槽位，c 顶掉 b 的 99")
 
+	// 一次追加 4 个：len 1→5 越过 cap=1，必须新分配并把旧元素拷过去
 	d := append(c, 1, 2, 3, 4)
-	assert.NotEqual(t, dataPtr(c), dataPtr(d), "len=8 > cap=6：扩容分配新数组")
-	assert.GreaterOrEqual(t, cap(d), 8)
+	assert.NotEqual(t, dataPtr(c), dataPtr(d), "len=5 > cap=1：越界，扩容分配新数组")
+	assert.Equal(t, []int{100, 1, 2, 3, 4}, d, "旧元素被拷进新数组，追加值接在后面")
+	assert.Greater(t, cap(d), cap(c), "新数组容量比原来的 cap=1 大")
 }
 
 // TestAppendInside 第 2 节：函数内 append 不改调用方的 len
