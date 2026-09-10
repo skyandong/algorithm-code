@@ -113,12 +113,12 @@ func TestDeleteWays(t *testing.T) {
 	a := []int{1, 2, 3, 4}
 	a = a[:len(a)-1]
 	assert.Equal(t, []int{1, 2, 3}, a)
-	assert.Equal(t, 4, a[:cap(a)][len(a)], "截断不清槽位，指针元素会泄漏")
+	assert.Equal(t, []int{1, 2, 3, 4}, a[:cap(a)], "截断不清槽位，指针元素会泄漏")
 
 	b := []int{1, 2, 3, 4, 5}
 	b = append(b[:1], b[2:]...)
 	assert.Equal(t, []int{1, 3, 4, 5}, b, "copy 覆盖：保序")
-	assert.Equal(t, 5, b[:cap(b)][len(b)], "尾部残留旧值")
+	assert.Equal(t, []int{1, 3, 4, 5, 5}, b[:cap(b)], "尾部残留旧值")
 
 	c := []int{1, 2, 3, 4, 5}
 	c[1] = c[len(c)-1]

@@ -42,7 +42,7 @@ sub[0] = 99
 fmt.Println(s)         // [10 99 30] ← s 被一起改了
 ```
 
-切片表达式的边界是 `0 <= low <= high <= cap(s)`（索引才看 len）；**上界默认取 `len(s)` 而非 cap**，所以 `s[1:]` 在 len=0 时 panic，想取到 cap 末尾要写 `s[1:cap(s)]`。结果切片的 **`len = high - low`、`cap = cap(s) - low`**：
+切片表达式的边界是 `0 <= low <= high <= cap(s)`（索引才看 len）；**上界默认取 `len(s)` 而非 cap**，所以 `s[1:]` 在 len=0 时 panic，想取到 cap 末尾要写 `s[1:cap(s)]`。结果切片的 **`len = high - low`、`cap = cap(s) - low`**。以 `s := make([]int, 0, 4)`（len=0 cap=4）为例：
 
 | 表达式 | len | cap |
 |--------|-----|-----|
