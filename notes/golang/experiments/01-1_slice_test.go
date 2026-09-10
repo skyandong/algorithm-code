@@ -18,12 +18,19 @@ func dataPtr[T any](s []T) uintptr {
 	return uintptr(unsafe.Pointer(unsafe.SliceData(s)))
 }
 
+// 这两个 helper 标 noinline：实验要证的是「跨函数边界只传头」，
+// 内联掉函数边界后，结论虽然不变，但演示本身会被质疑。
+//
 // appendInside 在函数内 append 后丢弃返回值（看调用方是否受影响）
+//
+//go:noinline
 func appendInside(s []int) {
 	s = append(s, 7)
 }
 
 // appendAndReturn 把 append 的结果传出去
+//
+//go:noinline
 func appendAndReturn(s []int) []int {
 	return append(s, 7)
 }

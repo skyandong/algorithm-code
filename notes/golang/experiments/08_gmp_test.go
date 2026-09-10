@@ -126,11 +126,14 @@ func TestBlockingCompareThreads(t *testing.T) {
 
 	assert.LessOrEqual(t, parkedDelta, 5, "100 个 G 阻塞在 channel：线程数几乎不变（park 的是 G）")
 
-	// B) 系统调用阻塞：每个 G 陪绑一个 M，线程数被推高
-	base = threads()
+	// B) 系统调用阻塞：每个阻塞的 G 陪绑一个 M。
+	// 并发数取「当前线程数 + 32」：超过现有线程（含 idle M）的容量，必然要新建 M，
+	// 这样观测就不受 idle 池还剩多少影响（同进程重复跑也不会失效）。
 	tv := syscall.Timeval{Sec: 1}
+	base = threads()
+	n := base + 32
 	var wg2 sync.WaitGroup
-	for i := 0; i < 64; i++ {
+	for i := 0; i < n; i++ {
 		wg2.Add(1)
 		go func() {
 			defer wg2.Done()
@@ -138,10 +141,11 @@ func TestBlockingCompareThreads(t *testing.T) {
 		}()
 	}
 	time.Sleep(300 * time.Millisecond)
-	blockedDelta := threads() - base
+	blockedThreads := threads()
 	wg2.Wait()
 
-	assert.Greater(t, blockedDelta, parkedDelta, "系统调用阻塞推高线程数（M 陪绑，P 被 hand off）")
+	assert.GreaterOrEqual(t, blockedThreads, base+32,
+		"阻塞的系统调用数超过现有线程容量：必须新建 M 兜住（M 被陪绑，P 被 hand off）")
 }
 
 // waitUntil 带上限地轮询等待条件成立（避免测试挂死）
