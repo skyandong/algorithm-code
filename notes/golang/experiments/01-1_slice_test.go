@@ -36,8 +36,15 @@ func TestSliceHeader(t *testing.T) {
 	sub[0] = 99
 	assert.Equal(t, 99, s[1], "两个 header 共享一个数组")
 
+	// 赋值：ptr/len/cap 三个字段整体拷贝
 	s2 := s
-	assert.Equal(t, dataPtr(s), dataPtr(s2), "赋值只拷贝 (ptr,len,cap)")
+	assert.Equal(t, dataPtr(s), dataPtr(s2), "赋值拷贝 ptr：两个头指向同一底层数组")
+	assert.Len(t, s2, 3, "赋值拷贝 len")
+	assert.Equal(t, 3, cap(s2), "赋值拷贝 cap")
+
+	s2 = s2[:2] // 只动 s2 的头
+	assert.Len(t, s, 3, "改 s2 的头不影响 s：头是各自独立的副本")
+	assert.Equal(t, dataPtr(s), dataPtr(s2), "缩头不改 ptr，仍共享同一数组")
 }
 
 // TestAppendSharedAndSeparated 第 2 节：追加何时共享底层数组

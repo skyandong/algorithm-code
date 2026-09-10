@@ -159,7 +159,14 @@ func TestWaitMany(t *testing.T) {
 
 // TestParallelSum 两个 goroutine 各算一半，channel 汇总与顺序求和一致。
 func TestParallelSum(t *testing.T) {
-	assert.Equal(t, 12, parallelSum([]int{7, 2, 8, -9, 4, 0}))
+	in := []int{7, 2, 8, -9, 4, 0}
+
+	want := 0
+	for _, v := range in {
+		want += v
+	}
+
+	assert.Equal(t, want, parallelSum(in), "并行汇总与顺序求和结果一致")
 }
 
 // TestFibonacci 生产者 close 后 range 自动退出，产出前 7 个斐波那契数。
