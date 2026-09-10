@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestAtomicPublish 第 4 节：atomic Store/Load 发布状态
 func TestAtomicPublish(t *testing.T) {
 	var data atomic.Int64
 	var ready atomic.Bool
@@ -32,6 +33,7 @@ func TestAtomicPublish(t *testing.T) {
 	assert.Equal(t, int64(42), data.Load(), "顺序一致：见到 ready 就能见到 data")
 }
 
+// TestAtomicCounterKeepsAllUpdates 并发累加不丢更新
 func TestAtomicCounterKeepsAllUpdates(t *testing.T) {
 	var counter atomic.Int64
 	var wg sync.WaitGroup
@@ -50,6 +52,7 @@ func TestAtomicCounterKeepsAllUpdates(t *testing.T) {
 	assert.Equal(t, int64(8000), counter.Load(), "atomic 不丢更新")
 }
 
+// TestChannelPublish 第 4 节：close 通知建立 happens-before
 func TestChannelPublish(t *testing.T) {
 	done := make(chan struct{})
 	var data int
@@ -63,6 +66,7 @@ func TestChannelPublish(t *testing.T) {
 	assert.Equal(t, 42, data, "close 前的写入 happens-before 收到通知")
 }
 
+// TestMutexPublish 第 5 节：mutex 同时保证互斥与可见性
 func TestMutexPublish(t *testing.T) {
 	var mu sync.Mutex
 	var data int
@@ -86,6 +90,7 @@ func TestMutexPublish(t *testing.T) {
 	assert.Equal(t, 42, data, "Unlock happens-before 之后的 Lock")
 }
 
+// TestOnceRunsExactlyOnce 第 7 节：sync.Once 只执行一次
 func TestOnceRunsExactlyOnce(t *testing.T) {
 	var once sync.Once
 	var executed atomic.Int64

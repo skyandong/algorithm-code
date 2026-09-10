@@ -45,6 +45,7 @@ type tddSettleService struct {
 	notify Notifier
 }
 
+// Settle 结算：交给 notifier 发通知（被测服务）
 func (s *tddSettleService) Settle(orderID string, cents int64) error {
 	if err := s.notify.Paid(orderID, cents); err != nil {
 		return fmt.Errorf("通知失败: %w", err)
@@ -58,6 +59,7 @@ type tddStubNotifier struct {
 	err   error
 }
 
+// Paid 手写 stub：记录调用，供断言与注入失败
 func (s *tddStubNotifier) Paid(orderID string, cents int64) error {
 	s.calls = append(s.calls, fmt.Sprintf("%s:%d", orderID, cents))
 	return s.err

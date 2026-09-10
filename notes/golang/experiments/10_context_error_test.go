@@ -27,13 +27,19 @@ var errConnRefused = errors.New("connection refused")
 // validationError 结构化错误：用 errors.As 取字段。
 type validationError struct{ Field, Msg string }
 
+// Error 实现 error 接口
 func (e *validationError) Error() string { return e.Field + ": " + e.Msg }
 
 // timeoutError 实现 net.Error 的超时错误（net.Error = error + Timeout/Temporary）。
 type timeoutError struct{}
 
-func (timeoutError) Error() string   { return "i/o timeout" }
-func (timeoutError) Timeout() bool   { return true }
+// Error 实现 error 接口
+func (timeoutError) Error() string { return "i/o timeout" }
+
+// Timeout 声明是超时错误（net.Error 的组成部分）
+func (timeoutError) Timeout() bool { return true }
+
+// Temporary 声明是临时错误（net.Error 的组成部分）
 func (timeoutError) Temporary() bool { return true }
 
 // panicInner 抛出 panic 供外层 recover 演示（直接调用，非 goroutine）。
@@ -55,6 +61,7 @@ var _ net.Error = timeoutError{}
 
 // ===== 断言用例 =====
 
+// TestCancelTreeBroadcast 第 1 节：父取消沿树广播，子取消不影响父
 func TestCancelTreeBroadcast(t *testing.T) {
 	parent, cancel := context.WithCancel(context.Background())
 	childA, cancelA := context.WithCancel(parent)
@@ -74,6 +81,7 @@ func TestCancelTreeBroadcast(t *testing.T) {
 	assert.ErrorIs(t, childB.Err(), context.Canceled, "子取消不影响父，父取消连坐子")
 }
 
+// TestChildTimeoutCannotExceedParent 第 1 节：Deadline 取更早者
 func TestChildTimeoutCannotExceedParent(t *testing.T) {
 	p, pcancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer pcancel()
@@ -88,6 +96,7 @@ func TestChildTimeoutCannotExceedParent(t *testing.T) {
 	assert.ErrorIs(t, c.Err(), context.DeadlineExceeded)
 }
 
+// TestDoneBroadcastMultipleWatchers 第 2 节：关闭是广播，多监听者同时解除阻塞
 func TestDoneBroadcastMultipleWatchers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -108,6 +117,7 @@ func TestDoneBroadcastMultipleWatchers(t *testing.T) {
 	assert.ErrorIs(t, ctx.Err(), context.Canceled)
 }
 
+// TestWithoutCancelStripsCancelKeepsValue 第 3 节：剥掉取消但保留 Value
 func TestWithoutCancelStripsCancelKeepsValue(t *testing.T) {
 	type ctxKey struct{}
 
@@ -122,6 +132,7 @@ func TestWithoutCancelStripsCancelKeepsValue(t *testing.T) {
 	assert.Equal(t, "trace-42", child.Value(ctxKey{}), "只剥离取消，Value 照常继承")
 }
 
+// TestUncanceledChildDiesWithParent 第 3 节：忘 cancel 的子 ctx 随父一起死
 func TestUncanceledChildDiesWithParent(t *testing.T) {
 	root, rootCancel := context.WithCancel(context.Background())
 
@@ -136,6 +147,7 @@ func TestUncanceledChildDiesWithParent(t *testing.T) {
 	leakedCancel() // 收尾
 }
 
+// TestErrorWrappingWAndV 第 4 节：%w 保留错误链，%v 断链
 func TestErrorWrappingWAndV(t *testing.T) {
 	wrapped := fmt.Errorf("open db: %w", errConnRefused)
 	broken := fmt.Errorf("open db: %v", errConnRefused)
@@ -144,6 +156,7 @@ func TestErrorWrappingWAndV(t *testing.T) {
 	assert.NotErrorIs(t, broken, errConnRefused, "%v 只拼字符串，链断了")
 }
 
+// TestStringMatchingIsFragile 第 4 节：字符串判错一改就失效
 func TestStringMatchingIsFragile(t *testing.T) {
 	broken := fmt.Errorf("open db: %v", errConnRefused)
 
@@ -152,6 +165,7 @@ func TestStringMatchingIsFragile(t *testing.T) {
 		"但消息改版/本地化即失效——判定必须用 errors.Is/As，禁止字符串比对")
 }
 
+// TestErrorsAsStructured 第 4 节：As 沿链取结构化错误
 func TestErrorsAsStructured(t *testing.T) {
 	verr := &validationError{Field: "age", Msg: "must be positive"}
 	chained := fmt.Errorf("validate user: %w", verr)
@@ -162,6 +176,7 @@ func TestErrorsAsStructured(t *testing.T) {
 	assert.Equal(t, "must be positive", target.Msg)
 }
 
+// TestErrorsJoinTree 第 4 节：Join 成树，Is/As 遍历整棵
 func TestErrorsJoinTree(t *testing.T) {
 	verr := &validationError{Field: "age", Msg: "must be positive"}
 	chained := fmt.Errorf("validate user: %w", verr)
@@ -173,6 +188,7 @@ func TestErrorsJoinTree(t *testing.T) {
 	assert.True(t, errors.As(joined, &target), "As 同样遍历整棵树")
 }
 
+// TestErrorsAsNetError 第 4 节：As 出 net.Error 才能判超时
 func TestErrorsAsNetError(t *testing.T) {
 	wrappedTimeout := fmt.Errorf("rpc call: %w", timeoutError{})
 
@@ -184,6 +200,7 @@ func TestErrorsAsNetError(t *testing.T) {
 	assert.False(t, errors.As(wrapped, &netErr), "哨兵错误不是 net.Error")
 }
 
+// TestPanicRecoverInDefer 第 5 节：recover 必须在 defer 体内直接调用
 func TestPanicRecoverInDefer(t *testing.T) {
 	var recovered any
 	func() {
@@ -205,10 +222,12 @@ func TestPanicRecoverInDefer(t *testing.T) {
 	assert.Contains(t, string(stack), "panicInner")
 }
 
+// TestBareRecoverReturnsNil 第 5 节：没有展开中的 panic，裸 recover 返回 nil
 func TestBareRecoverReturnsNil(t *testing.T) {
 	assert.Nil(t, recover(), "没有展开中的 panic，裸 recover 永远返回 nil")
 }
 
+// TestRecoverCrossGoroutineIsFatal 第 5 节：跨 goroutine 的 panic 拦不住（子进程验证）
 func TestRecoverCrossGoroutineIsFatal(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过子进程崩溃验证")
@@ -222,6 +241,7 @@ func TestRecoverCrossGoroutineIsFatal(t *testing.T) {
 	assert.Contains(t, string(out), "panic: boom-child")
 }
 
+// TestRecoverCrossGoroutineFatalChild 子进程实体：子 goroutine 内 panic
 func TestRecoverCrossGoroutineFatalChild(t *testing.T) {
 	if os.Getenv("CTX_FATAL_CHILD") != "1" {
 		t.Skip("仅由 TestRecoverCrossGoroutineIsFatal 以子进程拉起")
@@ -237,6 +257,7 @@ func TestRecoverCrossGoroutineFatalChild(t *testing.T) {
 	<-done
 }
 
+// TestDeferArgumentSnapshot 第 6 节：defer 参数入链时求值，闭包执行时才读
 func TestDeferArgumentSnapshot(t *testing.T) {
 	var captured []int
 
@@ -256,12 +277,14 @@ func TestDeferArgumentSnapshot(t *testing.T) {
 	assert.Equal(t, []int{1}, captured, "闭包捕获变量本身，执行时读到新值")
 }
 
+// TestSafeCallConvertsPanicToError 第 6 节：panic 被 defer 转成 error
 func TestSafeCallConvertsPanicToError(t *testing.T) {
 	err := safeCall()
 	assert.Error(t, err, "命名返回值可被 defer 改写")
 	assert.Contains(t, err.Error(), "recovered: inner")
 }
 
+// waitGroup 带超时地等 wg 结束（避免测试挂死）
 func waitGroup(t *testing.T, wg *sync.WaitGroup, timeout time.Duration) {
 	t.Helper()
 	done := make(chan struct{})

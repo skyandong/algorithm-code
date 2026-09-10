@@ -13,10 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// strData 取 string 底层数据区的地址
 func strData(s string) uintptr {
 	return uintptr(unsafe.Pointer(unsafe.StringData(s)))
 }
 
+// TestStringHeader 第 5 节：子串只造新头，共享底层内存
 func TestStringHeader(t *testing.T) {
 	s := "hello, world"
 	sub := s[:5]
@@ -27,6 +29,7 @@ func TestStringHeader(t *testing.T) {
 	assert.False(t, unsafe.StringData(s) == unsafe.StringData(cloned), "Clone 拷出独立小串，大字符串可回收")
 }
 
+// TestStringImmutableZeroCopy 第 5 节：零拷贝 string 跟着源内存变
 func TestStringImmutableZeroCopy(t *testing.T) {
 	b := []byte("hello")
 	s := unsafe.String(unsafe.SliceData(b), len(b))
@@ -39,6 +42,7 @@ func TestStringImmutableZeroCopy(t *testing.T) {
 // 逃逸汇：强迫 []byte(s) 拷贝
 var strSink [][]byte
 
+// TestStringConvertAlloc 第 6 节：互转的拷贝开销与免拷贝例外
 func TestStringConvertAlloc(t *testing.T) {
 	const n = 100000
 	s := strings.Repeat("x", 64)
@@ -80,6 +84,7 @@ func TestStringConvertAlloc(t *testing.T) {
 		"m[string(b)] 编译器特例：索引免分配（10 万次迭代，若有分配必然远超 1KB）")
 }
 
+// TestStringConcat 第 7 节：+ 拼接 O(n²) vs Builder + Grow
 func TestStringConcat(t *testing.T) {
 	parts := make([]string, 2000)
 	for i := range parts {
@@ -111,6 +116,7 @@ func TestStringConcat(t *testing.T) {
 	assert.Greater(t, plusAlloc, growAlloc*100, "+ 循环 O(n²) vs Builder+Grow 一次分配")
 }
 
+// TestStringRune 第 8 节：len 是字节数，range 按码点迭代
 func TestStringRune(t *testing.T) {
 	s := "你好Go"
 	assert.Equal(t, 8, len(s), "len 是字节数")
@@ -127,6 +133,7 @@ func TestStringRune(t *testing.T) {
 	assert.True(t, utf8.ValidString(s[:3]), "按字符边界截断合法")
 }
 
+// TestStringMapKey 第 10 节：string 与 [N]byte 都是合法 key
 func TestStringMapKey(t *testing.T) {
 	m := map[string]int{"a": 1}
 	m[string([]byte("b"))] = 2

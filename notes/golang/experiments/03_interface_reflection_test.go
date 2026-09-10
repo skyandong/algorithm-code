@@ -57,6 +57,7 @@ type reflectPerfUser struct {
 
 // ===== 断言用例 =====
 
+// TestInterfacePairIsValueCopy 第 1 节：接口是 (类型, 值副本) 二元组
 func TestInterfacePairIsValueCopy(t *testing.T) {
 	var i any = point{1, 2}
 	assert.Equal(t, point{1, 2}, i)
@@ -68,6 +69,7 @@ func TestInterfacePairIsValueCopy(t *testing.T) {
 	assert.Equal(t, point{10, 20}, boxed, "装箱是值拷贝，改原值不影响接口内副本")
 }
 
+// TestBoxingAllocates 第 4 节：装箱逃逸后每次都要堆分配
 func TestBoxingAllocates(t *testing.T) {
 	type big struct{ buf [64]byte }
 	const n = 100000
@@ -87,6 +89,7 @@ func TestBoxingAllocates(t *testing.T) {
 		"64B 结构体装箱逃逸：每次搬 64B 到堆")
 }
 
+// TestMethodSet 第 2 节：T 的方法集不含指针接收者方法
 func TestMethodSet(t *testing.T) {
 	v := any(receiver{})
 	p := any(&receiver{})
@@ -102,6 +105,7 @@ func TestMethodSet(t *testing.T) {
 	assert.True(t, ptrImplPtr)
 }
 
+// TestNilInterfaceTrap 第 3 节：有类型无值的接口 != nil
 func TestNilInterfaceTrap(t *testing.T) {
 	err := doBad()
 	assert.True(t, err != nil, "有类型无值的接口 != nil——经典事故")
@@ -114,6 +118,7 @@ func TestNilInterfaceTrap(t *testing.T) {
 	assert.True(t, v.IsNil(), "IsNil 看的是底层指针，所以先判 Kind 再判 IsNil")
 }
 
+// TestTypeAssertion 第 5 节：单值断言 panic，comma-ok 与 type switch 不 panic
 func TestTypeAssertion(t *testing.T) {
 	var i any = 42
 
@@ -136,6 +141,7 @@ func TestTypeAssertion(t *testing.T) {
 	assert.Equal(t, "int", hit, "type switch 命中 int 分支")
 }
 
+// TestReflectFields 第 6 节：可设置性由可寻址性与导出性共同决定
 func TestReflectFields(t *testing.T) {
 	u := user{Name: "tal", age: 30}
 	v := reflect.ValueOf(&u).Elem()
@@ -154,6 +160,7 @@ func TestReflectFields(t *testing.T) {
 	assert.Panics(t, func() { v.Field(1).SetInt(31) })
 }
 
+// TestJSONNilVsEmptySlice 第 9 节：nil 切片序列化成 null，空切片是 []
 func TestJSONNilVsEmptySlice(t *testing.T) {
 	var nilSlice []int
 	emptySlice := []int{}
@@ -167,6 +174,7 @@ func TestJSONNilVsEmptySlice(t *testing.T) {
 	assert.Equal(t, "[]", string(b2), "空切片序列化为 []")
 }
 
+// TestUnsafeStringZeroCopy 第 8 节：零拷贝的产物与红线
 func TestUnsafeStringZeroCopy(t *testing.T) {
 	b := []byte("hello")
 	s := unsafe.String(unsafe.SliceData(b), len(b))
@@ -178,6 +186,7 @@ func TestUnsafeStringZeroCopy(t *testing.T) {
 	assert.Equal(t, "Hello", s, "改 b 连带改 s——零拷贝红线")
 }
 
+// BenchmarkReflectSetInt 第 7 节：直接赋值 / 缓存 Value / 全路径三档开销
 func BenchmarkReflectSetInt(b *testing.B) {
 	u := &reflectPerfUser{}
 

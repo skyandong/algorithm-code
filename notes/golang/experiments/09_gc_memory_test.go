@@ -21,6 +21,8 @@ var gcSink *[64]byte
 var gcAnySink any
 
 // 下面六个函数供 -gcflags="-m -l" 观察逃逸判定（-l 禁用内联使判定稳定）。
+
+// escapeReturnPtr 返回局部变量指针：栈帧没了还要用，只能上堆
 //
 //go:noinline
 func escapeReturnPtr() *int {
@@ -28,18 +30,24 @@ func escapeReturnPtr() *int {
 	return &x // 栈帧销毁后 x 还要被调用方使用 → 堆
 }
 
+// escapeClosure 返回闭包：被捕获的变量生命周期被延长
+//
 //go:noinline
 func escapeClosure() func() int {
 	x := 42
 	return func() int { return x + 1 } // 闭包延长了 x 的生命周期 → 堆
 }
 
+// escapeDynamicSlice 动态长度 make：编译期定不下大小
+//
 //go:noinline
 func escapeDynamicSlice(n int) []int {
 	s := make([]int, n) // 编译期不知道 n，栈上无法预留 → 堆
 	return s
 }
 
+// escapeInterfaceArg 参数存进全局：装箱对象逃逸
+//
 //go:noinline
 func escapeInterfaceArg(v any) int {
 	gcAnySink = v // 参数存入全局 → 装箱对象逃逸
@@ -49,6 +57,8 @@ func escapeInterfaceArg(v any) int {
 	return -1
 }
 
+// noEscapeFixedSum 大小已知且不外泄：留在栈上
+//
 //go:noinline
 func noEscapeFixedSum() int {
 	s := make([]int, 4) // 大小已知且生命周期封闭在本函数 → 栈
@@ -56,6 +66,8 @@ func noEscapeFixedSum() int {
 	return s[0] + s[1] + s[2] + s[3]
 }
 
+// escapeSendToChannel 指针跨 goroutine 传递：上堆
+//
 //go:noinline
 func escapeSendToChannel(ch chan *int) {
 	x := 1024
@@ -64,6 +76,7 @@ func escapeSendToChannel(ch chan *int) {
 
 // ===== 断言用例 =====
 
+// TestEscapeScenariosBehave 第 1 节：六个逃逸场景的行为（判定看 -gcflags）
 func TestEscapeScenariosBehave(t *testing.T) {
 	assert.Equal(t, 42, *escapeReturnPtr())
 	assert.Equal(t, 43, escapeClosure()())
@@ -77,6 +90,7 @@ func TestEscapeScenariosBehave(t *testing.T) {
 	assert.Equal(t, 1024, *<-ch, "指针跨 goroutine 传递（逃逸场景之一）")
 }
 
+// TestNoEscapeFixedSumAllocatesNothing 用零堆分配证明「不逃逸」
 func TestNoEscapeFixedSumAllocatesNothing(t *testing.T) {
 	_ = noEscapeFixedSum() // 预热
 
@@ -91,6 +105,7 @@ func TestNoEscapeFixedSumAllocatesNothing(t *testing.T) {
 		"大小已知且不外泄 → 栈分配，零堆分配（这就是「不逃逸」的硬证据）")
 }
 
+// TestEscapeReturnPtrAllocates 用堆分配证明指针确实逃逸
 func TestEscapeReturnPtrAllocates(t *testing.T) {
 	_ = escapeReturnPtr() // 预热
 
@@ -105,6 +120,7 @@ func TestEscapeReturnPtrAllocates(t *testing.T) {
 		"返回局部变量指针 → 每次堆分配一个 int")
 }
 
+// TestMemStatsAllocGrowsAndGCReclaims 第 2 节：TotalAlloc 只增，GC 后 Alloc 回落
 func TestMemStatsAllocGrowsAndGCReclaims(t *testing.T) {
 	var ms runtime.MemStats
 
@@ -128,6 +144,7 @@ func TestMemStatsAllocGrowsAndGCReclaims(t *testing.T) {
 	assert.Less(t, ms.Alloc, baseAlloc+uint64(4<<20), "手动 GC 后 Alloc 回落（垃圾被三色标记清扫）")
 }
 
+// TestSyncPoolBeatsNewAlloc 第 3 节：池化把分配量降两个数量级
 func TestSyncPoolBeatsNewAlloc(t *testing.T) {
 	if raceEnabled {
 		t.Skip("-race 下 race runtime 自身的分配会污染 TotalAlloc 读数，池化收益无法量化")
@@ -162,6 +179,7 @@ func TestSyncPoolBeatsNewAlloc(t *testing.T) {
 	assert.Less(t, poolAlloc, newAlloc/100, "sync.Pool 复用：分配量降两个数量级")
 }
 
+// TestGOGCPercentToggle 第 4 节：GOGC=off 不触发 GC，恢复后手动 GC 生效
 func TestGOGCPercentToggle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过（要分配 128MB 大对象）")

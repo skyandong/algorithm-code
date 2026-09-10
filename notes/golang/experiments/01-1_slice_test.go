@@ -13,14 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// dataPtr 取切片底层数组的首地址（用于断言共享/独立）
 func dataPtr[T any](s []T) uintptr {
 	return uintptr(unsafe.Pointer(unsafe.SliceData(s)))
 }
 
+// appendInside 在函数内 append 后丢弃返回值（看调用方是否受影响）
 func appendInside(s []int) {
 	s = append(s, 7)
 }
 
+// appendAndReturn 把 append 的结果传出去
 func appendAndReturn(s []int) []int {
 	return append(s, 7)
 }
@@ -28,6 +31,7 @@ func appendAndReturn(s []int) []int {
 // 包级变量：强制逃逸，走 runtime.growslice 真实路径（栈上小 append 观察不到扩容规律）
 var growthSink []int
 
+// TestSliceHeader 第 1 节：slice 头就是 ptr/len/cap 三个字段
 func TestSliceHeader(t *testing.T) {
 	s := []int{10, 20, 30}
 	assert.Len(t, s, 3)
@@ -46,6 +50,7 @@ func TestSliceHeader(t *testing.T) {
 	assert.Equal(t, dataPtr(s), dataPtr(s2), "赋值只拷贝 (ptr,len,cap)")
 }
 
+// TestAppendSharedAndSeparated 第 2 节：追加何时共享底层数组
 func TestAppendSharedAndSeparated(t *testing.T) {
 	a := make([]int, 3, 6)
 
@@ -60,6 +65,7 @@ func TestAppendSharedAndSeparated(t *testing.T) {
 	assert.GreaterOrEqual(t, cap(d), 8)
 }
 
+// TestAppendInside 第 2 节：函数内 append 不改调用方的 len
 func TestAppendInside(t *testing.T) {
 	s := make([]int, 0, 4)
 	appendInside(s)
@@ -68,10 +74,12 @@ func TestAppendInside(t *testing.T) {
 	assert.Equal(t, []int{7}, s[:1], "数据其实写进了共享数组")
 }
 
+// TestAppendAndReturn 第 2 节：结果传出去才会更新头
 func TestAppendAndReturn(t *testing.T) {
 	assert.Equal(t, []int{7}, appendAndReturn(make([]int, 0, 4)))
 }
 
+// TestGrowthCapSequence 第 3 节：growslice 的 cap 增长序列
 func TestGrowthCapSequence(t *testing.T) {
 	growthSink = make([]int, 0)
 	growthSink = append(growthSink, 1) // 首跳 cap 0→1 是 newLen > 2*oldCap 的按需分配分支，不属翻倍段
@@ -93,6 +101,7 @@ func TestGrowthCapSequence(t *testing.T) {
 	assert.GreaterOrEqual(t, cap(growthSink), 10000)
 }
 
+// TestDeleteWays 第 4 节：删除元素的三种写法
 func TestDeleteWays(t *testing.T) {
 	a := []int{1, 2, 3, 4}
 	a = a[:len(a)-1]
@@ -125,6 +134,7 @@ func TestDeleteWays(t *testing.T) {
 	}()
 }
 
+// TestSubsliceLeak 第 4 节：子切片扣住整块底层数组
 func TestSubsliceLeak(t *testing.T) {
 	big := make([]byte, 1<<20) // 1 MiB
 	tail := big[len(big)-2:]
@@ -139,6 +149,7 @@ func TestSubsliceLeak(t *testing.T) {
 	assert.True(t, fp < bp || fp >= bp+1<<20, "copy 修复后 fixed 独立于 big")
 }
 
+// TestNilEmptySlice 第 15 节：nil 切片与空切片的分工
 func TestNilEmptySlice(t *testing.T) {
 	var nilSlice []int
 	emptySlice := []int{}

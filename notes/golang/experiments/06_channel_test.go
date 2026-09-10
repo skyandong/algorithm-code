@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestNilChannelNeverReady 第 5 节：nil channel 收发永不就绪
 func TestNilChannelNeverReady(t *testing.T) {
 	var ch chan int // nil
 
@@ -26,6 +27,7 @@ func TestNilChannelNeverReady(t *testing.T) {
 	}
 }
 
+// TestNilDisablesSelectBranch 第 6 节：ch=nil 只是变量指向，可随时恢复
 func TestNilDisablesSelectBranch(t *testing.T) {
 	ch := make(chan int, 1)
 	var input <-chan int = ch
@@ -47,6 +49,7 @@ func TestNilDisablesSelectBranch(t *testing.T) {
 	}
 }
 
+// TestClosedChannelReceive 第 11 节：关闭后先排空缓冲，再返回零值 + false
 func TestClosedChannelReceive(t *testing.T) {
 	ch := make(chan int, 2)
 	ch <- 10
@@ -73,6 +76,7 @@ func TestClosedChannelReceive(t *testing.T) {
 	assert.True(t, ok, "真实发送的零值 ok 仍为 true——不能只靠值判断关闭")
 }
 
+// TestCloseWakesReceiver 第 12 节：close 唤醒阻塞的接收者
 func TestCloseWakesReceiver(t *testing.T) {
 	ch := make(chan int)
 
@@ -98,6 +102,7 @@ func TestCloseWakesReceiver(t *testing.T) {
 	}
 }
 
+// TestCloseWakesSenderWithPanic 第 12 节：close 唤醒阻塞的发送者，后者 panic
 func TestCloseWakesSenderWithPanic(t *testing.T) {
 	if raceEnabled {
 		t.Skip("-race 下 closechan 唤醒阻塞 sender 的路径会被 race detector 保守报告（最小重现同样复现）")
@@ -123,6 +128,7 @@ func TestCloseWakesSenderWithPanic(t *testing.T) {
 	}
 }
 
+// TestUnbufferedHandoffBlocksSender 第 8 节：无缓冲直接交接，发送阻塞到接收就绪
 func TestUnbufferedHandoffBlocksSender(t *testing.T) {
 	ch := make(chan int)
 
@@ -137,6 +143,7 @@ func TestUnbufferedHandoffBlocksSender(t *testing.T) {
 		"无缓冲：发送者一直阻塞到接收者就绪才交接")
 }
 
+// TestBufferedFullBlocks 第 9 节：缓冲满则发送阻塞，腾位后立即成功
 func TestBufferedFullBlocks(t *testing.T) {
 	ch := make(chan int, 2)
 	ch <- 1
@@ -159,6 +166,7 @@ func TestBufferedFullBlocks(t *testing.T) {
 	assert.Equal(t, 3, <-ch)
 }
 
+// TestClosePanics 第 10 节：双重 close / 已关再发 / close(nil) 全 panic
 func TestClosePanics(t *testing.T) {
 	ch := make(chan int)
 	close(ch)

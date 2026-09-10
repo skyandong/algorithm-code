@@ -27,9 +27,13 @@ var (
 // perfBig 4KB 大结构体，用于值/指针传参对比。
 type perfBig struct{ data [4096]byte }
 
+// perfSumByValue 按值收 4KB 结构体（noinline 保证真发生复制）
+//
 //go:noinline
 func perfSumByValue(x perfBig) int { return int(x.data[0]) + int(x.data[1]) }
 
+// perfSumByPtr 按指针收，只传 8 字节
+//
 //go:noinline
 func perfSumByPtr(x *perfBig) int { return int(x.data[0]) + int(x.data[1]) }
 
@@ -48,6 +52,7 @@ func perfAllocDelta(f func()) (time.Duration, uint64) {
 
 // ===== 断言用例 =====
 
+// TestPreallocBeatsDynamicAppend 第 1 节：预分配省掉反复扩容的累计分配
 func TestPreallocBeatsDynamicAppend(t *testing.T) {
 	const n = 500_000
 
@@ -71,6 +76,7 @@ func TestPreallocBeatsDynamicAppend(t *testing.T) {
 	assert.Less(t, preAlloc, dynAlloc, "预分配累计分配明显更少（约 1/2）")
 }
 
+// TestPoolBeatsPerCallAlloc 第 2 节：池化 64KB buffer 的分配量对比
 func TestPoolBeatsPerCallAlloc(t *testing.T) {
 	if raceEnabled {
 		t.Skip("-race 下 race runtime 自身的分配会污染 TotalAlloc 读数，池化收益无法量化")
@@ -101,6 +107,7 @@ func TestPoolBeatsPerCallAlloc(t *testing.T) {
 	assert.Less(t, poolAlloc, newAlloc/100, "sync.Pool 复用：分配量降两个数量级")
 }
 
+// TestStringByteConversionAlloc 第 3 节：互转的拷贝与 m[string(b)] 零拷贝
 func TestStringByteConversionAlloc(t *testing.T) {
 	const iters = 20000
 	s := strings.Repeat("hello, 世界", 800) // ~10.4KB
@@ -129,6 +136,7 @@ func TestStringByteConversionAlloc(t *testing.T) {
 	assert.Less(t, mapIdx, uint64(1024), "m[string(b)] 是编译器特例：索引免分配")
 }
 
+// TestGCNextGCIsTwiceLive 第 5 节：GOGC=100 时 NextGC ≈ 2×live
 func TestGCNextGCIsTwiceLive(t *testing.T) {
 	perfSinkBytes = make([]byte, 32<<20) // 撑大 live heap，比例观察更准
 
@@ -141,6 +149,7 @@ func TestGCNextGCIsTwiceLive(t *testing.T) {
 	assert.Less(t, ratio, 3.0)
 }
 
+// TestAllocationPressureTriggersGC 第 5 节：分配压力自动驱动 GC
 func TestAllocationPressureTriggersGC(t *testing.T) {
 	runtime.GC()
 	var ms runtime.MemStats
@@ -156,6 +165,7 @@ func TestAllocationPressureTriggersGC(t *testing.T) {
 	assert.Greater(t, ms.NumGC, before, "分配压力自动驱动 GC，无需手动")
 }
 
+// BenchmarkPreallocVsAppend 耗时对照：dynamic vs prealloc
 func BenchmarkPreallocVsAppend(b *testing.B) {
 	const n = 10000
 
@@ -179,6 +189,7 @@ func BenchmarkPreallocVsAppend(b *testing.B) {
 	})
 }
 
+// BenchmarkValueVsPtr 耗时对照：4KB 值传递 vs 指针传递
 func BenchmarkValueVsPtr(b *testing.B) {
 	x := perfBig{}
 

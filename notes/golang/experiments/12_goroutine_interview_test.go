@@ -27,6 +27,7 @@ type blockingMap struct {
 	waiters map[string]map[*waiter]struct{}
 }
 
+// newBlockingMap 构造「带超时读取的并发安全 map」
 func newBlockingMap() *blockingMap {
 	return &blockingMap{
 		values:  make(map[string]any),
@@ -34,6 +35,7 @@ func newBlockingMap() *blockingMap {
 	}
 }
 
+// Out 写入并唤醒等待这个 key 的读者
 func (m *blockingMap) Out(key string, value any) {
 	m.mu.Lock()
 	m.values[key] = value
@@ -44,6 +46,7 @@ func (m *blockingMap) Out(key string, value any) {
 	m.mu.Unlock()
 }
 
+// Rd 读取：有值直接返回，否则等到超时返回 nil
 func (m *blockingMap) Rd(key string, timeout time.Duration) any {
 	m.mu.Lock()
 	if value, ok := m.values[key]; ok {
@@ -89,10 +92,12 @@ type Ban struct {
 	visitIPs map[string]time.Time
 }
 
+// NewBan 构造 IP 限流器（单位时间窗内限次）
 func NewBan() *Ban {
 	return &Ban{visitIPs: make(map[string]time.Time)}
 }
 
+// visit 记一次访问，超过窗口配额返回 false
 func (b *Ban) visit(ip string, now time.Time) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -133,6 +138,7 @@ func findSlowWithTimeout(values []int, target, workers int, timeout time.Duratio
 	return searchValues(values, target, workers, timeout, 2*time.Microsecond)
 }
 
+// searchValues 多 worker 并发查找，带超时提前返回
 func searchValues(values []int, target, workers int, timeout, perElem time.Duration) string {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

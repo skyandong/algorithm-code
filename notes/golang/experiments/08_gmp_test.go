@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestGOMAXPROCSReturnsOldValue 第 1 节：P 数 = GOMAXPROCS，设置时返回旧值
 func TestGOMAXPROCSReturnsOldValue(t *testing.T) {
 	prev := runtime.GOMAXPROCS(2)
 	defer runtime.GOMAXPROCS(prev)
@@ -25,6 +26,7 @@ func TestGOMAXPROCSReturnsOldValue(t *testing.T) {
 	assert.GreaterOrEqual(t, runtime.NumCPU(), 1)
 }
 
+// TestGoroutineGrowthAndFallback 第 2 节：千级 goroutine 秒建秒回收
 func TestGoroutineGrowthAndFallback(t *testing.T) {
 	base := runtime.NumGoroutine()
 
@@ -41,6 +43,7 @@ func TestGoroutineGrowthAndFallback(t *testing.T) {
 	assert.LessOrEqual(t, runtime.NumGoroutine(), base+100, "广播退出后回落到基线附近")
 }
 
+// TestGoschedBothGoroutinesFinish 第 3 节：单 P 下主动让出，双方都不饿死
 func TestGoschedBothGoroutinesFinish(t *testing.T) {
 	prev := runtime.GOMAXPROCS(1) // 单 P 下让出效果最直观
 	defer runtime.GOMAXPROCS(prev)
@@ -69,6 +72,7 @@ func TestGoschedBothGoroutinesFinish(t *testing.T) {
 	assert.Equal(t, int64(6), b.Load(), "Gosched 让出后另一个 G 能推进，双方都不饿死")
 }
 
+// TestAsyncPreemptKeepsTicksAlive 第 4 节：纯 CPU 循环被 SIGURG 异步抢占
 func TestAsyncPreemptKeepsTicksAlive(t *testing.T) {
 	prev := runtime.GOMAXPROCS(1) // 单 P：抢占一旦失效，主 G 会被饿死
 	defer runtime.GOMAXPROCS(prev)
@@ -99,6 +103,7 @@ func TestAsyncPreemptKeepsTicksAlive(t *testing.T) {
 	}
 }
 
+// TestBlockingCompareThreads 第 5 节：channel 阻塞不占线程，系统调用阻塞占住 M
 func TestBlockingCompareThreads(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过（含 1s 系统调用阻塞）")
@@ -139,6 +144,7 @@ func TestBlockingCompareThreads(t *testing.T) {
 	assert.Greater(t, blockedDelta, parkedDelta, "系统调用阻塞推高线程数（M 陪绑，P 被 hand off）")
 }
 
+// waitUntil 带上限地轮询等待条件成立（避免测试挂死）
 func waitUntil(t *testing.T, timeout time.Duration, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

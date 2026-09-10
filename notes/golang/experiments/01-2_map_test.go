@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// buildMap 造 n 个元素的 map，hint 控制是否预分配
 func buildMap(n, hint int) map[int]int {
 	m := make(map[int]int, hint)
 	for i := 0; i < n; i++ {
@@ -22,6 +23,7 @@ func buildMap(n, hint int) map[int]int {
 	return m
 }
 
+// TestMapPrealloc 第 11 节：预分配 hint 省掉 rehash 搬迁
 func TestMapPrealloc(t *testing.T) {
 	const n = 100000
 
@@ -39,6 +41,7 @@ func TestMapPrealloc(t *testing.T) {
 		"预分配的累计分配字节应更少（少 rehash 搬迁）")
 }
 
+// TestMapDeleteMemory 第 11 节：删除不缩容，删空才重置表
 func TestMapDeleteMemory(t *testing.T) {
 	const n = 100000
 
@@ -74,6 +77,7 @@ func TestMapDeleteMemory(t *testing.T) {
 		"m=nil 后无可测量增长（与删空同量级；表已在删空时重置，此处仅释放 map 头）")
 }
 
+// TestMapUnordered 第 12 节：遍历顺序随机
 func TestMapUnordered(t *testing.T) {
 	m := map[int]int{}
 	for i := 0; i < 10; i++ {
@@ -99,6 +103,7 @@ func TestMapUnordered(t *testing.T) {
 	assert.True(t, changed, "21 次遍历顺序全相同的概率可忽略")
 }
 
+// TestRangeMutation 第 12 节：range 期间删除与新增的语义
 func TestRangeMutation(t *testing.T) {
 	m := map[int]int{}
 	for i := 0; i < 10; i++ {
@@ -131,6 +136,7 @@ func TestRangeMutation(t *testing.T) {
 	assert.GreaterOrEqual(t, count, 10)
 }
 
+// TestConcurrentMapWriteFatal 第 13 节：并发写 map 是 fatal（子进程验证）
 func TestConcurrentMapWriteFatal(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过子进程崩溃验证")
@@ -148,6 +154,7 @@ func TestConcurrentMapWriteFatal(t *testing.T) {
 	assert.NotContains(t, string(out), "panic:", "throw 不是 panic")
 }
 
+// TestConcurrentMapWriteFatalChild 子进程实体：制造并发写触发 fatal
 func TestConcurrentMapWriteFatalChild(t *testing.T) {
 	if os.Getenv("SLICEMAP_FATAL_CHILD") != "1" {
 		t.Skip("仅由 TestConcurrentMapWriteFatal 以子进程拉起")
@@ -168,6 +175,7 @@ func TestConcurrentMapWriteFatalChild(t *testing.T) {
 	wg.Wait()
 }
 
+// TestSyncMapSemantics 第 14 节：sync.Map 的读写与 Range
 func TestSyncMapSemantics(t *testing.T) {
 	var sm sync.Map
 
@@ -205,6 +213,7 @@ func BenchmarkSyncMapRead(b *testing.B) {
 	})
 }
 
+// BenchmarkRWMutexMapRead 读路径对照基准：map + RWMutex
 func BenchmarkRWMutexMapRead(b *testing.B) {
 	m := map[int]int{1: 1}
 	var mu sync.RWMutex

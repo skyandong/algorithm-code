@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// runWorkers 起 n 个 goroutine 跑 fn 并等全部结束
 func runWorkers(n int, fn func()) {
 	var wg sync.WaitGroup
 	wg.Add(n)
@@ -27,6 +28,7 @@ func runWorkers(n int, fn func()) {
 	wg.Wait()
 }
 
+// TestMutexForeignUnlock 第 1 节：Mutex 不记录属主，他人解锁也合法
 func TestMutexForeignUnlock(t *testing.T) {
 	var mu sync.Mutex
 	mu.Lock()
@@ -42,6 +44,7 @@ func TestMutexForeignUnlock(t *testing.T) {
 	mu.Unlock()
 }
 
+// TestUnlockUnlockedMutexIsFatal 第 1 节：未加锁就 Unlock 是 fatal（子进程验证）
 func TestUnlockUnlockedMutexIsFatal(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过子进程崩溃验证")
@@ -56,6 +59,7 @@ func TestUnlockUnlockedMutexIsFatal(t *testing.T) {
 	assert.NotContains(t, string(out), "panic:", "throw 不是 panic")
 }
 
+// TestUnlockUnlockedMutexFatalChild 子进程实体：触发 unlock of unlocked mutex
 func TestUnlockUnlockedMutexFatalChild(t *testing.T) {
 	if os.Getenv("SYNC_FATAL_CHILD") != "1" {
 		t.Skip("仅由 TestUnlockUnlockedMutexIsFatal 以子进程拉起")
@@ -65,6 +69,7 @@ func TestUnlockUnlockedMutexFatalChild(t *testing.T) {
 	mu.Unlock() // fatal: sync: unlock of unlocked mutex
 }
 
+// TestRWMutexWriteGate 第 2 节：写者排队后新读者被闸门挡住
 func TestRWMutexWriteGate(t *testing.T) {
 	var mu sync.RWMutex
 
@@ -95,6 +100,7 @@ func TestRWMutexWriteGate(t *testing.T) {
 	assert.GreaterOrEqual(t, blocked, 30*time.Millisecond, "写者排队后新读者被挡：写者不会饿死")
 }
 
+// TestWaitGroupRoundReuse 第 3 节：Add 先于 go，归零后可复用
 func TestWaitGroupRoundReuse(t *testing.T) {
 	var wg sync.WaitGroup
 	var completed atomic.Int64
@@ -116,6 +122,7 @@ func TestWaitGroupRoundReuse(t *testing.T) {
 	assert.Equal(t, int64(4), completed.Load(), "归零→Wait 返回→可重新 Add 复用")
 }
 
+// TestAtomicVsMutexCounting 第 4 节：两条计数路径结果一致
 func TestAtomicVsMutexCounting(t *testing.T) {
 	const workers = 100
 	const per = 1000
@@ -146,6 +153,7 @@ type configSnapshot struct {
 	Retries int
 }
 
+// TestAtomicPointerConfigSnapshot 第 4 节：整体换快照保证字段一致
 func TestAtomicPointerConfigSnapshot(t *testing.T) {
 	var cfg atomic.Pointer[configSnapshot]
 	cfg.Store(&configSnapshot{Timeout: time.Second, Retries: 3})
@@ -158,6 +166,7 @@ func TestAtomicPointerConfigSnapshot(t *testing.T) {
 	assert.Equal(t, configSnapshot{2 * time.Second, 5}, *now, "读端拿到的永远是完整一致的快照")
 }
 
+// TestPoolEmptyGetUsesNew 第 5 节：Get 无保证，空池只能靠 New
 func TestPoolEmptyGetUsesNew(t *testing.T) {
 	var newCalls atomic.Int64
 	pool := &sync.Pool{New: func() any {
@@ -170,6 +179,7 @@ func TestPoolEmptyGetUsesNew(t *testing.T) {
 	assert.Equal(t, int64(1), newCalls.Load(), "Get 无保证，空池只能靠 New")
 }
 
+// TestPoolResetBeforePut 第 5 节：放回前 Reset，下个使用者拿到干净对象
 func TestPoolResetBeforePut(t *testing.T) {
 	pool := &sync.Pool{New: func() any { return make([]byte, 0, 64) }}
 
@@ -182,6 +192,7 @@ func TestPoolResetBeforePut(t *testing.T) {
 	assert.Empty(t, next, "Reset 后放回：命中复用或走 New 都是干净的")
 }
 
+// TestSyncMapLoadOrStoreAndRange 第 6 节：LoadOrStore 只初始化一次，Range 最终一致
 func TestSyncMapLoadOrStoreAndRange(t *testing.T) {
 	var m sync.Map
 

@@ -108,30 +108,35 @@ type Person struct {
 
 // ===== 断言用例 =====
 
+// TestMax 第 1 节：一份代码适配多种有序类型
 func TestMax(t *testing.T) {
 	assert.Equal(t, 7, Max(3, 7))
 	assert.Equal(t, 2.5, Max(2.5, 1.5))
 	assert.Equal(t, "b", Max("a", "b"))
 }
 
+// TestMapInferenceAndExplicit 第 1 节：双类型参数的推断与显式实例化
 func TestMapInferenceAndExplicit(t *testing.T) {
 	assert.Equal(t, []string{"1", "2", "3"}, Map([]int{1, 2, 3}, strconv.Itoa), "T/U 从实参推断")
 	assert.Equal(t, []string{"4"}, Map[int, string]([]int{4}, strconv.Itoa), "显式实例化")
 	assert.Empty(t, Map([]int{}, func(x int) int { return x }))
 }
 
+// TestFirstOrZero 第 1 节：var zero T 拿零值（泛型里不能写 nil）
 func TestFirstOrZero(t *testing.T) {
 	assert.Zero(t, FirstOrZero([]int{}), "var zero T：T 是 int 时即 0")
 	assert.Empty(t, FirstOrZero([]string{}), "var zero T：T 是 string 时即 \"\"")
 	assert.Equal(t, "a", FirstOrZero([]string{"a"}))
 }
 
+// TestSumTilde 第 2 节：~int 近似约束放行自定义底层类型
 func TestSumTilde(t *testing.T) {
 	type UserID int
 	assert.Equal(t, UserID(6), SumTilde([]UserID{1, 2, 3}), "~int 匹配底层类型，UserID 也能进")
 	assert.Equal(t, 6, SumTilde([]int{1, 2, 3}))
 }
 
+// TestKeys 第 2 节：comparable 约束提取 map key
 func TestKeys(t *testing.T) {
 	got := Keys(map[string]int{"a": 1, "b": 2})
 	assert.Len(t, got, 2)
@@ -140,6 +145,7 @@ func TestKeys(t *testing.T) {
 	assert.ElementsMatch(t, []int{1}, Keys(map[int]string{1: "x"}), "同一份代码换 K")
 }
 
+// TestStack 第 3 节：泛型容器值语义零装箱
 func TestStack(t *testing.T) {
 	s := &Stack[int]{}
 
@@ -163,6 +169,7 @@ func TestStack(t *testing.T) {
 	assert.Equal(t, "a", sv, "同一份源码两个实例化")
 }
 
+// TestGenericsStdlib 第 4 节：slices/maps/cmp 标准库泛型工具
 func TestGenericsStdlib(t *testing.T) {
 	xs := []int{5, 2, 8, 1}
 	slices.Sort(xs)
@@ -185,6 +192,7 @@ func TestGenericsStdlib(t *testing.T) {
 	assert.Equal(t, map[string]int{"b": 2}, m)
 }
 
+// sumAny 遍历 []any 断言拆箱求和（对照泛型版）
 func sumAny(xs []any) int {
 	sum := 0
 	for _, v := range xs {
@@ -193,6 +201,7 @@ func sumAny(xs []any) int {
 	return sum
 }
 
+// TestGenericsNoBoxing 第 6 节：泛型零装箱 vs []any 每次装箱
 func TestGenericsNoBoxing(t *testing.T) {
 	const n = 100000
 
