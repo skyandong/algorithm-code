@@ -18,23 +18,6 @@ func dataPtr[T any](s []T) uintptr {
 	return uintptr(unsafe.Pointer(unsafe.SliceData(s)))
 }
 
-// 这两个 helper 标 noinline：实验要证的是「跨函数边界只传头」，
-// 内联掉函数边界后，结论虽然不变，但演示本身会被质疑。
-//
-// appendInside 在函数内 append 后丢弃返回值（看调用方是否受影响）
-//
-//go:noinline
-func appendInside(s []int) {
-	s = append(s, 7)
-}
-
-// appendAndReturn 把 append 的结果传出去
-//
-//go:noinline
-func appendAndReturn(s []int) []int {
-	return append(s, 7)
-}
-
 // 包级变量：强制逃逸，走 runtime.growslice 真实路径（栈上小 append 观察不到扩容规律）
 var growthSink []int
 
@@ -74,6 +57,11 @@ func TestAppendSharedAndSeparated(t *testing.T) {
 
 // TestAppendInside 第 2 节：函数内 append 不改调用方的 len
 func TestAppendInside(t *testing.T) {
+	// 就地定义：闭包也是函数，同样跨了一次调用边界（多头传参、结果没人接）
+	appendInside := func(s []int) {
+		s = append(s, 7)
+	}
+
 	s := make([]int, 0, 4)
 	appendInside(s)
 
@@ -83,6 +71,10 @@ func TestAppendInside(t *testing.T) {
 
 // TestAppendAndReturn 第 2 节：结果传出去才会更新头
 func TestAppendAndReturn(t *testing.T) {
+	appendAndReturn := func(s []int) []int {
+		return append(s, 7)
+	}
+
 	assert.Equal(t, []int{7}, appendAndReturn(make([]int, 0, 4)))
 }
 
