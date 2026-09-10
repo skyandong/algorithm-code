@@ -6,8 +6,8 @@ import (
 )
 
 // entries 实验入口表：名字 -> 入口函数（供 main 与测试共用）。
-// 注：实验 01（slice/map）与实验 02（string）已全部改为断言式单元测试，
-// 见 01-1_slice_test.go、01-2_map_test.go、02_string_test.go。
+// 注：实验 01（slice/string/map）已全部改为断言式单元测试，
+// 见 01-1_slice_test.go、01-2_map_test.go、01-3_string_test.go。
 var entries = []struct {
 	name string
 	run  func()

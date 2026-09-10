@@ -1,5 +1,5 @@
-// 实验 01（map 部分），断言验证；slice 部分见 01_slice_map_test.go
-// 对应笔记：notes/golang/01-slice与map底层.md 第 5~14 节
+// 实验 01（map 部分），断言验证；slice 部分见 01-1_slice_test.go
+// 对应笔记：notes/golang/01-slice、string与map底层.md 第 11~14 节
 // 源码对照：src/internal/runtime/maps/{map,table,group}.go
 package main
 
@@ -48,27 +48,30 @@ func TestMapDeleteMemory(t *testing.T) {
 	m := buildMap(n, n)
 	runtime.GC()
 	runtime.ReadMemStats(&msFull)
-	heapFull := int64(msFull.HeapAlloc)
 
 	for i := 0; i < 2*n/3; i++ {
 		delete(m, i)
 	}
 	runtime.GC()
 	runtime.ReadMemStats(&msPartial)
-	assert.GreaterOrEqual(t, int64(msPartial.HeapAlloc), heapFull,
-		"部分删除不缩容（tombstone 占位，槽位复用）")
 
 	for k := range m {
 		delete(m, k)
 	}
 	runtime.GC()
 	runtime.ReadMemStats(&msEmpty)
-	assert.Less(t, int64(msEmpty.HeapAlloc), heapFull, "删空后重置释放表内存")
 
 	m = nil
 	runtime.GC()
 	runtime.ReadMemStats(&msDrop)
-	assert.LessOrEqual(t, int64(msDrop.HeapAlloc), int64(msEmpty.HeapAlloc), "m=nil 彻底回收")
+
+	assert.Greater(t, int64(msPartial.HeapAlloc), int64(msFull.HeapAlloc)*9/10,
+		"部分删除不缩容：占用仍在删除前的 90% 以上（tombstone 占位，槽位复用）")
+	assert.Greater(t, int64(msPartial.HeapAlloc), int64(msEmpty.HeapAlloc),
+		"部分删除的占用远高于删空（实测约 10 倍）")
+	assert.Less(t, int64(msEmpty.HeapAlloc), int64(msFull.HeapAlloc), "删空后重置释放表内存")
+	assert.LessOrEqual(t, int64(msDrop.HeapAlloc), int64(msEmpty.HeapAlloc)+4096,
+		"m=nil 后无可测量增长（表已在删空时重置，此处仅释放 map 头）")
 }
 
 func TestMapUnordered(t *testing.T) {

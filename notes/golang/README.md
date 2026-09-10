@@ -7,7 +7,7 @@
 
 **语言核心篇（01-03）：语言给了你什么**
 
-1. [slice、string 与 map 底层](01-slice与map底层.md) — slice/string 头结构、slice 扩容与删除泄漏、string 不可变契约/互转/rune、map Swiss Table/rehash/并发 fatal
+1. [slice、string 与 map 底层](01-slice、string与map底层.md) — slice/string 头结构、slice 扩容与删除泄漏、string 不可变契约/互转/rune、map Swiss Table/rehash/并发 fatal
 2. [interface 与反射](02-interface与反射.md) — eface/iface、nil 陷阱、装箱逃逸、reflect 性能姿势
 3. [泛型](03-泛型.md) — 类型集与 ~ 约束、GC shape + 字典实现、方法限制、slices/maps 标准库
 
@@ -94,7 +94,7 @@ go run ./experiments/ all        # 全部实验
 go run ./experiments/ sync       # 单跑某个：06 篇
 # 可用名: visibility|channel|interview|masters|gmp|gcmemory|interface|sync|context|performance|generics|tdd
 # 注：01 篇（slice/map）与 02 篇（string）已全部改为断言式单测验证，见
-#     experiments/01-1_slice_test.go、01-2_map_test.go、02_string_test.go
+#     experiments/01-1_slice_test.go、01-2_map_test.go、01-3_string_test.go
 
 # 竞态检测（并发篇必开）
 go run -race ./experiments/ visibility
@@ -109,7 +109,7 @@ go build -gcflags="-m -l" ./experiments/ 2>&1 | grep -E "escapes|moved to heap"
 |------|------|
 | `experiments/NN_*.go` | 每篇笔记对应的可运行验证代码，`第N节` 与笔记章节对齐 |
 | `experiments/NN_*_test.go` | 每个实验的单元测试：纯逻辑用例 + demo 冒烟（断言关键输出） |
-| `experiments/01-1_slice_test.go`、`01-2_map_test.go`、`02_string_test.go` | 纯断言式验证（无 print），用指针/内存统计/子进程把底层行为钉死 |
+| `experiments/01-1_slice_test.go`、`01-2_map_test.go`、`01-3_string_test.go` | 纯断言式验证（无 print），用指针/内存统计/子进程把底层行为钉死 |
 | `experiments/main.go` | 实验分发入口，`go run ./experiments/ <名字>` |
 | `go.mod` | 独立 module `agolang`（Go 1.26） |
 

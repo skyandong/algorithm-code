@@ -1,5 +1,5 @@
-// 实验 01（slice 部分），断言验证；map 部分见 01_map_test.go
-// 对应笔记：notes/golang/01-slice与map底层.md 第 1~4、15 节
+// 实验 01（slice 部分），断言验证；map 部分见 01-2_map_test.go
+// 对应笔记：notes/golang/01-slice、string与map底层.md 第 1~4、15 节
 // 源码对照：src/runtime/slice.go
 package main
 

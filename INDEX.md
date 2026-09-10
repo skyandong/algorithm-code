@@ -18,13 +18,13 @@
 
 | 问题 | 位置 |
 | --- | --- |
-| slice 与 string 的头结构？append 扩容规则？ | [golang/01](notes/golang/01-slice与map底层.md) |
-| slice 共享底层数组的三个经典坑 | [golang/01](notes/golang/01-slice与map底层.md) |
-| map 底层实现（Swiss Table）？为什么无序？ | [golang/01](notes/golang/01-slice与map底层.md) |
-| map 并发读写为什么 fatal error 且不可 recover（高频） | [golang/01](notes/golang/01-slice与map底层.md) |
-| sync.Map 的 HashTrieMap 设计与选型 | [golang/01](notes/golang/01-slice与map底层.md)、[golang/06](notes/golang/06-sync锁与原子操作.md) |
-| string 为什么不可变？与 []byte 转换的拷贝开销 | [golang/01](notes/golang/01-slice与map底层.md) |
-| len("你好") 为什么是 6？rune 与 UTF-8 | [golang/01](notes/golang/01-slice与map底层.md) |
+| slice 与 string 的头结构？append 扩容规则？ | [golang/01](notes/golang/01-slice、string与map底层.md) |
+| slice 共享底层数组的三个经典坑 | [golang/01](notes/golang/01-slice、string与map底层.md) |
+| map 底层实现（Swiss Table）？为什么无序？ | [golang/01](notes/golang/01-slice、string与map底层.md) |
+| map 并发读写为什么 fatal error 且不可 recover（高频） | [golang/01](notes/golang/01-slice、string与map底层.md) |
+| sync.Map 的 HashTrieMap 设计与选型 | [golang/01](notes/golang/01-slice、string与map底层.md)、[golang/06](notes/golang/06-sync锁与原子操作.md) |
+| string 为什么不可变？与 []byte 转换的拷贝开销 | [golang/01](notes/golang/01-slice、string与map底层.md) |
+| len("你好") 为什么是 6？rune 与 UTF-8 | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | iface 与 eface 的区别？接口装箱什么时候逃逸 | [golang/02](notes/golang/02-interface与反射.md) |
 | nil 接口坑：为什么 `err != nil` 判不出（高频） | [golang/02](notes/golang/02-interface与反射.md) |
 | 值接收者 vs 指针接收者：方法集差异 | [golang/02](notes/golang/02-interface与反射.md) |
