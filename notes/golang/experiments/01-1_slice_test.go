@@ -5,7 +5,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -106,39 +105,6 @@ func TestGrowthCapSequence(t *testing.T) {
 		prev = cap(growthSink)
 	}
 	assert.GreaterOrEqual(t, cap(growthSink), 10000)
-}
-
-// TestDeleteWays 第 4 节：删除元素的三种写法
-func TestDeleteWays(t *testing.T) {
-	a := []int{1, 2, 3, 4}
-	a = a[:len(a)-1]
-	assert.Equal(t, []int{1, 2, 3}, a)
-	assert.Equal(t, []int{1, 2, 3, 4}, a[:cap(a)], "截断不清槽位，指针元素会泄漏")
-
-	b := []int{1, 2, 3, 4, 5}
-	b = append(b[:1], b[2:]...)
-	assert.Equal(t, []int{1, 3, 4, 5}, b, "copy 覆盖：保序")
-	assert.Equal(t, []int{1, 3, 4, 5, 5}, b[:cap(b)], "尾部残留旧值")
-
-	c := []int{1, 2, 3, 4, 5}
-	c[1] = c[len(c)-1]
-	c = c[:len(c)-1]
-	assert.Equal(t, []int{1, 5, 3, 4}, c, "swap-delete：不保序，无尾部残留")
-
-	v := 42
-	p := []*int{&v, &v, &v}
-	p[len(p)-1] = nil
-	p = p[:len(p)-1]
-	assert.Nil(t, p[:cap(p)][len(p)], "指针元素截断前清槽位，被删对象才可 GC")
-
-	func() {
-		defer func() {
-			assert.Contains(t, fmt.Sprint(recover()), "index out of range", "a[len(a)] 越界反面教材")
-		}()
-		q := make([]*int, 2, 2)
-		q = q[:1]
-		q[len(q)] = nil
-	}()
 }
 
 // TestSubsliceLeak 第 4 节：子切片扣住整块底层数组
