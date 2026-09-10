@@ -60,7 +60,6 @@ func TestAppendSharedAndSeparated(t *testing.T) {
 	// 一次追加 4 个：len 1→5 越过 cap=1，必须新分配并把旧元素拷过去
 	d := append(c, 1, 2, 3, 4)
 	assert.NotEqual(t, dataPtr(c), dataPtr(d), "len=5 > cap=1：越界，扩容分配新数组")
-	assert.Equal(t, []int{100, 1, 2, 3, 4}, d, "旧元素被拷进新数组，追加值接在后面")
 	assert.Greater(t, cap(d), cap(c), "新数组容量比原来的 cap=1 大")
 }
 

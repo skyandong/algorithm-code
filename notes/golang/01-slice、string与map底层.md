@@ -42,6 +42,17 @@ sub[0] = 99
 fmt.Println(s)         // [10 99 30] ← s 被一起改了
 ```
 
+切片表达式的**边界看 cap 不看 len**（只有索引才看 len）——规范对切片 `s[low:high]` 的要求是 `0 <= low <= high <= cap(s)`：
+
+```go
+s := make([]int, 0, 4) // len=0 cap=4
+_ = s[0]               // panic: index out of range [0] with length 0   ← 看 len
+_ = s[:1]              // 合法：1 <= cap 4                               ← 看 cap
+_ = s[:5]              // panic: slice bounds out of range [:5] with capacity 4
+```
+
+两条 panic 消息本身就点破了这条规则：索引报 `with length`，切片报 `with capacity`。所以「len 之外、cap 之内」那段内存可以重新取景 —— `append` 原地写了数据、调用方 len 却没动时，`s[:n]` 就能把它读出来（实验 `TestAppendInside` 正是用这招证明「数据确实写进了共享数组」，调用方只是看不见）。反过来，这也是第 4 节「截断不清槽位」那条坑的来源：cap 内的残留数据一直可达。
+
 string 的子串同理零拷贝：
 
 ```go
