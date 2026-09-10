@@ -223,11 +223,11 @@ G 被 `gopark` 挂起、进入 channel 的等待队列；M 与 P **完全不受�
 
 ---
 
-本篇对应实验: experiments/08_gmp.go
+本篇对应实验：experiments/08_gmp_test.go（断言式单测，无打印）
 
 ```bash
 cd notes/golang
-go run ./experiments/ gmp
+go test -run 'TestGOMAXPROCS|TestGoroutineGrowth|TestGosched|TestAsyncPreempt|TestBlockingCompare' ./experiments/
 ```
 
 实验内容：

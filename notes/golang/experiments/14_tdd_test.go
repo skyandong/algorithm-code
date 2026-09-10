@@ -1,5 +1,6 @@
-// 实验 14（TDD）的单元测试：纯逻辑用例 + demo 冒烟。
-// 本文件自身就是笔记 14 的示范样本：表驱动 + errors.Is 断言 + -short 分层。
+// 实验 14（TDD 测试驱动开发），断言验证
+// 对应笔记：notes/golang/13-TDD测试驱动开发.md
+// 源码对照：src/testing/testing.go（TB 接口）
 package main
 
 import (
@@ -40,8 +41,7 @@ func TestSplitBillV2(t *testing.T) {
 	}
 }
 
-// TestSplitBillV1Red v1 的「红」可复现：零人触发整数除零 panic。
-// 注意 runtime panic 值是 runtime.Error 而非 string，用 fmt.Sprint 比对文本。
+// TestSplitBillV1Red v1 的「红」可复现：零人触发整数除零 panic（不可 recover 的运行时错误）。
 func TestSplitBillV1Red(t *testing.T) {
 	defer func() {
 		r := recover()
@@ -65,17 +65,4 @@ func TestStubNotifier(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "通知失败", "服务侧必须包上语境（笔记 09 篇）")
 	assert.ErrorIs(t, err, failing.err, "%w 链必须可被 errors.Is 追溯")
-}
-
-// TestTDDSmoke 全量冒烟：跑一遍实验并断言关键结论输出。
-func TestTDDSmoke(t *testing.T) {
-	requireDemoRun(t)
-
-	out := captureStdout(t, RunTDDExperiments)
-	assert.Contains(t, out, "红2", "红步骤必须出现")
-	assert.Contains(t, out, "integer divide by zero", "v1 的除零 panic 必须演示")
-	assert.Contains(t, out, "[FAIL] 零人报错", "对 v1 跑表必须出现失败行（红）")
-	assert.Contains(t, out, "表驱动[v1]: 2/5 用例通过", "v1 的红")
-	assert.Contains(t, out, "表驱动[v2]: 5/5 用例通过", "v2 的绿")
-	assert.Contains(t, out, "注入失败路径", "stub 失败注入必须出现")
 }

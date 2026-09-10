@@ -357,4 +357,4 @@ return 赋值之后、真正返回之前，LIFO。参数在入 defer 链时立�
 
 ---
 
-本篇对应实验：experiments/10_context_error.go
+本篇对应实验：experiments/10_context_error.go、10_context_error_test.go（断言式单测，无打印）

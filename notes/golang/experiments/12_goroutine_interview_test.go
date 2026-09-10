@@ -1,11 +1,11 @@
-// 实验 12（Goroutine 面试题）的单元测试
-//
-// 纯逻辑部分：blockingMap / Ban 限流 / WaitTimeout 都是可以直接断言的可复用实现；
-// 冒烟部分：完整跑一遍六道手写题。
+// 实验 12（Goroutine 面试题集），断言验证
+// 对应笔记：notes/golang/11-Goroutine面试题集.md
+// 源码对照：src/runtime/runtime2.go
 package main
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -67,9 +67,26 @@ func TestBanVisit(t *testing.T) {
 	assert.False(t, ban.visit("5.6.7.8", t0), "不同 IP 互不影响")
 }
 
+// TestBanVisitConcurrency 100 个不同 IP 并发各访一次，恰好放行 100 次（无竞态）。
+func TestBanVisitConcurrency(t *testing.T) {
+	ban := NewBan()
+	var success atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(100)
+	for j := 0; j < 100; j++ {
+		go func(ip string) {
+			defer wg.Done()
+			if !ban.visit(ip, time.Now()) {
+				success.Add(1)
+			}
+		}(string(rune('A' + j)))
+	}
+	wg.Wait()
+	assert.Equal(t, int64(100), success.Load(), "每个 IP 三分钟窗口内只允许一次")
+}
+
 // TestWaitTimeout 超时返回 true（调用方负责取消）、自然结束返回 false。
 func TestWaitTimeout(t *testing.T) {
-	// 场景 1：worker 不退出 → 超时 true
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
 	for i := 0; i < 5; i++ {
@@ -86,7 +103,6 @@ func TestWaitTimeout(t *testing.T) {
 	close(stop)
 	wg.Wait()
 
-	// 场景 2：任务快速完成 → false
 	var wg2 sync.WaitGroup
 	wg2.Add(3)
 	for i := 0; i < 3; i++ {
@@ -98,13 +114,91 @@ func TestWaitTimeout(t *testing.T) {
 	assert.False(t, WaitTimeout(&wg2, 2*time.Second))
 }
 
-// TestInterviewSmoke 全量冒烟。
-func TestInterviewSmoke(t *testing.T) {
-	requireDemoRun(t)
+// TestFindWithTimeoutFound 目标存在 → 找到即取消其余 worker。
+func TestFindWithTimeoutFound(t *testing.T) {
+	big := make([]int, 1_000_000)
+	for i := range big {
+		big[i] = i
+	}
+	assert.Equal(t, "found", findWithTimeout(big, 777777, 8, 5*time.Second))
+}
 
-	out := captureStdout(t, RunInterviewExperiments)
-	assert.Contains(t, out, "题3：高并发 IP 限流", "六道手写题必须全部出现")
-	assert.Contains(t, out, "题6：多协程查询切片")
-	assert.Contains(t, out, "Found it!", "context 取消查找必须演示")
-	assert.Contains(t, out, "（0~9 各出现一次", "题19 range 闭包结论必须出现")
+// TestFindWithTimeoutNotFound 目标不存在且扫描很快完成 → notfound（未超时）。
+func TestFindWithTimeoutNotFound(t *testing.T) {
+	big := make([]int, 1_000_000)
+	for i := range big {
+		big[i] = i
+	}
+	assert.Equal(t, "notfound", findWithTimeout(big, -1, 8, 5*time.Second))
+}
+
+// TestFindSlowWithTimeout 目标不存在 + 慢查询 → 超时取消 → timeout。
+func TestFindSlowWithTimeout(t *testing.T) {
+	big := make([]int, 1_000_000)
+	for i := range big {
+		big[i] = i
+	}
+	assert.Equal(t, "timeout", findSlowWithTimeout(big, -1, 2, 300*time.Millisecond))
+}
+
+// TestRangeClosureValueCopy range 值副本自增不影响原 slice（题19 核心结论）。
+func TestRangeClosureValueCopy(t *testing.T) {
+	type rngT struct{ V int }
+	incr := func(t *rngT, wg *sync.WaitGroup) {
+		defer wg.Done()
+		t.V++
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(10)
+	ts := make([]rngT, 10)
+	for i := 0; i < 10; i++ {
+		ts[i] = rngT{i}
+	}
+	for _, tr := range ts {
+		go incr(&tr, &wg) // 值副本自增，不影响 ts
+	}
+	wg.Wait()
+
+	for i := range ts {
+		assert.Equal(t, i, ts[i].V, "range 值副本自增不改原 slice 元素")
+	}
+}
+
+// TestProducerConsumerChannel 发送方负责 close，接收方 range 收全后退出。
+func TestProducerConsumerChannel(t *testing.T) {
+	out := make(chan int)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		defer close(out) // 发送方负责关闭
+		for i := 0; i < 5; i++ {
+			out <- i
+		}
+	}()
+
+	got := make([]int, 0, 5)
+	go func() {
+		defer wg.Done()
+		for v := range out {
+			got = append(got, v)
+		}
+	}()
+	wg.Wait()
+
+	assert.Equal(t, []int{0, 1, 2, 3, 4}, got, "发送方 close 后接收方 range 收全并退出")
+}
+
+// TestTimerPanicRecovered 同 goroutine 内 recover 能拦住 panic，定时调用不退出。
+func TestTimerPanicRecovered(t *testing.T) {
+	proc := func() { panic("boom") }
+	callSafely := func(f func()) (recovered any) {
+		defer func() { recovered = recover() }()
+		f()
+		return
+	}
+	for i := 0; i < 3; i++ {
+		assert.Equal(t, "boom", callSafely(proc), "panic 被同 goroutine 的 recover 拦住")
+	}
 }

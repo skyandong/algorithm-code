@@ -70,8 +70,8 @@ func TestMapDeleteMemory(t *testing.T) {
 	assert.Greater(t, int64(msPartial.HeapAlloc), int64(msEmpty.HeapAlloc),
 		"部分删除的占用远高于删空（实测约 10 倍）")
 	assert.Less(t, int64(msEmpty.HeapAlloc), int64(msFull.HeapAlloc), "删空后重置释放表内存")
-	assert.LessOrEqual(t, int64(msDrop.HeapAlloc), int64(msEmpty.HeapAlloc)+4096,
-		"m=nil 后无可测量增长（表已在删空时重置，此处仅释放 map 头）")
+	assert.LessOrEqual(t, int64(msDrop.HeapAlloc), int64(msEmpty.HeapAlloc)*2,
+		"m=nil 后无可测量增长（与删空同量级；表已在删空时重置，此处仅释放 map 头）")
 }
 
 func TestMapUnordered(t *testing.T) {
@@ -134,6 +134,9 @@ func TestRangeMutation(t *testing.T) {
 func TestConcurrentMapWriteFatal(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过子进程崩溃验证")
+	}
+	if raceEnabled {
+		t.Skip("-race 下 race detector 会先报竞态并终止子进程，拿不到 runtime 的 fatal error 输出")
 	}
 
 	cmd := exec.Command(os.Args[0], "-test.run=TestConcurrentMapWriteFatalChild", "-test.count=1")

@@ -507,12 +507,12 @@ sync.Once：只执行一次初始化，并在完成后发布结果
 
 ## 实验
 
-对应代码：[experiments/05_memory_visibility.go](experiments/05_memory_visibility.go)
+对应代码：[experiments/05_memory_visibility_test.go](experiments/05_memory_visibility_test.go)（断言式单测，无打印）
 
 ```bash
 cd notes/golang
-go run ./experiments/ visibility        # 常规运行
-go run -race ./experiments/ visibility  # 观察 DATA RACE 报告
+go test -run 'TestAtomic|TestChannelPublish|TestMutexPublish|TestOnce' ./experiments/
+go test -race -run 'TestAtomic|TestChannelPublish|TestMutexPublish|TestOnce' ./experiments/  # 竞态检测，应无报告
 ```
 
 实验内容：

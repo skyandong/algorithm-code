@@ -1489,11 +1489,11 @@ nil channel 是另一种状态：向 nil channel 发送或接收会永久阻塞�
 
 ## 实验
 
-对应代码：[experiments/12_goroutine_interview.go](experiments/12_goroutine_interview.go)
+对应代码：[experiments/12_goroutine_interview.go](experiments/12_goroutine_interview.go)、[12_goroutine_interview_test.go](experiments/12_goroutine_interview_test.go)（断言式单测，无打印）
 
 ```bash
 cd notes/golang
-go run ./experiments/ interview
+go test -run 'TestBlockingMap|TestBan|TestWaitTimeout|TestFindWithTimeout|TestFindSlow|TestRangeClosure|TestProducerConsumer|TestTimerPanic' ./experiments/
 ```
 
 实验内容（编程手写题 1-6 全部可运行）：

@@ -258,4 +258,4 @@ Go 社区主流是**能手写就不生成**——stub 本身就是消费者侧�
 
 ---
 
-本篇对应实验：experiments/14_tdd.go
+本篇对应实验：experiments/14_tdd.go、14_tdd_test.go（断言式单测，无打印）

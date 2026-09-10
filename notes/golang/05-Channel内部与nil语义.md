@@ -1225,11 +1225,11 @@ closed：
 
 ## 实验
 
-对应代码：[experiments/06_channel.go](experiments/06_channel.go)
+对应代码：[experiments/06_channel_test.go](experiments/06_channel_test.go)（断言式单测，无打印）
 
 ```bash
 cd notes/golang
-go run ./experiments/ channel
+go test -run 'TestNilChannel|TestNilDisables|TestClosedChannel|TestClose|TestUnbuffered|TestBuffered' ./experiments/
 ```
 
 实验内容：

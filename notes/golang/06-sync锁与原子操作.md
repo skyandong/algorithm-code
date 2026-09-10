@@ -347,4 +347,4 @@ Wait 返回发生在计数归零时；若在子 goroutine 里才 Add，主流程
 
 ---
 
-本篇对应实验：experiments/07_sync_atomic.go
+本篇对应实验：experiments/07_sync_atomic_test.go（断言式单测，无打印；含子进程 fatal 验证）

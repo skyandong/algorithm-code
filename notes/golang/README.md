@@ -1,6 +1,6 @@
 # golang 学习笔记
 
-> 目标：以「面试为纲、工程为本」系统掌握 Go——语言机制、并发模型、运行时底层是面试的硬通货，context/错误处理/性能调优是工作的日常。**本文档基于 Go 1.26（go.mod 声明，本机 1.26.3）编写**，所有结论描述当前版本的实际行为，不做历史版本对比；每篇配可运行实验，**结论必须能被 `go run` 复现**。
+> 目标：以「面试为纲、工程为本」系统掌握 Go——语言机制、并发模型、运行时底层是面试的硬通货，context/错误处理/性能调优是工作的日常。**本文档基于 Go 1.26（go.mod 声明，本机 1.26.3）编写**，所有结论描述当前版本的实际行为，不做历史版本对比；每篇配断言式实验，**结论必须能被 `go test` 复现**。
 > **主线认知：** Go 的复杂度都藏在「看起来简单」的语法下面——`go func()` 背后是 GMP 调度器，`append` 背后是扩容拷贝，`err != nil` 背后是接口二元组。学 Go 就是把这些隐含机制变成显性知识。
 
 ## 目录
@@ -88,42 +88,39 @@
 
 ## 跑实验
 
+全部实验都是**断言式单元测试**（无打印输出），用 `go test` 跑：
+
 ```bash
 cd notes/golang
-go run ./experiments/ all        # 全部实验
-go run ./experiments/ sync       # 单跑某个：06 篇
-# 可用名: visibility|channel|interview|masters|gmp|gcmemory|interface|sync|context|performance|generics|tdd
-# 注：01 篇（slice/map）与 02 篇（string）已全部改为断言式单测验证，见
-#     experiments/01-1_slice_test.go、01-2_map_test.go、01-3_string_test.go
+go test ./experiments/                   # 全部实验
+go test -run TestChannel ./experiments/  # 按用例名挑（一篇一个前缀）
 
-# 竞态检测（并发篇必开）
-go run -race ./experiments/ visibility
+# 竞态检测（并发篇必开）：无报告 = 同步原语用对了
+go test -race -run 'TestAtomic|TestOnce|TestMutexForeignUnlock' ./experiments/
 
-# 逃逸分析验证（08 篇）
-go build -gcflags="-m -l" ./experiments/ 2>&1 | grep -E "escapes|moved to heap"
+# 逃逸分析验证（08 篇）：-run '^$' 只编译不跑用例
+go test -gcflags="-m -l" -run '^$' ./experiments/ 2>&1 | grep -E "escapes to heap|moved to heap"
 ```
 
 **文件说明**
 
 | 文件 | 内容 |
 |------|------|
-| `experiments/NN_*.go` | 每篇笔记对应的可运行验证代码，`第N节` 与笔记章节对齐 |
-| `experiments/NN_*_test.go` | 每个实验的单元测试：纯逻辑用例 + demo 冒烟（断言关键输出） |
-| `experiments/01-1_slice_test.go`、`01-2_map_test.go`、`01-3_string_test.go` | 纯断言式验证（无 print），用指针/内存统计/子进程把底层行为钉死 |
-| `experiments/main.go` | 实验分发入口，`go run ./experiments/ <名字>` |
+| `experiments/NN_xxx_test.go` | 每个实验的断言式用例（无打印），用例名与笔记章节对齐 |
+| `experiments/NN_xxx.go` | 只保留被用例引用的实现（类型/函数）；纯演示型实验已无对应 .go（05~08） |
 | `go.mod` | 独立 module `agolang`（Go 1.26） |
 
-## 跑测试（格式同 akafka 模块）
+## 跑测试
 
 ```bash
 cd notes/golang
-make test        # 全量：纯逻辑 + demo 冒烟（约 12s）
-make test-unit   # 只跑纯逻辑（-short，约 1s）
+make test        # 全量（约 4s）
+make test-unit   # 跳过慢用例（-short，约 1s）
 go test ./experiments/ -v     # 等价 make test
 go test ./experiments/ -short # 等价 make test-unit
 ```
 
-测试分两类：**纯逻辑用例**直接断言实验里的可复用函数（泛型工具、blockingMap、WaitTimeout 等），任何环境可跑，CI 兜底；**demo 冒烟用例**完整跑一遍实验并断言关键结论输出（如 `部分删除`、`close of closed channel`），防止笔记结论与实验代码脱节，`-short` 时跳过。
+`-short` 跳过的是含 sleep、大内存分配或子进程崩溃验证的用例（并发阻塞对比、128MB GC 实验、fatal 子进程等）；其余断言在任何环境都能跑，CI 兜底。
 
 ## 与其他模块的衔接
 

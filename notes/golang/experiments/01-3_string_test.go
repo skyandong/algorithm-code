@@ -76,7 +76,8 @@ func TestStringConvertAlloc(t *testing.T) {
 		}
 	}
 	runtime.ReadMemStats(&after)
-	assert.Equal(t, uint64(0), after.TotalAlloc-before.TotalAlloc, "m[string(b)] 编译器特例：索引免分配")
+	assert.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(1024),
+		"m[string(b)] 编译器特例：索引免分配（10 万次迭代，若有分配必然远超 1KB）")
 }
 
 func TestStringConcat(t *testing.T) {
