@@ -523,4 +523,4 @@ slice 头不可比较（comparable 不满足）；string 不可变、== 是 memc
 
 ---
 
-本篇对应实验：experiments/01_slice_map.go、experiments/02_string.go
+本篇对应实验：experiments/01-1_slice_test.go、01-2_map_test.go、02_string_test.go（均为断言式单测，无打印）

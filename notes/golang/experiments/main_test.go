@@ -12,7 +12,7 @@ import (
 
 // TestEntriesTable 入口表：数量固定、名字唯一、run 非空。
 func TestEntriesTable(t *testing.T) {
-	assert.Len(t, entries, 13)
+	assert.Len(t, entries, 12)
 
 	seen := make(map[string]bool, len(entries))
 	for _, e := range entries {
