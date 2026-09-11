@@ -160,18 +160,23 @@ func TestConcurrentMapWriteFatalChild(t *testing.T) {
 		t.Skip("仅由 TestConcurrentMapWriteFatal 以子进程拉起")
 	}
 
+	runtime.GOMAXPROCS(2) // 单核 runner 上也要真并发，否则写操作可能完全不重叠、不触发检测
+
 	m := map[int]int{}
+	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for w := 0; w < 4; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			defer func() { _ = recover() }() // recover 拦不住 throw
-			for i := 0; i < 1000; i++ {
+			<-start                          // 发令枪：4 个 goroutine 同时开始写
+			for i := 0; i < 100000; i++ {
 				m[i] = 1
 			}
 		}()
 	}
+	close(start)
 	wg.Wait()
 }
 
