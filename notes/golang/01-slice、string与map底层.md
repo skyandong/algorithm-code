@@ -156,17 +156,15 @@ clear(a)  // len 不变：元素全部归零；要的是"归零"而不是"变短
 - `a[:0]` 复用是缓冲区高频优化，但元素含指针时残留引用会阻止 GC——重置前先 `clear(a[:oldLen])`；
 - 含敏感数据（token、密钥）的 slice，卫生清理靠 `clear`；`a[:0]` 和 `a = nil` 都只是改引用。
 
-**大数组切小 slice 的泄漏**（高频线上问题）：
+**大数组切小 slice 的泄漏**（读大文件、解析大 buffer 后只留一小段时高频出现）：
 
 ```go
 big := make([]byte, 1<<20)      // 1 MiB
-tail := big[len(big)-2:]         // 只用末尾 2 字节
-// 只要 tail 活着，整块 1 MiB 都无法被 GC 回收
+tail := big[len(big)-2:]         // 只留末尾 2 字节
+// tail 的 array 指针指进 big 的分配块内部 → 整个分配对象都算存活，1 MiB 全收不掉
 fixed := make([]byte, len(tail))
-copy(fixed, tail)               // 修复：copy 出独立小数组
+copy(fixed, tail)               // 修法：copy 出独立小数组；string 对应 strings.Clone
 ```
-
-WHY：GC 以**分配对象**为回收单位，`tail` 的 array 指针指进 `big` 的分配块中间，整块都活着。读文件、解析大 buffer 后只留一小段时必做 copy（string 场景对应 `strings.Clone`，见第 1 节）。
 
 ---
 
