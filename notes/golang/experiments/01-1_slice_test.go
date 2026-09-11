@@ -110,16 +110,17 @@ func TestGrowthCapSequence(t *testing.T) {
 // TestSubsliceLeak 第 4 节：子切片扣住整块底层数组
 func TestSubsliceLeak(t *testing.T) {
 	big := make([]byte, 1<<20) // 1 MiB
+	big[len(big)-2], big[len(big)-1] = 'h', 'i'
 	tail := big[len(big)-2:]
 
-	tp, bp := dataPtr(tail), dataPtr(big)
-	assert.Greater(t, tp, bp)
-	assert.Less(t, tp, bp+1<<20, "tail 指向 big 内部：tail 活着，1 MiB 就回收不了")
+	assert.Equal(t, dataPtr(big)+uintptr(len(big))-2, dataPtr(tail),
+		"tail 起始地址 = big 起始 + len-2：落在同一分配块内部，整块 1 MiB 都被它钉住")
 
 	fixed := make([]byte, len(tail))
 	copy(fixed, tail)
-	fp := dataPtr(fixed)
-	assert.True(t, fp < bp || fp >= bp+1<<20, "copy 修复后 fixed 独立于 big")
+
+	assert.Equal(t, []byte("hi"), fixed, "copy 把内容搬了出来")
+	assert.NotEqual(t, dataPtr(big), dataPtr(fixed), "fixed 是独立分配，与 big 无关")
 }
 
 // TestNilEmptySlice 第 15 节：nil 切片与空切片的分工
