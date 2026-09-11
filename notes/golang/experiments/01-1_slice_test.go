@@ -128,8 +128,8 @@ func TestNilEmptySlice(t *testing.T) {
 	var nilSlice []int
 	emptySlice := []int{}
 
-	assert.Equal(t, 0, len(nilSlice))
-	assert.Equal(t, 0, len(emptySlice), "判空一律 len()==0")
+	assert.Len(t, 0, len(nilSlice))
+	assert.Len(t, 0, len(emptySlice), "判空一律 len()==0")
 
 	assert.True(t, nilSlice == nil)
 	assert.False(t, emptySlice == nil)
