@@ -1225,7 +1225,7 @@ closed：
 
 ## 实验
 
-对应代码：[experiments/06_channel_test.go](experiments/06_channel_test.go)（断言式单测，无打印）
+对应代码：[experiments/05_channel_test.go](experiments/05_channel_test.go)（断言式单测，无打印）
 
 ```bash
 cd notes/golang

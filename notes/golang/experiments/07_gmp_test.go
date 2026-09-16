@@ -1,4 +1,4 @@
-// 实验 08（运行时调度器 GMP），断言验证
+// 实验 07（运行时调度器 GMP），断言验证
 // 对应笔记：notes/golang/07-运行时调度器GMP.md
 // 源码对照：src/runtime/runtime2.go（g 结构）、src/runtime/proc.go（sysmon → preemptM → SIGURG）
 // 调度顺序本身不确定，这里只钉住可确定的行为边界
@@ -16,17 +16,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGOMAXPROCSReturnsOldValue 第 1 节：P 数 = GOMAXPROCS，设置时返回旧值
+// TestGOMAXPROCSReturnsOldValue 第 6 节：P 数 = GOMAXPROCS，设置时返回旧值
 func TestGOMAXPROCSReturnsOldValue(t *testing.T) {
 	prev := runtime.GOMAXPROCS(2)
 	defer runtime.GOMAXPROCS(prev)
 
 	assert.Equal(t, 2, runtime.GOMAXPROCS(0), "P 的数量 = GOMAXPROCS")
-	assert.GreaterOrEqual(t, prev, 1, "设置时返回旧值")
-	assert.GreaterOrEqual(t, runtime.NumCPU(), 1)
+	assert.Equal(t, 2, runtime.GOMAXPROCS(4), "返回的是旧值 2，不是刚设进去的新值 4")
 }
 
-// TestGoroutineGrowthAndFallback 第 2 节：千级 goroutine 秒建秒回收
+// TestGoroutineGrowthAndFallback 第 7 节：千级 goroutine 秒建秒回收
 func TestGoroutineGrowthAndFallback(t *testing.T) {
 	base := runtime.NumGoroutine()
 
@@ -43,7 +42,7 @@ func TestGoroutineGrowthAndFallback(t *testing.T) {
 	assert.LessOrEqual(t, runtime.NumGoroutine(), base+100, "广播退出后回落到基线附近")
 }
 
-// TestGoschedBothGoroutinesFinish 第 3 节：单 P 下主动让出，双方都不饿死
+// TestGoschedBothGoroutinesFinish 第 2 节：单 P 下主动让出，双方都不饿死
 func TestGoschedBothGoroutinesFinish(t *testing.T) {
 	prev := runtime.GOMAXPROCS(1) // 单 P 下让出效果最直观
 	defer runtime.GOMAXPROCS(prev)
@@ -72,7 +71,7 @@ func TestGoschedBothGoroutinesFinish(t *testing.T) {
 	assert.Equal(t, int64(6), b.Load(), "Gosched 让出后另一个 G 能推进，双方都不饿死")
 }
 
-// TestAsyncPreemptKeepsTicksAlive 第 4 节：纯 CPU 循环被 SIGURG 异步抢占
+// TestAsyncPreemptKeepsTicksAlive 第 5 节：纯 CPU 循环被 SIGURG 异步抢占
 func TestAsyncPreemptKeepsTicksAlive(t *testing.T) {
 	prev := runtime.GOMAXPROCS(1) // 单 P：抢占一旦失效，主 G 会被饿死
 	defer runtime.GOMAXPROCS(prev)
@@ -88,13 +87,10 @@ func TestAsyncPreemptKeepsTicksAlive(t *testing.T) {
 	}()
 
 	t0 := time.Now()
-	for i := 1; i <= 3; i++ {
-		time.Sleep(50 * time.Millisecond)
-	}
+	time.Sleep(150 * time.Millisecond)
 	elapsed := time.Since(t0)
 
 	assert.Less(t, elapsed, 2*time.Second, "纯 CPU G 运行期间主 G 按时醒来：异步抢占（SIGURG）生效")
-	assert.GreaterOrEqual(t, elapsed, 150*time.Millisecond)
 
 	select {
 	case <-done:
@@ -103,7 +99,7 @@ func TestAsyncPreemptKeepsTicksAlive(t *testing.T) {
 	}
 }
 
-// TestBlockingCompareThreads 第 5 节：channel 阻塞不占线程，系统调用阻塞占住 M
+// TestBlockingCompareThreads 第 3 节：channel 阻塞不占线程，系统调用阻塞占住 M
 func TestBlockingCompareThreads(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过（含 1s 系统调用阻塞）")

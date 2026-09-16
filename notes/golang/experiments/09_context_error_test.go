@@ -1,4 +1,4 @@
-// 实验 10（context 与错误处理），断言验证
+// 实验 09（context 与错误处理），断言验证
 // 对应笔记：notes/golang/09-context与错误处理.md
 // 源码对照：src/context/context.go
 package main
@@ -147,7 +147,7 @@ func TestUncanceledChildDiesWithParent(t *testing.T) {
 	leakedCancel() // 收尾
 }
 
-// TestErrorWrappingWAndV 第 4 节：%w 保留错误链，%v 断链
+// TestErrorWrappingWAndV 第 6 节：%w 保留错误链，%v 断链
 func TestErrorWrappingWAndV(t *testing.T) {
 	wrapped := fmt.Errorf("open db: %w", errConnRefused)
 	broken := fmt.Errorf("open db: %v", errConnRefused)
@@ -156,7 +156,7 @@ func TestErrorWrappingWAndV(t *testing.T) {
 	assert.NotErrorIs(t, broken, errConnRefused, "%v 只拼字符串，链断了")
 }
 
-// TestStringMatchingIsFragile 第 4 节：字符串判错一改就失效
+// TestStringMatchingIsFragile 第 6 节：字符串判错一改就失效
 func TestStringMatchingIsFragile(t *testing.T) {
 	broken := fmt.Errorf("open db: %v", errConnRefused)
 
@@ -165,7 +165,7 @@ func TestStringMatchingIsFragile(t *testing.T) {
 		"但消息改版/本地化即失效——判定必须用 errors.Is/As，禁止字符串比对")
 }
 
-// TestErrorsAsStructured 第 4 节：As 沿链取结构化错误
+// TestErrorsAsStructured 第 6 节：As 沿链取结构化错误
 func TestErrorsAsStructured(t *testing.T) {
 	verr := &validationError{Field: "age", Msg: "must be positive"}
 	chained := fmt.Errorf("validate user: %w", verr)
@@ -176,7 +176,7 @@ func TestErrorsAsStructured(t *testing.T) {
 	assert.Equal(t, "must be positive", target.Msg)
 }
 
-// TestErrorsJoinTree 第 4 节：Join 成树，Is/As 遍历整棵
+// TestErrorsJoinTree 第 6 节：Join 成树，Is/As 遍历整棵
 func TestErrorsJoinTree(t *testing.T) {
 	verr := &validationError{Field: "age", Msg: "must be positive"}
 	chained := fmt.Errorf("validate user: %w", verr)
@@ -188,7 +188,7 @@ func TestErrorsJoinTree(t *testing.T) {
 	assert.True(t, errors.As(joined, &target), "As 同样遍历整棵树")
 }
 
-// TestErrorsAsNetError 第 4 节：As 出 net.Error 才能判超时
+// TestErrorsAsNetError 第 6 节：As 出 net.Error 才能判超时
 func TestErrorsAsNetError(t *testing.T) {
 	wrappedTimeout := fmt.Errorf("rpc call: %w", timeoutError{})
 
@@ -200,7 +200,7 @@ func TestErrorsAsNetError(t *testing.T) {
 	assert.False(t, errors.As(wrapped, &netErr), "哨兵错误不是 net.Error")
 }
 
-// TestPanicRecoverInDefer 第 5 节：recover 必须在 defer 体内直接调用
+// TestPanicRecoverInDefer 第 7 节：recover 必须在 defer 体内直接调用
 func TestPanicRecoverInDefer(t *testing.T) {
 	var recovered any
 	func() {
@@ -222,12 +222,12 @@ func TestPanicRecoverInDefer(t *testing.T) {
 	assert.Contains(t, string(stack), "panicInner")
 }
 
-// TestBareRecoverReturnsNil 第 5 节：没有展开中的 panic，裸 recover 返回 nil
+// TestBareRecoverReturnsNil 第 7 节：没有展开中的 panic，裸 recover 返回 nil
 func TestBareRecoverReturnsNil(t *testing.T) {
 	assert.Nil(t, recover(), "没有展开中的 panic，裸 recover 永远返回 nil")
 }
 
-// TestRecoverCrossGoroutineIsFatal 第 5 节：跨 goroutine 的 panic 拦不住（子进程验证）
+// TestRecoverCrossGoroutineIsFatal 第 7 节：跨 goroutine 的 panic 拦不住（子进程验证）
 func TestRecoverCrossGoroutineIsFatal(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过子进程崩溃验证")
@@ -257,7 +257,7 @@ func TestRecoverCrossGoroutineFatalChild(t *testing.T) {
 	<-done
 }
 
-// TestDeferArgumentSnapshot 第 6 节：defer 参数入链时求值，闭包执行时才读
+// TestDeferArgumentSnapshot 第 8 节：defer 参数入链时求值，闭包执行时才读
 func TestDeferArgumentSnapshot(t *testing.T) {
 	var captured []int
 
@@ -277,7 +277,7 @@ func TestDeferArgumentSnapshot(t *testing.T) {
 	assert.Equal(t, []int{1}, captured, "闭包捕获变量本身，执行时读到新值")
 }
 
-// TestSafeCallConvertsPanicToError 第 6 节：panic 被 defer 转成 error
+// TestSafeCallConvertsPanicToError 第 7 节：panic 被 defer 转成 error
 func TestSafeCallConvertsPanicToError(t *testing.T) {
 	err := safeCall()
 	assert.Error(t, err, "命名返回值可被 defer 改写")

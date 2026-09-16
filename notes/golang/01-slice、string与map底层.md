@@ -178,16 +178,7 @@ copy(fixed, tail)               // 修法：copy 出独立小数组；string 对
 
 **推论三：写 = 新分配。** 所有「修改」API（`strings.Replace`、`+`、`ToUpper`）都返回新串。循环里 `s += x` 是 O(n²) 事故的根源（第 7 节）。
 
-**零拷贝的边界（unsafe）**——`unsafe.String` 造出的 string 指向可变内存，**契约在你手里而非编译器手里**：
-
-```go
-b := []byte("hello")
-s := unsafe.String(unsafe.SliceData(b), len(b)) // 标准写法
-b[0] = 'H'
-fmt.Println(s) // "Hello" —— s 跟着变了！
-```
-
-这就是 `02` 篇红线的 string 版：**绝不能修改零拷贝 string 的底层数据**（可能污染驻留字面量、破坏 map key 哈希一致性）；且产物生命周期与源绑定，b 被复用/回收后 s 是悬挂视图。只在序列化/网络库的边界热路径用。
+**零拷贝的边界（unsafe）**——`unsafe.String` 造出的 string 指向可变内存，**契约在你手里而非编译器手里**：改源 `[]byte` 会连带改 string（可能污染驻留字面量、破坏 map key 哈希一致性）；产物生命周期与源绑定，源被复用/回收后就是悬挂视图。写法与红线见第 16 节。
 
 ---
 
@@ -211,7 +202,7 @@ s2 := string(b) // 拷贝（同上）
 
 1. **统一内部类型**——整个流水线全用 []byte（或全用 string），只在 API 边界转一次；
 2. 标准库已有 []byte 版 API 就别用 string 版：`bytes.Contains` vs `strings.Contains`、`bufio.Scanner` 的 `Bytes()`；
-3. 最后才是 unsafe 零拷贝（`02` 篇红线全数适用）。
+3. 最后才是 unsafe 零拷贝（第 16 节红线全数适用）。
 
 ```go
 // 快速判断成员：map 索引免拷贝特例
@@ -267,13 +258,20 @@ utf8.RuneCountInString(s)   // 4 —— 字符（码点）数
 []rune(s)                   // 拷贝+解码成 []rune{20320, 22909, 71, 111}
 ```
 
-**for range string 按码点迭代**——每轮解码一个 UTF-8 序列，索引是**字节偏移**（不是第几个字符）：
+**for range string 按码点迭代**——两个变量时每轮解码一个 UTF-8 序列并交出 rune，索引是**字节偏移**（不是第几个字符）：
 
 ```go
 for i, r := range "你好Go" {
     fmt.Println(i, r) // 0 你 / 3 好 / 6 G / 7 o —— 索引跳变
 }
+
+// 只写一个变量时不解码，只给按 rune 边界对齐的字节索引
+for i := range "你好Go" {
+    fmt.Println(i) // 0 / 3 / 6 / 7
+}
 ```
+
+注意 `for i := range s`（单变量）**不会**解码出 rune——它只用内部解码来定位下一个边界，rune 本身不交给你。需要手动解码时用 `utf8.DecodeRuneInString(s)`，它返回 `(rune, size)`，本身零拷贝，但调用方要自己 `s = s[size:]` 前进。
 
 三个高频坑：
 
@@ -293,7 +291,7 @@ rune 本质：`type rune = int32`（类型别名不是新类型），表示一�
 2. **`+` 多元拼接**：`a + b + c`（一个表达式）编译成 `runtime.concatstrings` 一次算总长、一次分配；
 3. **比较短路**：`==` 先比长度再比内容；`len` 不同立即 false；
 4. **map[string(b)] 免分配**（第 6 节）；
-5. **range string 免 []byte 化**：`for i := range s` 直接在字节上迭代，`utf8.DecodeRuneInString` 零拷贝解码（对比 `for range []byte(s)` 需要先拷贝）；
+5. **`[]byte(s)` 不逃逸时免拷贝**：只遍历不留存则借用原字节（`-m` 可见 `zero-copy string->[]byte conversion`），故 `for range []byte(s)` 也是 0 分配，与 `for i := range s` 的差异只在按字节还是按 rune 边界（第 8 节）；逃逸则退化为真拷贝（第 6 节）；
 6. **子串零拷贝**（第 1 节）；
 7. **switch string**：编译器按长度+首字符建跳转表，不是线性全比。
 
@@ -409,7 +407,7 @@ go func() { for { _ = m[1] } }()
 三个要点：
 
 1. **这是 throw 不是 panic**：runtime 直接 `fatal`，不走 panic 机制，`defer/recover` 拦不住，进程整个退出。WHY：map 并发写会破坏内部结构（链表/控制字状态不一致），runtime 选择宁可崩溃也不带着坏数据继续跑；
-2. **该检测是尽力而为**（实现里是 `writing` 标志，读写前检查并 XOR 置位）——是「尽力检测」而非保证抓到每一个竞态，`-race` 才是完备工具；
+2. **该检测是尽力而为**（实现里是 `writing` 标志，读写前检查并 XOR 置位）——检测不到时可能先被写坏的指针拖成 `fatal error: fault`，`-race` 才是完备工具；
 3. 检测到的是「正在写时读/写」，两个 goroutine 错峰写不报错但同样危险。
 
 **怎么让 map 并发安全**：
@@ -473,7 +471,46 @@ JSON 差异是真实业务坑：API 响应的数组字段，nil 切片序列化�
 
 ---
 
-## 16. 面试高频
+## 16. unsafe：零拷贝的桥梁与红线
+
+`unsafe.Pointer` 是编译器唯一认可的「任意指针 ↔ 具体指针类型」转换桥梁；`uintptr` 只是无 GC 语义的整数，**不能拿来暂存指针**。它关掉的是类型系统与 GC 语义，**合法出场只有两类**：
+
+1. **类型双关**——把一块内存按另一种布局解释（`unsafe.String` / `unsafe.Slice` 本身就是这个用途的正解）；手写 `*(*T)(unsafe.Pointer(&x))` 只在对接 C 或固定布局协议时用，布局必须逐字段一致；
+2. **零拷贝**——string 与 []byte 之间免掉那次必然的拷贝。
+
+**两个标准 API**：
+
+```go
+b := []byte("hello")
+s := unsafe.String(unsafe.SliceData(b), len(b))  // []byte → string，共享内存
+bs := unsafe.Slice(unsafe.StringData(s), len(s)) // string → []byte，共享内存
+bs[0] = 'H'                                      // s 变成 "Hello"
+```
+
+**别用 `reflect.StringHeader` / `reflect.SliceHeader`**：两个类型在当前版本已标 `Deprecated: Use unsafe.String or unsafe.StringData instead`（`reflect/value.go`），且它们的 `Data` 字段是 `uintptr`。
+
+**uintptr 的唯一规矩**：`unsafe.Pointer → uintptr` 之后必须在**同一个表达式内**算完并转回指针；跨语句暂存等于让 GC 失去线索（对象可能在两句之间被搬走或回收）。正解用 `unsafe.Add`：
+
+```go
+(*T)(unsafe.Add(p, off)) // p 全程是 unsafe.Pointer，GC 始终能追踪
+```
+
+**四条红线**：
+
+| 红线 | 后果 |
+| --- | --- |
+| 改零拷贝 string 的底层 | 污染驻留字面量、破坏 map key 哈希一致性（实验：改 b 后 s 跟着变） |
+| 产物生命周期与源脱钩 | 悬挂视图，读到他人数据或崩溃 |
+| uintptr 跨语句暂存指针 | GC 移动/回收后指针失效 |
+| 散落在业务代码里 | 内存安全无法静态检查，只能靠测试兜底 |
+
+**工程决策路径**（能停在前面就别往下走）：热路径先统一内部类型（全 string 或全 []byte，只在 API 边界转一次）→ 用标准库现成的 []byte 版 API → 最后才轮到 unsafe，且收敛在边界库的少数文件里、写满测试。
+
+标准库正面示范：`strings.Builder.String()` 就是 `unsafe.String(unsafe.SliceData(b.buf), len(b.buf))`（`strings/builder.go`）；Builder 另用 `addr` 字段记住自己，防止按值拷贝后两个 Builder 写同一块 buf。
+
+---
+
+## 17. 面试高频
 
 **Q1：slice/string 的底层结构？**
 slice 是 (ptr, len, cap) 三字段头，string 是 (ptr, len) 二字段头（无 `\0`、长度显式存储）。子串/子切片 s[i:j] 零拷贝（只造新头）；string 可存任意二进制。
@@ -494,11 +531,11 @@ slice 是 (ptr, len, cap) 三字段头，string 是 (ptr, len) 二字段头（�
 slice 头不可比较（comparable 不满足）；string 不可变、== 是 memcmp、哈希稳定。[]byte 当 key 用 string(b) 转一次（map 索引处编译器免分配）。
 
 **Q7：unsafe.String 零拷贝什么时候能用？**
-标准库示范是 strings.Builder.String()。红线：绝不修改底层（污染驻留字面量/破坏哈希）；生命周期与源绑定（源回收即悬挂视图）；只集中在边界库少数文件。uintptr 运算必须单表达式内完成。
+标准库示范是 strings.Builder.String()。红线：绝不修改底层（污染驻留字面量/破坏哈希）；生命周期与源绑定（源回收即悬挂视图）；只集中在边界库少数文件。uintptr 运算必须单表达式内完成（第 16 节）。
 
 **Q8：持有大字符串/大数组的子串会有什么问题？**
 零拷贝共享整块底层内存——只要子串活着，整个大对象无法 GC。长生命周期持有时用 strings.Clone（string）/ copy（slice）拷出独立小对象。
 
 ---
 
-本篇对应实验：experiments/01-1_slice_test.go、01-2_map_test.go、01-3_string_test.go（均为断言式单测，无打印）
+本篇对应实验：experiments/01_1_slice_test.go、01_2_string_test.go、01_3_map_test.go（均为断言式单测，无打印）

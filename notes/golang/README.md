@@ -7,7 +7,7 @@
 
 **语言核心篇（01-03）：语言给了你什么**
 
-1. [slice、string 与 map 底层](01-slice、string与map底层.md) — slice/string 头结构、slice 扩容与删除泄漏、string 不可变契约/互转/rune、map Swiss Table/rehash/并发 fatal
+1. [slice、string 与 map 底层](01-slice、string与map底层.md) — slice/string 头结构、slice 扩容与删除泄漏、string 不可变契约/互转/rune、map Swiss Table/rehash/并发 fatal、unsafe 零拷贝与红线
 2. [interface 与反射](02-interface与反射.md) — eface/iface、nil 陷阱、装箱逃逸、reflect 性能姿势
 3. [泛型](03-泛型.md) — 类型集与 ~ 约束、GC shape + 字典实现、方法限制、slices/maps 标准库
 
@@ -47,6 +47,7 @@
 - [ ] 循环拼接禁用 `s += x`（O(n²)）；Builder + Grow 是标准答案
 - [ ] len(s) 是字节数；range 按码点、索引是字节偏移；按字节截断会碎码
 - [ ] `[]byte(s)` 默认拷贝；不逃逸免拷贝、`m[string(b)]` 免分配两个特例
+- [ ] unsafe 两类出场（类型双关/零拷贝）；uintptr 只能单表达式内运算；四条红线
 - [ ] interface 二元组；nil != nil 的原理；方法集 T vs *T
 - [ ] 泛型：~ 近似约束放行 `type UserID int`；comparable 是「== 可用」的类型集
 - [ ] GC shape + 字典：指针类型共享一份机器码，非 C++ 全展开也非 Java 全擦除

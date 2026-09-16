@@ -1,4 +1,4 @@
-// 实验 14（TDD 测试驱动开发），断言验证
+// 实验 13（TDD 测试驱动开发），断言验证
 // 对应笔记：notes/golang/13-TDD测试驱动开发.md
 // 源码对照：src/testing/testing.go（TB 接口）
 package main
@@ -96,7 +96,7 @@ func TestSplitBillV2(t *testing.T) {
 	}
 }
 
-// TestSplitBillV1Red v1 的「红」可复现：零人触发整数除零 panic（不可 recover 的运行时错误）。
+// TestSplitBillV1Red 第 3 节：v1 的「红」可复现——零人触发整数除零 panic（不可 recover 的运行时错误）。
 func TestSplitBillV1Red(t *testing.T) {
 	defer func() {
 		r := recover()
@@ -107,7 +107,7 @@ func TestSplitBillV1Red(t *testing.T) {
 	_, _ = splitBillV1(100, 0)
 }
 
-// TestStubNotifier 纯逻辑：stub 记录调用 + 失败注入 + 服务侧包装语境。
+// TestStubNotifier 第 5 节：手写 stub 记录调用 + 注入失败 + 服务侧包装语境。
 func TestStubNotifier(t *testing.T) {
 	stub := &tddStubNotifier{}
 	svc := &tddSettleService{notify: stub}

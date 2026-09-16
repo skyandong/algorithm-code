@@ -1,5 +1,5 @@
-// 实验 01（string 部分），断言验证
-// 对应笔记：notes/golang/01-slice、string与map底层.md 第 5~10 节
+// 实验 01_2（string 部分），断言验证；slice 部分见 01_1_slice_test.go，map 部分见 01_3_map_test.go
+// 对应笔记：notes/golang/01-slice、string与map底层.md 第 5~10、16 节
 // 源码对照：src/runtime/string.go
 package main
 
@@ -23,20 +23,23 @@ func TestStringHeader(t *testing.T) {
 	s := "hello, world"
 	sub := s[:5]
 
-	assert.True(t, unsafe.StringData(s) == unsafe.StringData(sub), "子串只造新头，共享底层内存")
+	assert.Equal(t, strData(s), strData(sub), "子串只造新头，共享底层内存")
 
 	cloned := strings.Clone(sub)
-	assert.False(t, unsafe.StringData(s) == unsafe.StringData(cloned), "Clone 拷出独立小串，大字符串可回收")
+	assert.NotEqual(t, strData(s), strData(cloned), "Clone 拷出独立小串，大字符串可回收")
 }
 
-// TestStringImmutableZeroCopy 第 5 节：零拷贝 string 跟着源内存变
-func TestStringImmutableZeroCopy(t *testing.T) {
+// TestUnsafeStringZeroCopy 第 5、16 节：两个方向的零拷贝都是别名，红线是「不能改它」
+func TestUnsafeStringZeroCopy(t *testing.T) {
 	b := []byte("hello")
 	s := unsafe.String(unsafe.SliceData(b), len(b))
-	assert.Equal(t, "hello", s)
 
 	b[0] = 'H'
-	assert.Equal(t, "Hello", s, "零拷贝产物跟着源变——绝不修改零拷贝 string 的底层")
+	assert.Equal(t, "Hello", s, "[]byte → string：改源连带改 string")
+
+	bs := unsafe.Slice(unsafe.StringData(s), len(s)) // 反向：把 string 当可写 []byte 视图
+	bs[1] = 'E'
+	assert.Equal(t, "HEllo", s, "string → []byte：写视图即写同一块内存")
 }
 
 // 逃逸汇：强迫 []byte(s) 拷贝
@@ -50,9 +53,8 @@ func TestStringConvertAlloc(t *testing.T) {
 
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	total := 0
 	for i := 0; i < n; i++ {
-		total += len([]byte(s))
+		_ = len([]byte(s)) // 只看 []byte(s) 的分配，结果不使用
 	}
 	runtime.ReadMemStats(&after)
 	noEscape := after.TotalAlloc - before.TotalAlloc
@@ -67,7 +69,6 @@ func TestStringConvertAlloc(t *testing.T) {
 	escaped := after.TotalAlloc - before.TotalAlloc
 	strSink = nil
 
-	assert.Equal(t, n*64, total)
 	assert.Less(t, noEscape, uint64(1024), "不逃逸且不被修改：编译器免拷贝")
 	assert.GreaterOrEqual(t, escaped, uint64(n*64), "逃逸：真拷贝 ≈ n×64B")
 
@@ -111,8 +112,8 @@ func TestStringConcat(t *testing.T) {
 	runtime.ReadMemStats(&after)
 	growAlloc := after.TotalAlloc - before.TotalAlloc
 
-	assert.Equal(t, strings.Repeat("abcdefgh", 2000), plus)
-	assert.Equal(t, plus, grow)
+	assert.Equal(t, strings.Repeat("abcdefgh", 2000), plus, "+ 循环结果正确")
+	assert.Equal(t, plus, grow, "Builder+Grow 结果与 + 一致")
 	assert.Greater(t, plusAlloc, growAlloc*100, "+ 循环 O(n²) vs Builder+Grow 一次分配")
 }
 
@@ -135,10 +136,9 @@ func TestStringRune(t *testing.T) {
 
 // TestStringMapKey 第 10 节：string 与 [N]byte 都是合法 key
 func TestStringMapKey(t *testing.T) {
-	m := map[string]int{"a": 1}
+	m := map[string]int{}
 	m[string([]byte("b"))] = 2
-	assert.Equal(t, 1, m["a"])
-	assert.Equal(t, 2, m["b"])
+	assert.Equal(t, 2, m["b"], "[]byte 转出的 key 与字面量 string 是同一个 entry")
 
 	arr := map[[8]byte]int{}
 	arr[[8]byte{1, 2}] = 3

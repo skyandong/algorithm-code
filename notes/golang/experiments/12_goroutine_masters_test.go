@@ -1,4 +1,4 @@
-// 实验 13（名家并发模式汇总），断言验证
+// 实验 12（名家并发模式汇总），断言验证
 // 对应笔记：notes/golang/12-名家并发模式汇总.md
 // 源码对照：golang.org/x/sync/errgroup
 package main
@@ -121,7 +121,7 @@ func selectWithTimeout(c <-chan int, timeout time.Duration) (int, bool) {
 
 // ===== 断言用例 =====
 
-// TestBroadcastStop close 一次广播，100 个 goroutine 在 2s 内全部收到并退出。
+// TestBroadcastStop 第 1.1 节（Dave Cheney）：close 一次广播，100 个 goroutine 在 2s 内全部收到并退出。
 func TestBroadcastStop(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
@@ -136,7 +136,7 @@ func TestBroadcastStop(t *testing.T) {
 	}
 }
 
-// TestWaitMany nil channel 禁用已关闭分支，消费完两个 channel 后正常退出。
+// TestWaitMany 第 1.2 节（Dave Cheney）：nil channel 禁用已关闭分支，消费完两个 channel 后正常退出。
 func TestWaitMany(t *testing.T) {
 	a, b := make(chan bool), make(chan bool)
 	go func() {
@@ -157,7 +157,7 @@ func TestWaitMany(t *testing.T) {
 	}
 }
 
-// TestParallelSum 两个 goroutine 各算一半，channel 汇总与顺序求和一致。
+// TestParallelSum 第 4.1 节（谢孟军）：两个 goroutine 各算一半，channel 汇总与顺序求和一致。
 func TestParallelSum(t *testing.T) {
 	in := []int{7, 2, 8, -9, 4, 0}
 
@@ -169,17 +169,17 @@ func TestParallelSum(t *testing.T) {
 	assert.Equal(t, want, parallelSum(in), "并行汇总与顺序求和结果一致")
 }
 
-// TestFibonacci 生产者 close 后 range 自动退出，产出前 7 个斐波那契数。
+// TestFibonacci 第 4.1 节（谢孟军）：生产者 close 后 range 自动退出，产出前 7 个斐波那契数。
 func TestFibonacci(t *testing.T) {
 	assert.Equal(t, []int{1, 1, 2, 3, 5, 8, 13}, fibonacci(7))
 }
 
-// TestPipeline gen→sq→sq：2→4→16，3→9→81。
+// TestPipeline 第 6.1 节（Go 官方博客）：gen→sq→sq，2→4→16、3→9→81。
 func TestPipeline(t *testing.T) {
 	assert.Equal(t, []int{16, 81}, pipeline(2, 3))
 }
 
-// TestSelectWithTimeout 无发送方超时返回 true；有值及时返回 false。
+// TestSelectWithTimeout 第 6 节（官方博客 Timing out, moving on）：无发送方超时返回 true，有值及时返回 false。
 func TestSelectWithTimeout(t *testing.T) {
 	c := make(chan int)
 	v, timedOut := selectWithTimeout(c, 100*time.Millisecond)

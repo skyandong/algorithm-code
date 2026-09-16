@@ -1,26 +1,32 @@
-// 实验 03（interface 与反射），断言验证
+// 实验 02（interface 与反射），断言验证
 // 对应笔记：notes/golang/02-interface与反射.md
 // 源码对照：src/runtime/runtime2.go
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"runtime"
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// ===== 实验实现（原 03_interface_reflection.go，已并入本文件）=====
-
 // point 用于观察装箱拷贝。
-type point struct{ X, Y int }
+type point struct {
+	X, Y int
+}
 
-// boxingSink 强制装箱对象逃逸（不写全局的话编译器可能优化掉装箱）。
-var boxingSink any
+// TestInterfacePairIsValueCopy 第 1 节：接口是 (类型, 值副本) 二元组
+func TestInterfacePairIsValueCopy(t *testing.T) {
+	var i any = point{1, 2}
+	assert.Equal(t, "main.point", reflect.TypeOf(i).String(), "接口持有动态类型")
+
+	p := point{X: 10, Y: 20}
+	var boxed any = p
+	p.X = 999
+	assert.Equal(t, point{10, 20}, boxed, "装箱是值拷贝，改原值不影响接口内副本")
+}
 
 // receiver 同时具备值接收者与指针接收者方法。
 type receiver struct{}
@@ -30,64 +36,6 @@ func (receiver) ByValue() {}
 
 // ByPointer 指针接收者方法。
 func (*receiver) ByPointer() {}
-
-// myError 模拟线上事故：返回 *myError(nil) 时接口非 nil。
-type myError struct{ code int }
-
-// Error 实现 error 接口（指针接收者）。
-func (e *myError) Error() string { return fmt.Sprintf("code %d", e.code) }
-
-// doBad 反面教材：返回一个「有类型无值」的接口。
-func doBad() error {
-	var p *myError = nil
-	return p // iface: tab != nil, data == nil
-}
-
-// user 含导出与非导出字段，用于 reflect 观察。
-type user struct {
-	Name string // 导出字段
-	age  int    // 非导出字段
-}
-
-// reflectPerfUser 反射开销对照用：字段必须导出，否则 SetInt 会 panic。
-type reflectPerfUser struct {
-	Name string
-	Age  int
-}
-
-// ===== 断言用例 =====
-
-// TestInterfacePairIsValueCopy 第 1 节：接口是 (类型, 值副本) 二元组
-func TestInterfacePairIsValueCopy(t *testing.T) {
-	var i any = point{1, 2}
-	assert.Equal(t, point{1, 2}, i)
-	assert.Equal(t, "main.point", reflect.TypeOf(i).String(), "接口持有动态类型")
-
-	p := point{X: 10, Y: 20}
-	var boxed any = p
-	p.X = 999
-	assert.Equal(t, point{10, 20}, boxed, "装箱是值拷贝，改原值不影响接口内副本")
-}
-
-// TestBoxingAllocates 第 4 节：装箱逃逸后每次都要堆分配
-func TestBoxingAllocates(t *testing.T) {
-	type big struct{ buf [64]byte }
-	const n = 100000
-
-	var before, after runtime.MemStats
-	runtime.GC()
-	runtime.ReadMemStats(&before)
-	for k := 0; k < n; k++ {
-		var b big
-		b.buf[0] = byte(k)
-		boxingSink = b // 装箱并逃逸：每次分配一个装箱对象
-	}
-	runtime.ReadMemStats(&after)
-	boxingSink = nil
-
-	assert.GreaterOrEqual(t, after.TotalAlloc-before.TotalAlloc, uint64(n*64),
-		"64B 结构体装箱逃逸：每次搬 64B 到堆")
-}
 
 // TestMethodSet 第 2 节：T 的方法集不含指针接收者方法
 func TestMethodSet(t *testing.T) {
@@ -105,11 +53,26 @@ func TestMethodSet(t *testing.T) {
 	assert.True(t, ptrImplPtr)
 }
 
+// myError 模拟线上事故：返回 *myError(nil) 时接口非 nil。
+type myError struct {
+	code int
+}
+
+// Error 实现 error 接口（指针接收者）
+func (e *myError) Error() string {
+	return fmt.Sprintf("code %d", e.code)
+}
+
+// doBad 反面教材：返回一个「有类型无值」的接口。
+func doBad() error {
+	var p *myError = nil
+	return p // iface: tab != nil, data == nil
+}
+
 // TestNilInterfaceTrap 第 3 节：有类型无值的接口 != nil
 func TestNilInterfaceTrap(t *testing.T) {
 	err := doBad()
-	assert.True(t, err != nil, "有类型无值的接口 != nil——经典事故")
-	assert.Nil(t, (*myError)(nil), "裸指针本身是 nil")
+	assert.True(t, err != nil, "有类型无值的接口 != nil——经典事故（裸指针是 nil，装进接口就不是了）")
 
 	// 注意：reflect 视角下这个接口是「nil」的，testify 的 assert.NotNil 也会被骗——
 	// 所以判 nil 一律用 err != nil，别用反射。
@@ -118,11 +81,34 @@ func TestNilInterfaceTrap(t *testing.T) {
 	assert.True(t, v.IsNil(), "IsNil 看的是底层指针，所以先判 Kind 再判 IsNil")
 }
 
+// boxingSink 强制装箱对象逃逸（不写全局的话编译器可能优化掉装箱）。
+var boxingSink any
+
+// TestBoxingAllocates 第 4 节：装箱逃逸后每次都要堆分配
+func TestBoxingAllocates(t *testing.T) {
+	type big struct {
+		buf [64]byte
+	}
+	const n = 100000
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	for k := 0; k < n; k++ {
+		var b big
+		b.buf[0] = byte(k)
+		boxingSink = b // 装箱并逃逸：每次分配一个装箱对象
+	}
+	runtime.ReadMemStats(&after)
+	boxingSink = nil
+
+	assert.GreaterOrEqual(t, after.TotalAlloc-before.TotalAlloc, uint64(n*64),
+		"64B 结构体装箱逃逸：每次搬 64B 到堆")
+}
+
 // TestTypeAssertion 第 5 节：单值断言 panic，comma-ok 与 type switch 不 panic
 func TestTypeAssertion(t *testing.T) {
 	var i any = 42
-
-	assert.Equal(t, 42, i.(int))
 
 	s, ok := i.(string)
 	assert.False(t, ok)
@@ -141,15 +127,20 @@ func TestTypeAssertion(t *testing.T) {
 	assert.Equal(t, "int", hit, "type switch 命中 int 分支")
 }
 
+// user 含导出与非导出字段，用于 reflect 观察。
+type user struct {
+	Name string // 导出字段
+	age  int    // 非导出字段
+}
+
 // TestReflectFields 第 6 节：可设置性由可寻址性与导出性共同决定
 func TestReflectFields(t *testing.T) {
 	u := user{Name: "tal", age: 30}
 	v := reflect.ValueOf(&u).Elem()
 
-	assert.True(t, v.Type().Field(0).IsExported())
 	assert.True(t, v.Field(0).CanSet())
+	assert.False(t, reflect.ValueOf(u).Field(0).CanSet(), "值不可寻址：连导出字段也 Set 不了")
 
-	assert.False(t, v.Type().Field(1).IsExported())
 	assert.False(t, v.Field(1).CanSet(), "非导出字段不可 Set")
 	assert.False(t, v.Field(1).CanInterface())
 	assert.Equal(t, 30, int(v.Field(1).Int()), "非导出字段 readable")
@@ -160,30 +151,10 @@ func TestReflectFields(t *testing.T) {
 	assert.Panics(t, func() { v.Field(1).SetInt(31) })
 }
 
-// TestJSONNilVsEmptySlice 第 9 节：nil 切片序列化成 null，空切片是 []
-func TestJSONNilVsEmptySlice(t *testing.T) {
-	var nilSlice []int
-	emptySlice := []int{}
-
-	b1, err := json.Marshal(nilSlice)
-	assert.NoError(t, err)
-	assert.Equal(t, "null", string(b1), "nil 切片序列化为 null")
-
-	b2, err := json.Marshal(emptySlice)
-	assert.NoError(t, err)
-	assert.Equal(t, "[]", string(b2), "空切片序列化为 []")
-}
-
-// TestUnsafeStringZeroCopy 第 8 节：零拷贝的产物与红线
-func TestUnsafeStringZeroCopy(t *testing.T) {
-	b := []byte("hello")
-	s := unsafe.String(unsafe.SliceData(b), len(b))
-
-	assert.Equal(t, "hello", s)
-	assert.True(t, unsafe.StringData(s) == unsafe.SliceData(b), "与 b 共享同一块内存")
-
-	b[0] = 'H'
-	assert.Equal(t, "Hello", s, "改 b 连带改 s——零拷贝红线")
+// reflectPerfUser 反射开销对照用：字段必须导出，否则 SetInt 会 panic。
+type reflectPerfUser struct {
+	Name string
+	Age  int
 }
 
 // BenchmarkReflectSetInt 第 7 节：直接赋值 / 缓存 Value / 全路径三档开销

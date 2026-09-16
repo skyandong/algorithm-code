@@ -25,6 +25,7 @@
 | sync.Map 的 HashTrieMap 设计与选型 | [golang/01](notes/golang/01-slice、string与map底层.md)、[golang/06](notes/golang/06-sync锁与原子操作.md) |
 | string 为什么不可变？与 []byte 转换的拷贝开销 | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | len("你好") 为什么是 6？rune 与 UTF-8 | [golang/01](notes/golang/01-slice、string与map底层.md) |
+| unsafe.Pointer 与 uintptr 的区别？unsafe 什么时候出场 | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | iface 与 eface 的区别？接口装箱什么时候逃逸 | [golang/02](notes/golang/02-interface与反射.md) |
 | nil 接口坑：为什么 `err != nil` 判不出（高频） | [golang/02](notes/golang/02-interface与反射.md) |
 | 值接收者 vs 指针接收者：方法集差异 | [golang/02](notes/golang/02-interface与反射.md) |

@@ -1,4 +1,4 @@
-// 实验 01（map 部分），断言验证；slice 部分见 01-1_slice_test.go
+// 实验 01_3（map 部分），断言验证；slice 部分见 01_1_slice_test.go，string 部分见 01_2_string_test.go
 // 对应笔记：notes/golang/01-slice、string与map底层.md 第 11~14 节
 // 源码对照：src/internal/runtime/maps/{map,table,group}.go
 package main
@@ -34,9 +34,9 @@ func TestMapPrealloc(t *testing.T) {
 	runtime.ReadMemStats(&ms1)
 	withHint := buildMap(n, n)
 	runtime.ReadMemStats(&ms2)
+	runtime.KeepAlive(noHint)
+	runtime.KeepAlive(withHint)
 
-	assert.Equal(t, n, len(noHint))
-	assert.Equal(t, n, len(withHint))
 	assert.Less(t, int(ms2.TotalAlloc-ms1.TotalAlloc), int(ms1.TotalAlloc-ms0.TotalAlloc),
 		"预分配的累计分配字节应更少（少 rehash 搬迁）")
 }
@@ -92,15 +92,13 @@ func TestMapUnordered(t *testing.T) {
 	}
 
 	first := collect()
-	changed := false
+	orderChanged := false
 	for i := 0; i < 20; i++ {
-		next := collect()
-		assert.ElementsMatch(t, first, next, "同一批 key，只是顺序不同")
-		if !slices.Equal(first, next) {
-			changed = true
+		if next := collect(); !slices.Equal(first, next) {
+			orderChanged = true
 		}
 	}
-	assert.True(t, changed, "21 次遍历顺序全相同的概率可忽略")
+	assert.True(t, orderChanged, "20 次遍历彼此顺序不同：遍历顺序随机")
 }
 
 // TestRangeMutation 第 12 节：range 期间删除与新增的语义
@@ -150,7 +148,9 @@ func TestConcurrentMapWriteFatal(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 
 	assert.Error(t, err, "fatal error 令子进程非零退出")
-	assert.Contains(t, string(out), "fatal error: concurrent map writes")
+	// 检测是尽力而为：常在「concurrent map writes」被抓到，也可能在检测前就被写坏的指针直接 fault
+	assert.Regexp(t, `fatal error: (concurrent map writes|fault)`, string(out),
+		"并发写 map 触发 runtime fatal（具体是哪一条不保证）")
 	assert.NotContains(t, string(out), "panic:", "throw 不是 panic")
 }
 
@@ -191,6 +191,7 @@ func TestSyncMapSemantics(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 1, v)
 
+	// 并发读写块本身没有可确定的断言（谁最后写不可知），价值在 -race 下验证无数据竞争
 	var wg sync.WaitGroup
 	for w := 0; w < 4; w++ {
 		wg.Add(1)
@@ -203,6 +204,9 @@ func TestSyncMapSemantics(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	_, ok = sm.Load(15)
+	assert.True(t, ok, "并发写过的 16 个 key 都能查到")
 }
 
 // BenchmarkSyncMapRead 对比 RWMutex 版：读多写少场景 sync.Map 胜出

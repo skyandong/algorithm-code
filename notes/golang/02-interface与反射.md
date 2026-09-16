@@ -217,7 +217,7 @@ v.Field(0).SetString("x") // 成功，直接写回 u
 v.Field(1).SetInt(31)     // panic: using value obtained using unexported field
 ```
 
-WHY 非导出字段只读：reflect 是普通库，必须维持包级封装语义——否则任何外部代码都能改写私有字段。绕过手段存在（`unsafe` + `Field(i).UnsafeAddr()`），但等于放弃语言保护。
+WHY 非导出字段只读：reflect 是普通库，必须维持包级封装语义——否则任何外部代码都能改写私有字段。**绕过手段存在**：`UnsafeAddr()` 只检查可寻址性（`flagAddr`）、不检查只读标记（`flagRO`），所以 `(*int)(unsafe.Pointer(v.Field(1).UnsafeAddr()))` 能直接改写 `age`——这等于放弃语言保护，unsafe 的协议与红线见 `01` 篇第 16 节。
 
 另一个高频陷阱：`reflect.ValueOf(u)` 拿到的是 `u` 的**副本**，Set 的是副本——想改原值必须 `ValueOf(&u).Elem()`。
 
@@ -242,27 +242,4 @@ WHY 非导出字段只读：reflect 是普通库，必须维持包级封装语�
 
 ---
 
-## 8. unsafe：何时出场
-
-`unsafe.Pointer` 是编译器认可的「任意指针 ↔ 指针类型」的转换桥梁（uintptr 只是无 GC 语义的整数，**不**能用 uintptr 暂存指针跨语句传递）。合法出场：
-
-```go
-// 1. 类型双关（底层布局相同的类型互转，如 []byte ↔ 自定义类型）
-// 2. string / []byte 零拷贝（标准写法，替代社区野生写法）
-b := []byte("hello")
-s := unsafe.String(unsafe.SliceData(b), len(b)) // s 与 b 共享内存，零拷贝
-
-// 反向：[]byte 视图
-bs := unsafe.Slice(unsafe.StringData(s), len(s))
-```
-
-**工程红线**：
-
-1. **绝不修改**经零拷贝得到的 string 的底层内存——string 的不可变语义是全局契约，违反可能污染共享的常量数据、破坏 map key 哈希一致性（实验演示：改 b 后 s 跟着变）；
-2. 零拷贝产物**生命周期**与源绑定：b 被 GC 回收后 s 变成悬挂视图，跨函数/跨 goroutine 返回前必须确定源数据不会被复用或回收；
-3. uintptr 参与的指针运算必须在一个表达式内完成（GC 可能在语句间移动或回收目标）；
-4. 只在序列化/网络库这类边界热路径用、集中在少数文件、写满测试—— unsafe 破坏的是内存安全，出错即崩溃或数据损坏，没有中间态。
-
----
-
-本篇对应实验：experiments/03_interface_reflection_test.go（实现与断言同文件，无打印）
+本篇对应实验：experiments/02_interface_reflection_test.go（实现与断言同文件，无打印）

@@ -1,4 +1,4 @@
-// 实验 05（并发内存可见性），断言验证
+// 实验 04（并发内存可见性），断言验证
 // 对应笔记：notes/golang/04-并发内存可见性与sync.Once.md
 // 源码对照：src/sync/once.go、src/sync/mutex.go
 // 竞态检测：go test -race ./experiments/（无同步的 race 演示见笔记第 1 节，不进常规用例）
@@ -33,7 +33,7 @@ func TestAtomicPublish(t *testing.T) {
 	assert.Equal(t, int64(42), data.Load(), "顺序一致：见到 ready 就能见到 data")
 }
 
-// TestAtomicCounterKeepsAllUpdates 并发累加不丢更新
+// TestAtomicCounterKeepsAllUpdates 第 4 节：并发累加不丢更新
 func TestAtomicCounterKeepsAllUpdates(t *testing.T) {
 	var counter atomic.Int64
 	var wg sync.WaitGroup
@@ -52,7 +52,7 @@ func TestAtomicCounterKeepsAllUpdates(t *testing.T) {
 	assert.Equal(t, int64(8000), counter.Load(), "atomic 不丢更新")
 }
 
-// TestChannelPublish 第 4 节：close 通知建立 happens-before
+// TestChannelPublish 第 2 节：close 通知建立 happens-before
 func TestChannelPublish(t *testing.T) {
 	done := make(chan struct{})
 	var data int
@@ -86,7 +86,7 @@ func TestMutexPublish(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	assert.True(t, ready)
+	assert.True(t, ready, "Unlock 前的写入对后续 Lock 者可见")
 	assert.Equal(t, 42, data, "Unlock happens-before 之后的 Lock")
 }
 

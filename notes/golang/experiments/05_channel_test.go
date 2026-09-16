@@ -1,4 +1,4 @@
-// 实验 06（channel 与 nil 语义），断言验证
+// 实验 05（channel 与 nil 语义），断言验证
 // 对应笔记：notes/golang/05-Channel内部与nil语义.md
 // 源码对照：src/runtime/chan.go
 package main
@@ -167,6 +167,7 @@ func TestBufferedFullBlocks(t *testing.T) {
 }
 
 // TestClosePanics 第 10 节：双重 close / 已关再发 / close(nil) 全 panic
+// （三条红线只涉及发送与 close；接收永远合法，见 TestClosedChannelReceive）
 func TestClosePanics(t *testing.T) {
 	ch := make(chan int)
 	close(ch)
@@ -178,10 +179,4 @@ func TestClosePanics(t *testing.T) {
 
 	var nilCh chan int
 	assert.Panics(t, func() { close(nilCh) }, "close(nil) panic")
-
-	ch3 := make(chan int)
-	close(ch3)
-	v, ok := <-ch3
-	assert.Equal(t, 0, v)
-	assert.False(t, ok, "已关闭 channel 接收合法且永不阻塞——只有发送和 close 会炸")
 }

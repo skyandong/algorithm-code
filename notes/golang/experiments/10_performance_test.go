@@ -1,4 +1,4 @@
-// 实验 11（性能调优实战），断言验证
+// 实验 10（性能调优实战），断言验证
 // 对应笔记：notes/golang/10-性能调优实战.md
 // 源码对照：src/testing/benchmark.go（b.Loop）
 // 计时对比不进断言（不稳定），统一放 Benchmark
@@ -52,7 +52,7 @@ func perfAllocDelta(f func()) (time.Duration, uint64) {
 
 // ===== 断言用例 =====
 
-// TestPreallocBeatsDynamicAppend 第 1 节：预分配省掉反复扩容的累计分配
+// TestPreallocBeatsDynamicAppend 第 3 节：预分配省掉反复扩容的累计分配
 func TestPreallocBeatsDynamicAppend(t *testing.T) {
 	const n = 500_000
 
@@ -76,7 +76,7 @@ func TestPreallocBeatsDynamicAppend(t *testing.T) {
 	assert.Less(t, preAlloc, dynAlloc, "预分配累计分配明显更少（约 1/2）")
 }
 
-// TestPoolBeatsPerCallAlloc 第 2 节：池化 64KB buffer 的分配量对比
+// TestPoolBeatsPerCallAlloc 第 3 节：池化 64KB buffer 的分配量对比
 func TestPoolBeatsPerCallAlloc(t *testing.T) {
 	if raceEnabled {
 		t.Skip("-race 下 race runtime 自身的分配会污染 TotalAlloc 读数，池化收益无法量化")
@@ -136,7 +136,7 @@ func TestStringByteConversionAlloc(t *testing.T) {
 	assert.Less(t, mapIdx, uint64(1024), "m[string(b)] 是编译器特例：索引免分配")
 }
 
-// TestGCNextGCIsTwiceLive 第 5 节：GOGC=100 时 NextGC ≈ 2×live
+// TestGCNextGCIsTwiceLive 第 6 节：GOGC=100 时 NextGC ≈ 2×live
 func TestGCNextGCIsTwiceLive(t *testing.T) {
 	perfSinkBytes = make([]byte, 32<<20) // 撑大 live heap，比例观察更准
 
@@ -149,7 +149,7 @@ func TestGCNextGCIsTwiceLive(t *testing.T) {
 	assert.Less(t, ratio, 3.0)
 }
 
-// TestAllocationPressureTriggersGC 第 5 节：分配压力自动驱动 GC
+// TestAllocationPressureTriggersGC 第 6 节：分配压力自动驱动 GC
 func TestAllocationPressureTriggersGC(t *testing.T) {
 	runtime.GC()
 	var ms runtime.MemStats

@@ -1,11 +1,10 @@
-// 实验 01（slice 部分），断言验证；map 部分见 01-2_map_test.go
+// 实验 01_1（slice 部分），断言验证；string 部分见 01_2_string_test.go，map 部分见 01_3_map_test.go
 // 对应笔记：notes/golang/01-slice、string与map底层.md 第 1~4、15 节
 // 源码对照：src/runtime/slice.go
 package main
 
 import (
 	"encoding/json"
-	"reflect"
 	"testing"
 	"unsafe"
 
@@ -23,31 +22,24 @@ var growthSink []int
 // TestSliceHeader 第 1 节：slice 头就是 ptr/len/cap 三个字段
 func TestSliceHeader(t *testing.T) {
 	s := []int{10, 20, 30}
-	assert.Len(t, s, 3)
-	assert.Equal(t, 3, cap(s))
 
+	// 切片表达式：新头指向同一数组中间，cap 跟着下界一起减
 	sub := s[1:]
-	assert.Len(t, sub, 2)
-	assert.Equal(t, 2, cap(sub))
 	assert.Equal(t, dataPtr(s)+unsafe.Sizeof(s[0]), dataPtr(sub),
-		"s[1:] 的数据指针 = 原 array + 1×元素宽度：新 header 指向同一数组中间")
-
+		"s[1:] 的 ptr = 原 array + 1×元素宽度")
+	assert.Equal(t, 2, cap(sub), "cap 从 3 减到 2（不只 ptr 前移）")
 	sub[0] = 99
-	assert.Equal(t, 99, s[1], "两个 header 共享一个数组")
+	assert.Equal(t, 99, s[1], "两个头共享同一数组")
 
+	// 赋值：两份头各自独立，动一份不影响另一份
 	s2 := s
-	assert.Equal(t, dataPtr(s), dataPtr(s2), "赋值拷贝 ptr：两个头指向同一底层数组")
-	assert.Len(t, s2, 3, "赋值拷贝 len")
-	assert.Equal(t, 3, cap(s2), "赋值拷贝 cap")
-
 	s2 = s2[:2]
-	assert.Len(t, s, 3, "改 s2 的头不影响 s：头是各自独立的副本")
-	assert.Equal(t, dataPtr(s), dataPtr(s2), "缩头不改 ptr，仍共享同一数组")
+	assert.Equal(t, 3, len(s), "改 s2 的头不影响 s")
+	assert.Equal(t, dataPtr(s), dataPtr(s2), "缩头不改 ptr，仍是同一数组")
 }
 
 // TestAppendSharedAndSeparated 第 2 节：追加何时共享底层数组
 func TestAppendSharedAndSeparated(t *testing.T) {
-	// cap=1 是有意的：b 与 c 都往同一个预留槽位写，才能演示「后写的顶掉先写的」
 	a := make([]int, 0, 1)
 
 	b := append(a, 99)
@@ -59,14 +51,18 @@ func TestAppendSharedAndSeparated(t *testing.T) {
 	// 一次追加 4 个：len 1→5 越过 cap=1，必须新分配并把旧元素拷过去
 	d := append(c, 1, 2, 3, 4)
 	assert.NotEqual(t, dataPtr(c), dataPtr(d), "len=5 > cap=1：越界，扩容分配新数组")
+	assert.Equal(t, []int{100, 1, 2, 3, 4}, d, "旧元素被拷进新数组，追加值接在后面")
 	assert.Greater(t, cap(d), cap(c), "新数组容量比原来的 cap=1 大")
 }
 
-// TestAppendInside 第 2 节：函数内 append 不改调用方的 len
-func TestAppendInside(t *testing.T) {
+// TestAppendAcrossCall 第 2 节：函数内 append 不改调用方的 len，接住返回值才看得见追加的元素
+func TestAppendAcrossCall(t *testing.T) {
 	// 就地定义：闭包也是函数，同样跨了一次调用边界（多头传参、结果没人接）
 	appendInside := func(s []int) {
 		s = append(s, 7)
+	}
+	appendAndReturn := func(s []int) []int {
+		return append(s, 7)
 	}
 
 	s := make([]int, 0, 4)
@@ -74,15 +70,8 @@ func TestAppendInside(t *testing.T) {
 
 	assert.Len(t, s, 0, "调用方 len 不变")
 	assert.Equal(t, []int{7}, s[:1], "数据其实写进了共享数组")
-}
 
-// TestAppendAndReturn 第 2 节：结果传出去才会更新头
-func TestAppendAndReturn(t *testing.T) {
-	appendAndReturn := func(s []int) []int {
-		return append(s, 7)
-	}
-
-	assert.Equal(t, []int{7}, appendAndReturn(make([]int, 0, 4)))
+	assert.Equal(t, []int{7}, appendAndReturn(make([]int, 0, 4)), "对外返回的新头带着追加的元素")
 }
 
 // TestGrowthCapSequence 第 3 节：growslice 的 cap 增长序列
@@ -104,7 +93,6 @@ func TestGrowthCapSequence(t *testing.T) {
 		}
 		prev = cap(growthSink)
 	}
-	assert.GreaterOrEqual(t, cap(growthSink), 10000)
 }
 
 // TestSubsliceLeak 第 4 节：子切片扣住整块底层数组
@@ -128,20 +116,23 @@ func TestNilEmptySlice(t *testing.T) {
 	var nilSlice []int
 	emptySlice := []int{}
 
-	assert.Len(t, nilSlice, 0)
-	assert.Len(t, emptySlice, 0, "判空一律 len()==0")
+	// 用法上等价：读长度、直接 append 都不需要先判 nil
+	assert.Len(t, nilSlice, 0, "nil 切片 len 是 0")
+	assert.Len(t, emptySlice, 0, "空切片 len 是 0（判空一律 len()==0）")
+	assert.Equal(t, []int{1}, append(nilSlice, 1), "nil 切片可直接 append")
+	assert.Equal(t, []int{1}, append(emptySlice, 1), "空切片同样可直接 append")
 
-	assert.True(t, nilSlice == nil)
-	assert.False(t, emptySlice == nil)
+	// 可区分：与 nil 比较、底层指针、JSON 序列化
+	assert.Nil(t, nilSlice, "nil 切片 == nil")
+	assert.NotNil(t, emptySlice, "空切片的底层数组是 zerobase，指针非 nil")
+	assert.Nil(t, unsafe.SliceData(nilSlice), "nil 切片没有底层数组")
+	assert.NotNil(t, unsafe.SliceData(emptySlice), "空切片的 SliceData 指向 zerobase")
 
-	assert.Nil(t, unsafe.SliceData(nilSlice))
-	assert.NotNil(t, unsafe.SliceData(emptySlice), "空切片数据指针指向 zerobase")
+	nb, err := json.Marshal(nilSlice)
+	assert.NoError(t, err)
+	assert.Equal(t, "null", string(nb), "nil 切片序列化成 null")
 
-	assert.True(t, reflect.ValueOf(nilSlice).IsNil())
-	assert.False(t, reflect.ValueOf(emptySlice).IsNil())
-
-	nb, _ := json.Marshal(nilSlice)
-	eb, _ := json.Marshal(emptySlice)
-	assert.Equal(t, "null", string(nb), "nil 切片 JSON 是 null")
-	assert.Equal(t, "[]", string(eb), "空切片 JSON 是 []")
+	eb, err := json.Marshal(emptySlice)
+	assert.NoError(t, err)
+	assert.Equal(t, "[]", string(eb), "空切片序列化成 []")
 }

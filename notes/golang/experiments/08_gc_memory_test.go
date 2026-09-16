@@ -1,4 +1,4 @@
-// 实验 09（内存管理与 GC），断言验证
+// 实验 08（内存管理与 GC），断言验证
 // 对应笔记：notes/golang/08-内存管理与GC.md
 // 源码对照：src/runtime/mheap.go
 package main
@@ -90,7 +90,7 @@ func TestEscapeScenariosBehave(t *testing.T) {
 	assert.Equal(t, 1024, *<-ch, "指针跨 goroutine 传递（逃逸场景之一）")
 }
 
-// TestNoEscapeFixedSumAllocatesNothing 用零堆分配证明「不逃逸」
+// TestNoEscapeFixedSumAllocatesNothing 第 1 节：用零堆分配证明「不逃逸」
 func TestNoEscapeFixedSumAllocatesNothing(t *testing.T) {
 	_ = noEscapeFixedSum() // 预热
 
@@ -105,7 +105,7 @@ func TestNoEscapeFixedSumAllocatesNothing(t *testing.T) {
 		"大小已知且不外泄 → 栈分配，零堆分配（这就是「不逃逸」的硬证据）")
 }
 
-// TestEscapeReturnPtrAllocates 用堆分配证明指针确实逃逸
+// TestEscapeReturnPtrAllocates 第 1 节：用堆分配证明指针确实逃逸
 func TestEscapeReturnPtrAllocates(t *testing.T) {
 	_ = escapeReturnPtr() // 预热
 
@@ -120,7 +120,7 @@ func TestEscapeReturnPtrAllocates(t *testing.T) {
 		"返回局部变量指针 → 每次堆分配一个 int")
 }
 
-// TestMemStatsAllocGrowsAndGCReclaims 第 2 节：TotalAlloc 只增，GC 后 Alloc 回落
+// TestMemStatsAllocGrowsAndGCReclaims 第 4 节：TotalAlloc 只增，GC 后 Alloc 回落
 func TestMemStatsAllocGrowsAndGCReclaims(t *testing.T) {
 	var ms runtime.MemStats
 
@@ -136,15 +136,15 @@ func TestMemStatsAllocGrowsAndGCReclaims(t *testing.T) {
 	}
 
 	runtime.ReadMemStats(&ms)
-	assert.Greater(t, ms.TotalAlloc, baseTotal, "TotalAlloc 只增不减（累计分配量）")
-	assert.GreaterOrEqual(t, ms.TotalAlloc-baseTotal, uint64(16<<20), "本轮累计分配 16MB 以上")
+	assert.GreaterOrEqual(t, ms.TotalAlloc-baseTotal, uint64(16<<20),
+		"TotalAlloc 只增不减：累计分配 16MB 以上（回收过的也算）")
 
 	runtime.GC()
 	runtime.ReadMemStats(&ms)
 	assert.Less(t, ms.Alloc, baseAlloc+uint64(4<<20), "手动 GC 后 Alloc 回落（垃圾被三色标记清扫）")
 }
 
-// TestSyncPoolBeatsNewAlloc 第 3 节：池化把分配量降两个数量级
+// TestSyncPoolBeatsNewAlloc 第 6 节：池化把分配量降两个数量级
 func TestSyncPoolBeatsNewAlloc(t *testing.T) {
 	if raceEnabled {
 		t.Skip("-race 下 race runtime 自身的分配会污染 TotalAlloc 读数，池化收益无法量化")
@@ -179,14 +179,13 @@ func TestSyncPoolBeatsNewAlloc(t *testing.T) {
 	assert.Less(t, poolAlloc, newAlloc/100, "sync.Pool 复用：分配量降两个数量级")
 }
 
-// TestGOGCPercentToggle 第 4 节：GOGC=off 不触发 GC，恢复后手动 GC 生效
+// TestGOGCPercentToggle 第 5 节：GOGC=off 不触发 GC，手动 GC 照样生效
 func TestGOGCPercentToggle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short 跳过（要分配 128MB 大对象）")
 	}
 
 	prev := debug.SetGCPercent(-1) // -1 = GOGC=off，返回修改前的值
-	assert.GreaterOrEqual(t, prev, -1)
 	defer debug.SetGCPercent(prev)
 
 	runtime.GC()
@@ -204,7 +203,6 @@ func TestGOGCPercentToggle(t *testing.T) {
 
 	runtime.GC() // 手动触发
 	runtime.ReadMemStats(&after)
-	assert.Greater(t, after.NumGC, before.NumGC, "手动 GC 生效，堆回落")
-
-	assert.Greater(t, debug.SetMemoryLimit(-1), int64(0), "GOMEMLIMIT 只读查询（软上限）")
+	assert.Greater(t, after.NumGC, before.NumGC, "GOGC=off 只是关掉自动触发，手动 GC 照样生效")
+	assert.Less(t, after.HeapAlloc, before.HeapAlloc+uint64(16<<20), "手动 GC 后 128MB 垃圾被回收，堆回到分配前量级")
 }

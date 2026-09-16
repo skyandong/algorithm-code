@@ -1,4 +1,4 @@
-// 实验 07（sync 锁与原子操作），断言验证
+// 实验 06（sync 锁与原子操作），断言验证
 // 对应笔记：notes/golang/06-sync锁与原子操作.md
 // 源码对照：src/internal/sync/mutex.go（sync.Mutex 本体在 internal/sync，src/sync/mutex.go 是薄包装）
 // 子进程 fatal 验证：go test -run TestUnlockUnlockedMutexIsFatal ./experiments/
@@ -69,7 +69,7 @@ func TestUnlockUnlockedMutexFatalChild(t *testing.T) {
 	mu.Unlock() // fatal: sync: unlock of unlocked mutex
 }
 
-// TestRWMutexWriteGate 第 2 节：写者排队后新读者被闸门挡住
+// TestRWMutexWriteGate 第 3 节：写者排队后新读者被闸门挡住
 func TestRWMutexWriteGate(t *testing.T) {
 	var mu sync.RWMutex
 
@@ -100,7 +100,7 @@ func TestRWMutexWriteGate(t *testing.T) {
 	assert.GreaterOrEqual(t, blocked, 30*time.Millisecond, "写者排队后新读者被挡：写者不会饿死")
 }
 
-// TestWaitGroupRoundReuse 第 3 节：Add 先于 go，归零后可复用
+// TestWaitGroupRoundReuse 第 4 节：Add 先于 go，归零后可复用
 func TestWaitGroupRoundReuse(t *testing.T) {
 	var wg sync.WaitGroup
 	var completed atomic.Int64
@@ -122,7 +122,7 @@ func TestWaitGroupRoundReuse(t *testing.T) {
 	assert.Equal(t, int64(4), completed.Load(), "归零→Wait 返回→可重新 Add 复用")
 }
 
-// TestAtomicVsMutexCounting 第 4 节：两条计数路径结果一致
+// TestAtomicVsMutexCounting 第 5 节：两条计数路径结果一致
 func TestAtomicVsMutexCounting(t *testing.T) {
 	const workers = 100
 	const per = 1000
@@ -144,8 +144,8 @@ func TestAtomicVsMutexCounting(t *testing.T) {
 		}
 	})
 
-	assert.Equal(t, int64(workers*per), ac.Load())
-	assert.Equal(t, int64(workers*per), mc, "两条路径结果一致（快慢对照看 Benchmark）")
+	assert.Equal(t, int64(workers*per), ac.Load(), "atomic 累加不丢更新")
+	assert.Equal(t, int64(workers*per), mc, "mutex 累加同样不丢（快慢对照看 Benchmark）")
 }
 
 type configSnapshot struct {
@@ -153,7 +153,7 @@ type configSnapshot struct {
 	Retries int
 }
 
-// TestAtomicPointerConfigSnapshot 第 4 节：整体换快照保证字段一致
+// TestAtomicPointerConfigSnapshot 第 5 节：整体换快照保证字段一致
 func TestAtomicPointerConfigSnapshot(t *testing.T) {
 	var cfg atomic.Pointer[configSnapshot]
 	cfg.Store(&configSnapshot{Timeout: time.Second, Retries: 3})
@@ -166,7 +166,7 @@ func TestAtomicPointerConfigSnapshot(t *testing.T) {
 	assert.Equal(t, configSnapshot{2 * time.Second, 5}, *now, "读端拿到的永远是完整一致的快照")
 }
 
-// TestPoolEmptyGetUsesNew 第 5 节：Get 无保证，空池只能靠 New
+// TestPoolEmptyGetUsesNew 第 6 节：Get 无保证，空池只能靠 New
 func TestPoolEmptyGetUsesNew(t *testing.T) {
 	var newCalls atomic.Int64
 	pool := &sync.Pool{New: func() any {
@@ -174,25 +174,30 @@ func TestPoolEmptyGetUsesNew(t *testing.T) {
 		return make([]byte, 0, 64)
 	}}
 
-	b := pool.Get().([]byte)
-	assert.Empty(t, b)
+	_ = pool.Get().([]byte) // 空池取 → 必然落到 New
 	assert.Equal(t, int64(1), newCalls.Load(), "Get 无保证，空池只能靠 New")
 }
 
-// TestPoolResetBeforePut 第 5 节：放回前 Reset，下个使用者拿到干净对象
-func TestPoolResetBeforePut(t *testing.T) {
+// TestPoolPutWithoutResetLeaks 第 6 节：Pool 不清零——放回前不 Reset，上一轮的数据就漏给下个使用者
+func TestPoolPutWithoutResetLeaks(t *testing.T) {
 	pool := &sync.Pool{New: func() any { return make([]byte, 0, 64) }}
 
-	dirty := pool.Get().([]byte)
-	dirty = append(dirty, "secret-token"...)
-	dirty = dirty[:0] // 放回前 Reset
-	pool.Put(dirty)
-
-	next := pool.Get().([]byte)
-	assert.Empty(t, next, "Reset 后放回：命中复用或走 New 都是干净的")
+	// 单次 Put 后能否取回同一个对象并不确定（别的 P 取走、中途 GC 都会让它退回 New），
+	// 所以用 100 轮统计命中次数：实测普通模式 100/100、-race 下也有 70 上下，阈值取 30 留足余量
+	leaked := 0
+	for i := 0; i < 100; i++ {
+		b := pool.Get().([]byte)
+		b = append(b, "secret-token"...)
+		pool.Put(b) // 不 Reset 直接放回
+		if len(pool.Get().([]byte)) > 0 {
+			leaked++
+		}
+	}
+	assert.GreaterOrEqual(t, leaked, 30,
+		"复用到的对象带着上一轮的残留：Reset 必须由放回方自己做（Pool 不替你清零）")
 }
 
-// TestSyncMapLoadOrStoreAndRange 第 6 节：LoadOrStore 只初始化一次，Range 最终一致
+// TestSyncMapLoadOrStoreAndRange 第 7 节：LoadOrStore 只初始化一次，Range 最终一致
 func TestSyncMapLoadOrStoreAndRange(t *testing.T) {
 	var m sync.Map
 

@@ -50,9 +50,8 @@ func main() {
 使用 race detector 检查实际发生的竞态：
 
 ```bash
-go run -race main.go
 go test -race ./...
-go build -race
+go build -race ./...
 ```
 
 race detector 不能证明程序不存在所有并发错误，但能发现许多实际发生的 data race。
@@ -456,10 +455,10 @@ func (o *Once) Do(f func()) {
 
 ## 10. Race detector
 
-运行单个文件：
+跑本仓实验（-race 下应无报告）：
 
 ```bash
-go run -race main.go
+cd notes/golang && go test -race -run 'TestAtomic|TestChannelPublish|TestMutexPublish|TestOnce' ./experiments/
 ```
 
 运行测试：
@@ -507,7 +506,7 @@ sync.Once：只执行一次初始化，并在完成后发布结果
 
 ## 实验
 
-对应代码：[experiments/05_memory_visibility_test.go](experiments/05_memory_visibility_test.go)（断言式单测，无打印）
+对应代码：[experiments/04_memory_visibility_test.go](experiments/04_memory_visibility_test.go)（断言式单测，无打印）
 
 ```bash
 cd notes/golang
@@ -516,9 +515,10 @@ go test -race -run 'TestAtomic|TestChannelPublish|TestMutexPublish|TestOnce' ./e
 ```
 
 实验内容：
-1. data race 演示：普通变量跨 goroutine 传递状态，-race 下报 `WARNING: DATA RACE`
-2. atomic 发布状态：`Store`/`Load` 建立 happens-before
+1. atomic 发布状态：`Store`/`Load` 建立 happens-before
+2. atomic 累加：8 goroutine × 1000 次，无丢更新
 3. channel 发布：`close(done)` 通知完成，关闭前的写入可见
 4. mutex 同步：`Unlock` happens-before 之后的 `Lock`，同时保证互斥与可见性
-5. 错误的双重检查 Once：外层无锁读 `done` 是 data race（-race 可复现）
-6. 正确的 `sync.Once`：初始化只执行一次，且完成后对所有人可见
+5. 正确的 `sync.Once`：10 个 goroutine 抢初始化，只执行一次且完成后对所有人可见
+
+无同步的 data race 演示放进常规用例会让 `-race` 必然报错，故写在第 1、6 节正文里，不进实验。
