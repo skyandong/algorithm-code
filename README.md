@@ -4,7 +4,8 @@
 
 [![CI](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml/badge.svg)](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml)
 
-> **找答案先查 [INDEX.md](INDEX.md)** —— 118 篇笔记、约 113 万字，按「面试官会怎么问」组织的横向入口。
+> **找答案先查 [INDEX.md](INDEX.md)** —— 107 篇笔记、约 2.8 万行，按「面试官会怎么问」组织的横向入口。
+> **要背 / 要答案就看 [INTERVIEW.md](INTERVIEW.md)** —— 两部分：主干 12 条（只背这一页）+ 50 条考点答案库（每条含答案／问法／追问＋答案／🟢 及格线／🟡🔴／出处）。
 
 ## 目录分层
 
@@ -12,22 +13,22 @@
 algorithm-code/
 ├── algorithms/        # 刷题区（主模块 github.com/skyandong/go-code）
 │   ├── leetcode/          # 81 道题，16 分类，测试覆盖 99%
-│   ├── leetcode-core/     # 21 道 S 级题 WHY 式深度注释重写版
+│   ├── leetcode-core/     # 23 道 S 级题 WHY 式深度注释重写版
 │   ├── sort/              # 5 种排序算法
 │   └── stack/             # 栈
 ├── engineering/       # 手写工程件：一致性哈希、环形计数器（带 design.md）
 ├── notes/             # 学习笔记（每栈独立 go.mod，编号分册 + experiments 可运行实验）
 │   ├── golang/            # 13 篇：语言核心/并发/运行时/工程
-│   ├── design-pattern/    # 8 篇：设计原则/创建/结构/行为/并发/错误/反模式
+│   ├── design-pattern/    # 10 篇：设计原则/创建/结构/行为/接口/并发/错误/反模式/DDD/架构风格
 │   ├── distributed/       # 7 篇：CAP/Raft/事务/锁/分片/时钟/故障检测
 │   ├── system-design/     # 8 篇：方法论估算/秒杀/短链/Feed/IM/分布式ID/延迟任务/缓存
 │   ├── microservice/      # 14 篇：注册发现/配置中心/熔断限流/网关/可观测（07~14 为指标监控落地）+ monitoring/ 一键监控栈
 │   ├── mysql/             # 14 篇：索引/事务/锁/执行计划/分库分表/主从（ent/ 依赖未声明，见其 README）
 │   ├── redis/             # 11 篇：底层/持久化/高可用/缓存三问/分布式锁/场景题
-│   ├── akafka/            # 3 篇：架构/消息保障/原理与消费者
-│   ├── elasticsearch/     # 检索
-│   ├── tls/               # TLS 深入（自签证书产物给 nginx 用）
-│   ├── nginx/             # 6 篇：架构/反代/限流/TLS 终止/调优/场景题
+│   ├── akafka/            # 10 篇：架构/消息保障/原理与消费者/顺序性/存储/事务/分区与容量/消费并发/监控运维/选型对比
+│   ├── elasticsearch/     # 5 篇：检索
+│   ├── tls/               # 8 篇：TLS 深入（自签证书产物给 nginx 用）
+│   ├── nginx/             # 7 篇：架构/反代/限流/TLS 终止/调优/场景题/最小 API 网关
 │   └── interview/         # 讲项目：STAR 模板 + 素材重组 + 追问预演
 ├── rpc/               # RPC 框架实验（各为独立 go module）
 │   ├── grpcserver/        # gRPC 服务端：四种流 + 拦截器 + metadata/deadline + TLS
@@ -57,12 +58,13 @@ algorithm-code/
 `.github/workflows/ci.yml` 在 push / PR 时自动发现所有 go module 并执行：
 
 - `gofmt` 全仓格式检查
+- `noteslint` 笔记结构检查（`go run ./tools/noteslint`）：索引数字、文件引用、README 覆盖、实验编号、章节连续性、断言消息、禁用符号
 - `go vet` 遍历每个 module（新增 module 无需改配置）
-- `go test` 只跑不依赖外部服务的部分：主模块全量 + `demos/trtc-demo` 的 `./sig/`
+- `go test` 只跑不依赖外部服务的部分：主模块全量 + `demos/trtc-demo` 的 `./sig/` + `notes/golang` 与 `notes/akafka` 的 `./experiments/`
 
 两点例外：
 
 - `notes/mysql/ent` 是依赖未声明的孤儿历史代码，gofmt 与 vet 均跳过
-- `notes/akafka` 的测试需要真实 Kafka broker，不纳入 CI。本地跑：`cd notes/akafka/docker && docker compose up -d`
+- `notes/akafka` 的集成用例开头调 `requireKafka`，探测不到 broker 就 Skip，所以无 Kafka 的 runner 上也绿。本地起 broker：`cd notes/akafka/docker && docker compose up -d`
 
 本机没有 `go` 时，用仓库外的工具链：`export PATH=/Users/tal/sdk/go1.26.3/bin:$PATH`

@@ -2,10 +2,11 @@
 
 按**面试官会怎么问**组织，而不是按文件罗列。所有路径相对仓库根目录。
 
-笔记正文共 118 篇、约 113 万字，散在 12 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
+笔记正文共 107 篇（编号分册）、md 文件 130 个、约 2.8 万行，散在 12 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
 
 ## 怎么用
 
+- **要背要点 / 要标准答案**：先开 [INTERVIEW.md](INTERVIEW.md)，那里有主干 12 条（只背这一页）和 50 条考点答案库；每个模块更细的结论仍在各自的 `面试一口答.md`
 - **考前突击**：直接翻第 10 节「速查表」，那是各模块浓缩好的一口答
 - **按题找答案**：在下面 9 个域里找对应的问法 → 点进分册
 - **想不起来叫什么**：用 `grep -rn "关键词" notes/` 全笔记搜
@@ -237,15 +238,16 @@
 | 微服务 | [microservice/面试一口答](notes/microservice/面试一口答.md) |
 | 设计模式 | [design-pattern/面试一口答](notes/design-pattern/面试一口答.md) |
 | nginx | [nginx/面试一口答](notes/nginx/面试一口答.md) |
+| Kafka | [akafka/面试一口答](notes/akafka/面试一口答.md) |
 
-> elasticsearch、tls、akafka 三个模块暂无速查表，正文也不厚，直接看分册即可。
+> elasticsearch、tls 两个模块暂无速查表，正文也不厚，直接看分册即可。
 
 ## 11. 手写代码与实验
 
 **刷题区**（主模块，全部带测试，`go test ./...` 可跑）
 
 - [algorithms/leetcode](algorithms/leetcode) — 81 道，16 分类
-- [algorithms/leetcode-core](algorithms/leetcode-core) — 21 道 S 级题的 WHY 式重写版（讲思路时看这个）
+- [algorithms/leetcode-core](algorithms/leetcode-core) — 23 道 S 级题的 WHY 式重写版（讲思路时看这个）
 - [algorithms/sort](algorithms/sort) — 5 种排序
 - [engineering](engineering) — 一致性哈希、环形计数器，带 design.md
 
