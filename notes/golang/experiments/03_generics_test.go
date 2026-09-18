@@ -110,9 +110,9 @@ type Person struct {
 
 // TestMax 第 2 节：一份代码适配多种有序类型
 func TestMax(t *testing.T) {
-	assert.Equal(t, 7, Max(3, 7))
-	assert.Equal(t, 2.5, Max(2.5, 1.5))
-	assert.Equal(t, "b", Max("a", "b"))
+	assert.Equal(t, 7, Max(3, 7), "同一份泛型代码适配 int 有序类型")
+	assert.Equal(t, 2.5, Max(2.5, 1.5), "同一份泛型代码适配 float64 有序类型")
+	assert.Equal(t, "b", Max("a", "b"), "同一份泛型代码适配 string 有序类型")
 }
 
 // TestMapInferenceAndExplicit 第 2 节：双类型参数的推断与显式实例化
@@ -125,7 +125,7 @@ func TestMapInferenceAndExplicit(t *testing.T) {
 func TestFirstOrZero(t *testing.T) {
 	assert.Zero(t, FirstOrZero([]int{}), "var zero T：T 是 int 时即 0")
 	assert.Empty(t, FirstOrZero([]string{}), "var zero T：T 是 string 时即 \"\"")
-	assert.Equal(t, "a", FirstOrZero([]string{"a"}))
+	assert.Equal(t, "a", FirstOrZero([]string{"a"}), "非空切片返回首元素而非零值")
 }
 
 // TestSumTilde 第 3 节：~int 近似约束放行自定义底层类型
@@ -149,9 +149,9 @@ func TestStack(t *testing.T) {
 	s.Push(1)
 	s.Push(2)
 	v, ok := s.Pop()
-	assert.True(t, ok)
-	assert.Equal(t, 2, v)
-	assert.Equal(t, 1, s.Len())
+	assert.True(t, ok, "非空栈 Pop 返回 true 表示取到值")
+	assert.Equal(t, 2, v, "栈后进先出：弹出最后压入的 2")
+	assert.Equal(t, 1, s.Len(), "出栈后栈大小减一")
 
 	doubled := StackMap(s, func(x int) int { return x * 2 })
 	assert.Equal(t, []int{2}, doubled.items, "包级泛型函数绕开「方法不能有类型参数」的限制")
@@ -167,9 +167,9 @@ func TestStack(t *testing.T) {
 func TestGenericsStdlib(t *testing.T) {
 	xs := []int{5, 2, 8, 1}
 	slices.Sort(xs)
-	assert.Equal(t, []int{1, 2, 5, 8}, xs)
-	assert.True(t, slices.Contains(xs, 8))
-	assert.Equal(t, 1, slices.Index(xs, 2))
+	assert.Equal(t, []int{1, 2, 5, 8}, xs, "slices.Sort 原地升序排序")
+	assert.True(t, slices.Contains(xs, 8), "slices.Contains 判定元素存在")
+	assert.Equal(t, 1, slices.Index(xs, 2), "slices.Index 返回元素下标")
 
 	people := []Person{{"ann", 30}, {"bob", 25}, {"cat", 35}}
 	slices.SortFunc(people, func(a, b Person) int { return cmp.Compare(a.Age, b.Age) })
@@ -183,7 +183,7 @@ func TestGenericsStdlib(t *testing.T) {
 	assert.ElementsMatch(t, []string{"a", "b"}, got, "maps.Keys 是迭代器")
 
 	maps.DeleteFunc(m, func(k string, v int) bool { return v < 2 })
-	assert.Equal(t, map[string]int{"b": 2}, m)
+	assert.Equal(t, map[string]int{"b": 2}, m, "maps.DeleteFunc 按谓词删除键值对")
 }
 
 // sumAny 遍历 []any 断言拆箱求和（对照泛型版）

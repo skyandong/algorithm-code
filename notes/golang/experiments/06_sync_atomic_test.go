@@ -55,7 +55,7 @@ func TestUnlockUnlockedMutexIsFatal(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 
 	assert.Error(t, err, "fatal error 令子进程非零退出")
-	assert.Contains(t, string(out), "sync: unlock of unlocked mutex")
+	assert.Contains(t, string(out), "sync: unlock of unlocked mutex", "子进程 fatal 输出含该错误文案")
 	assert.NotContains(t, string(out), "panic:", "throw 不是 panic")
 }
 
@@ -162,7 +162,7 @@ func TestAtomicPointerConfigSnapshot(t *testing.T) {
 	cfg.Store(&configSnapshot{Timeout: 2 * time.Second, Retries: 5}) // 整体原子替换
 	now := cfg.Load()
 
-	assert.Equal(t, configSnapshot{time.Second, 3}, *old)
+	assert.Equal(t, configSnapshot{time.Second, 3}, *old, "换快照前的 Load 仍是旧值")
 	assert.Equal(t, configSnapshot{2 * time.Second, 5}, *now, "读端拿到的永远是完整一致的快照")
 }
 
@@ -205,20 +205,20 @@ func TestSyncMapLoadOrStoreAndRange(t *testing.T) {
 	m.Store("route-b", 2)
 
 	v, ok := m.Load("route-a")
-	assert.True(t, ok)
-	assert.Equal(t, 1, v)
+	assert.True(t, ok, "已存在的键 Load 命中")
+	assert.Equal(t, 1, v, "Load 返回已存入的值 1")
 
 	actual, loaded := m.LoadOrStore("route-c", 3)
-	assert.Equal(t, 3, actual)
+	assert.Equal(t, 3, actual, "键不存在时写入并返回所提供的值")
 	assert.False(t, loaded, "键不存在：写入并返回 false")
 
 	actual, loaded = m.LoadOrStore("route-c", 99)
-	assert.Equal(t, 3, actual)
+	assert.Equal(t, 3, actual, "键已存在时不覆盖，返回既有值")
 	assert.True(t, loaded, "键已存在：不覆盖")
 
 	m.Delete("route-b")
 	_, ok = m.Load("route-b")
-	assert.False(t, ok)
+	assert.False(t, ok, "键已删除：Load 不再命中")
 
 	count := 0
 	m.Range(func(k, v any) bool {

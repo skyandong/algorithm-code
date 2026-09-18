@@ -131,7 +131,7 @@ func TestRangeMutation(t *testing.T) {
 		}
 		count++
 	}
-	assert.GreaterOrEqual(t, count, 10)
+	assert.GreaterOrEqual(t, count, 10, "range 期间新增 key 产不产出不保证，原有 10 个必须走完且不 panic")
 }
 
 // TestConcurrentMapWriteFatal 第 13 节：并发写 map 是 fatal（子进程验证）
@@ -185,11 +185,11 @@ func TestSyncMapSemantics(t *testing.T) {
 	var sm sync.Map
 
 	_, ok := sm.Load("k")
-	assert.False(t, ok)
+	assert.False(t, ok, "未写入的 key：ok=false（与「值为零值」区分开）")
 	sm.Store("k", 1)
 	v, ok := sm.Load("k")
-	assert.True(t, ok)
-	assert.Equal(t, 1, v)
+	assert.True(t, ok, "Store 之后 Load 命中")
+	assert.Equal(t, 1, v, "取回的就是写进去的值")
 
 	// 并发读写块本身没有可确定的断言（谁最后写不可知），价值在 -race 下验证无数据竞争
 	var wg sync.WaitGroup

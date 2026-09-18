@@ -146,7 +146,7 @@ func TestGCNextGCIsTwiceLive(t *testing.T) {
 
 	ratio := float64(ms.NextGC) / float64(ms.HeapAlloc)
 	assert.Greater(t, ratio, 1.5, "GOGC=100：NextGC 约为 live 堆的 2 倍")
-	assert.Less(t, ratio, 3.0)
+	assert.Less(t, ratio, 3.0, "上限：不超 3 倍，避免把 NextGC 的估算偏差当成结论")
 }
 
 // TestAllocationPressureTriggersGC 第 6 节：分配压力自动驱动 GC

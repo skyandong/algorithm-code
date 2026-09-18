@@ -12,11 +12,11 @@ import (
 
 // TestCasesTable 案例表：数量固定、名字唯一、run 与描述非空。
 func TestCasesTable(t *testing.T) {
-	assert.Len(t, cases, 11)
+	assert.Len(t, cases, 11, "案例表应固定为 11 个案例")
 
 	seen := make(map[string]bool, len(cases))
 	for _, c := range cases {
-		assert.NotEmpty(t, c.name)
+		assert.NotEmpty(t, c.name, "案例名不能为空，否则用法输出对不上")
 		assert.NotNil(t, c.run, "case %q 的 run 不能为空", c.name)
 		assert.NotEmpty(t, c.desc, "case %q 缺描述", c.name)
 		assert.False(t, seen[c.name], "case %q 重复注册", c.name)
@@ -28,7 +28,7 @@ func TestCasesTable(t *testing.T) {
 func TestUsage(t *testing.T) {
 	out := captureStdout(t, usage)
 	for _, c := range cases {
-		assert.Contains(t, out, c.name)
+		assert.Contains(t, out, c.name, "用法输出必须列出案例名 %q", c.name)
 	}
-	assert.Contains(t, out, "make up")
+	assert.Contains(t, out, "make up", "用法输出应提示用 make up 启动 broker")
 }

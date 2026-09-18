@@ -112,12 +112,12 @@ func TestStubNotifier(t *testing.T) {
 	stub := &tddStubNotifier{}
 	svc := &tddSettleService{notify: stub}
 
-	require.NoError(t, svc.Settle("o1", 2500))
+	require.NoError(t, svc.Settle("o1", 2500), "stub 不报错时结算必须成功")
 	assert.Equal(t, []string{"o1:2500"}, stub.calls, "成功路径必须记录交互内容")
 
 	failing := &tddStubNotifier{err: errors.New("下游超时")}
 	err := (&tddSettleService{notify: failing}).Settle("o2", 3000)
-	require.Error(t, err)
+	require.Error(t, err, "下游通知失败时结算必须返回错误")
 	assert.Contains(t, err.Error(), "通知失败", "服务侧必须包上语境（笔记 09 篇）")
 	assert.ErrorIs(t, err, failing.err, "%w 链必须可被 errors.Is 追溯")
 }

@@ -18,9 +18,9 @@ func TestSortedPartitions(t *testing.T) {
 	offsets := kadm.ListedOffsets{
 		topicStorage: {2: {}, 0: {}, 1: {}},
 	}
-	assert.Equal(t, []int32{0, 1, 2}, sortedPartitions(offsets, topicStorage))
-	assert.Empty(t, sortedPartitions(offsets, "topic-not-exist"))
-	assert.Empty(t, sortedPartitions(kadm.ListedOffsets{}, topicStorage))
+	assert.Equal(t, []int32{0, 1, 2}, sortedPartitions(offsets, topicStorage), "分区号应按升序排列")
+	assert.Empty(t, sortedPartitions(offsets, "topic-not-exist"), "topic 不存在时应返回空")
+	assert.Empty(t, sortedPartitions(kadm.ListedOffsets{}, topicStorage), "空 offset 表应返回空")
 }
 
 // TestProduceTimestamped 写入 12 条带时间戳的消息后，分区总消息数应增加。
@@ -49,14 +49,14 @@ func TestLocateByTimestamp(t *testing.T) {
 	defer adm.Close()
 
 	startOffsets, err := adm.ListStartOffsets(ctx, topicStorage)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "查询 start offset 不应出错")
 	endOffsets, err := adm.ListEndOffsets(ctx, topicStorage)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "查询 end offset 不应出错")
 
 	// 案例里写入的时间戳覆盖过去 60 秒，取 30 秒前一定能命中
 	target := time.Now().Add(-30 * time.Second).UnixMilli()
 	located, err := adm.ListOffsetsAfterMilli(ctx, target, topicStorage)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "按时间戳定位 offset 不应出错")
 
 	var checked int
 	for _, p := range sortedPartitions(startOffsets, topicStorage) {
@@ -81,8 +81,8 @@ func TestShowStartEndOffsets(t *testing.T) {
 	requireKafka(t)
 
 	out := captureStdout(t, func() { showStartEndOffsets(context.Background()) })
-	assert.Contains(t, out, "PARTITION")
-	assert.Contains(t, out, "START")
+	assert.Contains(t, out, "PARTITION", "输出应包含 PARTITION 表头")
+	assert.Contains(t, out, "START", "输出应包含 START 表头")
 }
 
 // TestShowLogSegmentSize 输出各 broker 上分区的日志段大小表头。
@@ -90,5 +90,5 @@ func TestShowLogSegmentSize(t *testing.T) {
 	requireKafka(t)
 
 	out := captureStdout(t, func() { showLogSegmentSize(context.Background()) })
-	assert.Contains(t, out, "日志段大小")
+	assert.Contains(t, out, "日志段大小", "输出应包含日志段大小表头")
 }

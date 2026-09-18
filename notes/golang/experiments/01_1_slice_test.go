@@ -129,10 +129,10 @@ func TestNilEmptySlice(t *testing.T) {
 	assert.NotNil(t, unsafe.SliceData(emptySlice), "空切片的 SliceData 指向 zerobase")
 
 	nb, err := json.Marshal(nilSlice)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "nil 切片可序列化")
 	assert.Equal(t, "null", string(nb), "nil 切片序列化成 null")
 
 	eb, err := json.Marshal(emptySlice)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "空切片可序列化")
 	assert.Equal(t, "[]", string(eb), "空切片序列化成 []")
 }

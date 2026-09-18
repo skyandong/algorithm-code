@@ -26,7 +26,7 @@ func consumeKeys(t *testing.T, topic string, want []string) []string {
 		kgo.SeedBrokers(brokers),
 		kgo.ConsumeTopics(topic),
 	)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "创建消费 keys 的客户端不该出错")
 	if err != nil {
 		return want
 	}
@@ -69,7 +69,7 @@ func seenKeys(t *testing.T, topic string, d time.Duration, opts ...kgo.Opt) map[
 		kgo.SeedBrokers(brokers),
 		kgo.ConsumeTopics(topic),
 	}, opts...)...)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "创建收集 seen keys 的客户端不该出错")
 	if err != nil {
 		return nil
 	}

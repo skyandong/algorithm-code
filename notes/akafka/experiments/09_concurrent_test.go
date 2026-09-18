@@ -14,18 +14,18 @@ import (
 func TestAdvanceWindow(t *testing.T) {
 	// 0/1/2 已完成，3 是空洞 → 只能推进到 3
 	completed := map[int64]bool{0: true, 1: true, 2: true, 4: true}
-	assert.Equal(t, int64(3), advanceWindow(completed, 0))
+	assert.Equal(t, int64(3), advanceWindow(completed, 0), "遇第一个空洞(3)必须停住，只推进到 3")
 	assert.False(t, completed[0], "已提交的 offset 应移出窗口")
 	assert.True(t, completed[4], "空洞之后的完成项必须留在窗口里等空洞补上")
 
 	// 起点本身就是空洞 → 原地不动
-	assert.Equal(t, int64(5), advanceWindow(map[int64]bool{9: true}, 5))
+	assert.Equal(t, int64(5), advanceWindow(map[int64]bool{9: true}, 5), "起点本身就是空洞，原地不动")
 
 	// 空窗口
-	assert.Equal(t, int64(0), advanceWindow(map[int64]bool{}, 0))
+	assert.Equal(t, int64(0), advanceWindow(map[int64]bool{}, 0), "空窗口无可推进，停在起点 0")
 
 	// 全部连续 → 一路推到底
-	assert.Equal(t, int64(3), advanceWindow(map[int64]bool{0: true, 1: true, 2: true}, 0))
+	assert.Equal(t, int64(3), advanceWindow(map[int64]bool{0: true, 1: true, 2: true}, 0), "全部连续处理完应一路推进到底(3)")
 
 	// 乱序补齐：先到 4/5，最后补上 3 → 一次推进到 6
 	completed = map[int64]bool{4: true, 5: true}
@@ -41,6 +41,6 @@ func TestSlidingWindowCommit(t *testing.T) {
 	produceSequential()
 
 	out := captureStdout(t, slidingWindowCommit)
-	assert.Contains(t, out, "naive 提交会提交到 offset=")
-	assert.Contains(t, out, "滑动窗口提交只推进到 offset=")
+	assert.Contains(t, out, "naive 提交会提交到 offset=", "输出应点出 naive 提交的越界 offset")
+	assert.Contains(t, out, "滑动窗口提交只推进到 offset=", "输出应点出滑动窗口停在安全边界")
 }

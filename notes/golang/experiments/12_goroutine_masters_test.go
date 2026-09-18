@@ -171,12 +171,12 @@ func TestParallelSum(t *testing.T) {
 
 // TestFibonacci 第 4.1 节（谢孟军）：生产者 close 后 range 自动退出，产出前 7 个斐波那契数。
 func TestFibonacci(t *testing.T) {
-	assert.Equal(t, []int{1, 1, 2, 3, 5, 8, 13}, fibonacci(7))
+	assert.Equal(t, []int{1, 1, 2, 3, 5, 8, 13}, fibonacci(7), "生产者 close 后 range 自动退出，产出前 7 个斐波那契数")
 }
 
 // TestPipeline 第 6.1 节（Go 官方博客）：gen→sq→sq，2→4→16、3→9→81。
 func TestPipeline(t *testing.T) {
-	assert.Equal(t, []int{16, 81}, pipeline(2, 3))
+	assert.Equal(t, []int{16, 81}, pipeline(2, 3), "gen→sq→sq 流水线：2→4→16、3→9→81")
 }
 
 // TestSelectWithTimeout 第 6 节（官方博客 Timing out, moving on）：无发送方超时返回 true，有值及时返回 false。
@@ -184,11 +184,11 @@ func TestSelectWithTimeout(t *testing.T) {
 	c := make(chan int)
 	v, timedOut := selectWithTimeout(c, 100*time.Millisecond)
 	assert.True(t, timedOut, "无发送方应在超时分支退出")
-	assert.Equal(t, 0, v)
+	assert.Equal(t, 0, v, "无发送方超时退出，int 返回零值 0")
 
 	ready := make(chan int, 1)
 	ready <- 42
 	v, timedOut = selectWithTimeout(ready, 100*time.Millisecond)
 	assert.False(t, timedOut, "有值应立即返回，不进超时分支")
-	assert.Equal(t, 42, v)
+	assert.Equal(t, 42, v, "及时读到发送方写入的值 42")
 }

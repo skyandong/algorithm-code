@@ -213,7 +213,7 @@ func TestBlockingMapExisting(t *testing.T) {
 	m := newBlockingMap()
 	m.Out("k1", "v1")
 
-	assert.Equal(t, "v1", m.Rd("k1", time.Second))
+	assert.Equal(t, "v1", m.Rd("k1", time.Second), "已存在的 key 立即返回存过的值")
 }
 
 // TestBlockingMapWakeup 题2：等待中的 Rd 被 Out 唤醒并拿到值。
@@ -235,7 +235,7 @@ func TestBlockingMapWakeup(t *testing.T) {
 	m.Out("k2", "v2")
 
 	got := <-done
-	assert.Equal(t, "v2", got.v)
+	assert.Equal(t, "v2", got.v, "被 Out 唤醒的 Rd 拿到写入值")
 	assert.True(t, got.at.After(putAt), "Rd 应阻塞到 Out 之后才返回")
 }
 
@@ -243,10 +243,10 @@ func TestBlockingMapWakeup(t *testing.T) {
 func TestBlockingMapTimeout(t *testing.T) {
 	m := newBlockingMap()
 
-	assert.Nil(t, m.Rd("missing", 100*time.Millisecond))
+	assert.Nil(t, m.Rd("missing", 100*time.Millisecond), "缺失的 key 超时返回 nil")
 
 	m.Out("missing", "late") // 超时的等待者应已被清理，不能 panic
-	assert.Equal(t, "late", m.Rd("missing", time.Second))
+	assert.Equal(t, "late", m.Rd("missing", time.Second), "超时清理后写入可被正常读回")
 }
 
 // TestBanVisit 题3：三分钟窗口内同 IP 只放行一次（注入时间，完全确定性）。
@@ -295,7 +295,7 @@ func TestWaitTimeout(t *testing.T) {
 			}
 		}()
 	}
-	assert.True(t, WaitTimeout(&wg, 100*time.Millisecond))
+	assert.True(t, WaitTimeout(&wg, 100*time.Millisecond), "未结束的 WaitGroup 触发超时返回 true")
 	close(stop)
 	wg.Wait()
 
@@ -307,7 +307,7 @@ func TestWaitTimeout(t *testing.T) {
 			time.Sleep(20 * time.Millisecond)
 		}()
 	}
-	assert.False(t, WaitTimeout(&wg2, 2*time.Second))
+	assert.False(t, WaitTimeout(&wg2, 2*time.Second), "协程自然结束返回 false（未超时）")
 }
 
 // TestFindWithTimeoutFound 题6：目标存在 → 找到即取消其余 worker。
@@ -316,7 +316,7 @@ func TestFindWithTimeoutFound(t *testing.T) {
 	for i := range big {
 		big[i] = i
 	}
-	assert.Equal(t, "found", findWithTimeout(big, 777777, 8, 5*time.Second))
+	assert.Equal(t, "found", findWithTimeout(big, 777777, 8, 5*time.Second), "目标存在：找到即返回 found")
 }
 
 // TestFindWithTimeoutNotFound 题6：目标不存在且扫描很快完成 → notfound（未超时）。
@@ -325,7 +325,7 @@ func TestFindWithTimeoutNotFound(t *testing.T) {
 	for i := range big {
 		big[i] = i
 	}
-	assert.Equal(t, "notfound", findWithTimeout(big, -1, 8, 5*time.Second))
+	assert.Equal(t, "notfound", findWithTimeout(big, -1, 8, 5*time.Second), "目标不存在且扫描完成：返回 notfound")
 }
 
 // TestFindSlowWithTimeout 题6：目标不存在 + 慢查询 → 超时取消 → timeout。
@@ -334,7 +334,7 @@ func TestFindSlowWithTimeout(t *testing.T) {
 	for i := range big {
 		big[i] = i
 	}
-	assert.Equal(t, "timeout", findSlowWithTimeout(big, -1, 2, 300*time.Millisecond))
+	assert.Equal(t, "timeout", findSlowWithTimeout(big, -1, 2, 300*time.Millisecond), "目标不存在加慢查询：超时返回 timeout")
 }
 
 // TestRangeClosureValueCopy 题19：range 值副本自增不影响原 slice。

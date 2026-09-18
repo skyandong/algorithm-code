@@ -12,8 +12,8 @@ import (
 
 // TestProcessRecord 验证空消息体报错、正常消息体通过。
 func TestProcessRecord(t *testing.T) {
-	assert.Error(t, processRecord(&kgo.Record{}))
-	assert.NoError(t, processRecord(&kgo.Record{Value: []byte(`{"id":1}`)}))
+	assert.Error(t, processRecord(&kgo.Record{}), "空消息体应被判定为非法")
+	assert.NoError(t, processRecord(&kgo.Record{Value: []byte(`{"id":1}`)}), "带合法 value 的消息体应处理成功")
 }
 
 // TestConsume 验证消费者能消费 demo-basic 且 ctx 取消后正常退出。
@@ -27,7 +27,7 @@ func TestConsume(t *testing.T) {
 		kgo.DisableAutoCommit(),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
 	)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "创建消费者组客户端不该出错")
 	if err != nil {
 		return
 	}

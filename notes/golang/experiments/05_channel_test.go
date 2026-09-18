@@ -43,7 +43,7 @@ func TestNilDisablesSelectBranch(t *testing.T) {
 	ch <- 42
 	select {
 	case v := <-input:
-		assert.Equal(t, 42, v)
+		assert.Equal(t, 42, v, "恢复指向后分支重新就绪取到 42")
 	default:
 		t.Fatal("恢复指向后分支应就绪")
 	}
@@ -57,22 +57,22 @@ func TestClosedChannelReceive(t *testing.T) {
 	close(ch) // 关闭发送入口，缓冲数据保留
 
 	v, ok := <-ch
-	assert.Equal(t, 10, v)
-	assert.True(t, ok)
+	assert.Equal(t, 10, v, "关闭后先排空缓冲，先收到 10")
+	assert.True(t, ok, "缓冲内数据 ok 仍为 true")
 
 	v, ok = <-ch
-	assert.Equal(t, 20, v)
-	assert.True(t, ok)
+	assert.Equal(t, 20, v, "关闭后排空第二项 20")
+	assert.True(t, ok, "缓冲内第二项 ok 仍为 true")
 
 	v, ok = <-ch
-	assert.Equal(t, 0, v)
+	assert.Equal(t, 0, v, "关闭且排空后收到零值")
 	assert.False(t, ok, "关闭且排空后返回零值 + false")
 
 	ch2 := make(chan int, 1)
 	ch2 <- 0
 	close(ch2)
 	v, ok = <-ch2
-	assert.Equal(t, 0, v)
+	assert.Equal(t, 0, v, "真实发送的零值仍被取出")
 	assert.True(t, ok, "真实发送的零值 ok 仍为 true——不能只靠值判断关闭")
 }
 
@@ -95,7 +95,7 @@ func TestCloseWakesReceiver(t *testing.T) {
 
 	select {
 	case r := <-got:
-		assert.Equal(t, 0, r.v)
+		assert.Equal(t, 0, r.v, "被 close 唤醒的接收者拿到零值")
 		assert.False(t, r.ok, "被 close 唤醒的接收者拿到零值 + false")
 	case <-time.After(time.Second):
 		t.Fatal("close 应唤醒阻塞中的接收者")
@@ -162,8 +162,8 @@ func TestBufferedFullBlocks(t *testing.T) {
 		t.Fatal("有空位后发送应立即成功")
 	}
 
-	assert.Equal(t, 2, <-ch)
-	assert.Equal(t, 3, <-ch)
+	assert.Equal(t, 2, <-ch, "腾位后缓冲 FIFO 先出旧的 2")
+	assert.Equal(t, 3, <-ch, "新发的 3 排在队尾随后出队")
 }
 
 // TestClosePanics 第 10 节：双重 close / 已关再发 / close(nil) 全 panic

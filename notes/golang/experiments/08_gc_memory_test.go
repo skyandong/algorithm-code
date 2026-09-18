@@ -78,12 +78,12 @@ func escapeSendToChannel(ch chan *int) {
 
 // TestEscapeScenariosBehave 第 1 节：六个逃逸场景的行为（判定看 -gcflags）
 func TestEscapeScenariosBehave(t *testing.T) {
-	assert.Equal(t, 42, *escapeReturnPtr())
-	assert.Equal(t, 43, escapeClosure()())
-	assert.Len(t, escapeDynamicSlice(8), 8)
-	assert.Equal(t, 1024, escapeInterfaceArg(1024))
-	assert.Equal(t, -1, escapeInterfaceArg("x"))
-	assert.Equal(t, 10, noEscapeFixedSum())
+	assert.Equal(t, 42, *escapeReturnPtr(), "返回指针 → 局部变量逃逸到堆，解引用仍有返回值 42")
+	assert.Equal(t, 43, escapeClosure()(), "闭包捕获 x=42 并延长其生命周期逃逸到堆，调用返回 43")
+	assert.Len(t, escapeDynamicSlice(8), 8, "动态长度 make 编译期定不下大小逃逸到堆，长度恰为入参 8")
+	assert.Equal(t, 1024, escapeInterfaceArg(1024), "参数存入全局 → 装箱对象逃逸，int 原样返回 1024")
+	assert.Equal(t, -1, escapeInterfaceArg("x"), "非 int 参数类型断言失败 → 返回 -1 哨兵值")
+	assert.Equal(t, 10, noEscapeFixedSum(), "大小已知且不外泄 → 留在栈上，求和得 10")
 
 	ch := make(chan *int, 1)
 	go escapeSendToChannel(ch)

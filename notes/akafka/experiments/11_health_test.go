@@ -19,19 +19,19 @@ func TestUnderISRPartitions(t *testing.T) {
 		{Partition: 1, Replicas: []int32{1, 2}, ISR: []int32{1}},    // 掉队
 		{Partition: 2, Replicas: []int32{1}, ISR: []int32{1}},       // 单副本，永远健康
 	}
-	assert.Equal(t, []int32{1}, underISRPartitions(parts))
+	assert.Equal(t, []int32{1}, underISRPartitions(parts), "只有 ISR 不足的分区 1 被判定为掉队")
 
-	assert.Empty(t, underISRPartitions(nil))
+	assert.Empty(t, underISRPartitions(nil), "空输入不产生任何掉队分区")
 	assert.Empty(t, underISRPartitions([]kadm.PartitionDetail{
 		{Partition: 0, Replicas: []int32{1, 2, 3}, ISR: []int32{1, 2, 3}},
-	}))
+	}), "ISR 与副本数一致时不算掉队")
 }
 
 // TestTopicStatus 有掉队分区才报警。
 func TestTopicStatus(t *testing.T) {
-	assert.Equal(t, "✓ 健康", topicStatus(nil))
-	assert.Equal(t, "✓ 健康", topicStatus([]int32{}))
-	assert.Equal(t, "⚠ 副本掉队", topicStatus([]int32{1, 2}))
+	assert.Equal(t, "✓ 健康", topicStatus(nil), "无分区时视为健康")
+	assert.Equal(t, "✓ 健康", topicStatus([]int32{}), "分区列表为空时视为健康")
+	assert.Equal(t, "⚠ 副本掉队", topicStatus([]int32{1, 2}), "存在掉队分区时给出告警")
 }
 
 // TestShowClusterOverview 集群概览输出 cluster id / controller / broker 列表。
@@ -42,9 +42,9 @@ func TestShowClusterOverview(t *testing.T) {
 	defer adm.Close()
 
 	out := captureStdout(t, func() { showClusterOverview(context.Background(), adm) })
-	assert.Contains(t, out, "ClusterID")
-	assert.Contains(t, out, "Controller")
-	assert.Contains(t, out, "Brokers")
+	assert.Contains(t, out, "ClusterID", "概览输出应展示集群 ID")
+	assert.Contains(t, out, "Controller", "概览输出应展示 controller 节点")
+	assert.Contains(t, out, "Brokers", "概览输出应展示 broker 列表")
 }
 
 // TestShowTopicHealth topic 健康表输出表头（且跳过内部 topic）。
@@ -55,9 +55,9 @@ func TestShowTopicHealth(t *testing.T) {
 	defer adm.Close()
 
 	out := captureStdout(t, func() { showTopicHealth(context.Background(), adm) })
-	assert.Contains(t, out, "TOPIC")
-	assert.Contains(t, out, "PARTITIONS")
-	assert.Contains(t, out, "ISR不足分区")
+	assert.Contains(t, out, "TOPIC", "健康表应列出 TOPIC 表头")
+	assert.Contains(t, out, "PARTITIONS", "健康表应列出 PARTITIONS 表头")
+	assert.Contains(t, out, "ISR不足分区", "健康表应列出 ISR 不足分区表头")
 	assert.NotContains(t, out, "__consumer_offsets", "内部 topic 不应出现在巡检表里")
 }
 
@@ -69,5 +69,5 @@ func TestShowGroupHealth(t *testing.T) {
 	defer adm.Close()
 
 	out := captureStdout(t, func() { showGroupHealth(context.Background(), adm) })
-	assert.Contains(t, out, "消费者组")
+	assert.Contains(t, out, "消费者组", "组巡检应打印消费者组标题")
 }

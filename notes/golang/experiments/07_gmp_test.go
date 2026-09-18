@@ -67,7 +67,7 @@ func TestGoschedBothGoroutinesFinish(t *testing.T) {
 	}()
 	wg.Wait()
 
-	assert.Equal(t, int64(6), a.Load())
+	assert.Equal(t, int64(6), a.Load(), "单 P 下 a 也跑满 6 次，没被饿死")
 	assert.Equal(t, int64(6), b.Load(), "Gosched 让出后另一个 G 能推进，双方都不饿死")
 }
 

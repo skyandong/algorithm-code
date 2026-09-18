@@ -14,23 +14,23 @@ import (
 // TestPrintDistributionEmpty 空分布要给出友好提示而不是 panic。
 func TestPrintDistributionEmpty(t *testing.T) {
 	out := captureStdout(t, func() { printDistribution(nil) })
-	assert.Contains(t, out, "(无数据)")
+	assert.Contains(t, out, "(无数据)", "空分布应输出无数据提示而非 panic")
 }
 
 // TestPrintDistributionHotKey 某分区独占全部消息时应打出热点标记。
 func TestPrintDistributionHotKey(t *testing.T) {
 	counts := map[int32]int64{0: 600, 1: 0, 2: 0}
 	out := captureStdout(t, func() { printDistribution(counts) })
-	assert.Contains(t, out, "总消息数=600")
-	assert.Contains(t, out, "热点分区")
+	assert.Contains(t, out, "总消息数=600", "热点场景应汇总出总消息数 600")
+	assert.Contains(t, out, "热点分区", "某分区独占时应标记为热点分区")
 }
 
 // TestPrintDistributionUniform 均匀分布不该出现热点标记。
 func TestPrintDistributionUniform(t *testing.T) {
 	counts := map[int32]int64{0: 100, 1: 100, 2: 100, 3: 100, 4: 100, 5: 100}
 	out := captureStdout(t, func() { printDistribution(counts) })
-	assert.Contains(t, out, "总消息数=600")
-	assert.NotContains(t, out, "热点分区")
+	assert.Contains(t, out, "总消息数=600", "均匀场景也应汇总出总消息数 600")
+	assert.NotContains(t, out, "热点分区", "均匀分布不应出现热点分区标记")
 }
 
 // TestCountPerPartitionUniform 均匀 key 应铺满 6 个分区且不严重倾斜。
@@ -57,10 +57,10 @@ func TestCountPerPartitionHotKey(t *testing.T) {
 	produceHotKey(ctx)
 
 	counts := countPerPartition(ctx, topicSkewHot)
-	assert.Len(t, counts, 6)
+	assert.Len(t, counts, 6, "热点 key 仍应铺满全部 6 个分区")
 
 	total := sumCounts(counts)
-	assert.Positive(t, total)
+	assert.Positive(t, total, "热点 key 应产生非零的消息总数")
 	assert.Equal(t, total, maxCount(counts),
 		"热点 key 的消息应全在同一个分区，加分区数也救不了: %v", counts)
 }

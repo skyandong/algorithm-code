@@ -47,10 +47,10 @@ func TestMethodSet(t *testing.T) {
 	_, ptrImplValue := p.(interface{ ByValue() })
 	_, ptrImplPtr := p.(interface{ ByPointer() })
 
-	assert.True(t, valueImplValue)
+	assert.True(t, valueImplValue, "T 的方法集含值接收者方法")
 	assert.False(t, valueImplPtr, "T 的方法集不含指针接收者方法")
 	assert.True(t, ptrImplValue, "*T 的方法集含值接收者方法")
-	assert.True(t, ptrImplPtr)
+	assert.True(t, ptrImplPtr, "*T 的方法集含指针接收者方法")
 }
 
 // myError 模拟线上事故：返回 *myError(nil) 时接口非 nil。
@@ -77,7 +77,7 @@ func TestNilInterfaceTrap(t *testing.T) {
 	// 注意：reflect 视角下这个接口是「nil」的，testify 的 assert.NotNil 也会被骗——
 	// 所以判 nil 一律用 err != nil，别用反射。
 	v := reflect.ValueOf(err)
-	assert.Equal(t, reflect.Ptr, v.Kind())
+	assert.Equal(t, reflect.Ptr, v.Kind(), "反射看到底层指针类型 Ptr")
 	assert.True(t, v.IsNil(), "IsNil 看的是底层指针，所以先判 Kind 再判 IsNil")
 }
 
@@ -111,7 +111,7 @@ func TestTypeAssertion(t *testing.T) {
 	var i any = 42
 
 	s, ok := i.(string)
-	assert.False(t, ok)
+	assert.False(t, ok, "int 不能断言为 string")
 	assert.Empty(t, s, "comma-ok 失败不 panic")
 
 	assert.Panics(t, func() { _ = i.(string) }, "单值断言失败 panic")
@@ -120,7 +120,7 @@ func TestTypeAssertion(t *testing.T) {
 	switch x := i.(type) {
 	case int:
 		hit = "int"
-		assert.Equal(t, 42, x)
+		assert.Equal(t, 42, x, "类型断言成功取回原 int 值")
 	default:
 		hit = "default"
 	}
@@ -138,17 +138,17 @@ func TestReflectFields(t *testing.T) {
 	u := user{Name: "tal", age: 30}
 	v := reflect.ValueOf(&u).Elem()
 
-	assert.True(t, v.Field(0).CanSet())
+	assert.True(t, v.Field(0).CanSet(), "可寻址的导出字段可 Set")
 	assert.False(t, reflect.ValueOf(u).Field(0).CanSet(), "值不可寻址：连导出字段也 Set 不了")
 
 	assert.False(t, v.Field(1).CanSet(), "非导出字段不可 Set")
-	assert.False(t, v.Field(1).CanInterface())
+	assert.False(t, v.Field(1).CanInterface(), "非导出字段不可 Interface（即便可寻址）")
 	assert.Equal(t, 30, int(v.Field(1).Int()), "非导出字段 readable")
 
 	v.Field(0).SetString("review")
 	assert.Equal(t, "review", u.Name, "Set 直接写回原变量")
 
-	assert.Panics(t, func() { v.Field(1).SetInt(31) })
+	assert.Panics(t, func() { v.Field(1).SetInt(31) }, "非导出字段 Set 触发 panic")
 }
 
 // reflectPerfUser 反射开销对照用：字段必须导出，否则 SetInt 会 panic。
