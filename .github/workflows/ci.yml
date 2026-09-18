@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   verify:
-    name: gofmt · vet · test
+    name: gofmt · noteslint · vet · test
     runs-on: ubuntu-latest
 
     steps:
@@ -38,6 +38,12 @@ jobs:
             echo "$bad"
             exit 1
           fi
+
+      - name: notes 结构检查
+        run: |
+          # 守住笔记仓库的结构一致：索引数字、文件引用、README 覆盖、
+          # 实验编号、章节连续性、断言消息、禁用符号
+          go run ./tools/noteslint
 
       - name: vet
         run: |
