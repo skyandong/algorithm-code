@@ -2,7 +2,7 @@
 
 按**面试官会怎么问**组织，而不是按文件罗列。所有路径相对仓库根目录。
 
-笔记正文共 107 篇（编号分册）、md 文件 130 个、约 2.8 万行，散在 12 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
+笔记正文共 104 篇（编号分册）、md 文件 126 个、约 2.4 万行，散在 12 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
 
 ## 怎么用
 
@@ -19,11 +19,11 @@
 
 | 问题 | 位置 |
 | --- | --- |
-| slice 与 string 的头结构？append 扩容规则？ | [golang/01](notes/golang/01-slice、string与map底层.md) |
+| slice 与 string 的头结构？append 超 cap 时做了什么？ | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | slice 共享底层数组的三个经典坑 | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | map 底层实现（Swiss Table）？为什么无序？ | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | map 并发读写为什么 fatal error 且不可 recover（高频） | [golang/01](notes/golang/01-slice、string与map底层.md) |
-| sync.Map 的 HashTrieMap 设计与选型 | [golang/01](notes/golang/01-slice、string与map底层.md)、[golang/06](notes/golang/06-sync锁与原子操作.md) |
+| sync.Map 的 HashTrieMap 设计与选型 | [golang/06](notes/golang/06-sync并发原语.md) |
 | string 为什么不可变？与 []byte 转换的拷贝开销 | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | len("你好") 为什么是 6？rune 与 UTF-8 | [golang/01](notes/golang/01-slice、string与map底层.md) |
 | unsafe.Pointer 与 uintptr 的区别？unsafe 什么时候出场 | [golang/01](notes/golang/01-slice、string与map底层.md) |
@@ -41,18 +41,21 @@
 | 调度循环：runnext、本地队列、work-stealing | [golang/07](notes/golang/07-运行时调度器GMP.md) |
 | 系统调用时 M 与 P 分离（hand off） | [golang/07](notes/golang/07-运行时调度器GMP.md) |
 | GOMAXPROCS 在容器里的坑（高频） | [golang/07](notes/golang/07-运行时调度器GMP.md) |
-| channel 的 hchan 结构 | [golang/05](notes/golang/05-Channel内部与nil语义.md) |
-| nil channel 收发为什么永久阻塞？有什么用 | [golang/05](notes/golang/05-Channel内部与nil语义.md) |
-| close 的底层语义与广播效应 | [golang/05](notes/golang/05-Channel内部与nil语义.md) |
-| Mutex 的状态机与正常/饥饿两种模式 | [golang/06](notes/golang/06-sync锁与原子操作.md) |
-| RWMutex 的真实成本，什么时候不该用 | [golang/06](notes/golang/06-sync锁与原子操作.md) |
-| happens-before 与内存可见性（高频） | [golang/04](notes/golang/04-并发内存可见性与sync.Once.md) |
-| 错误的双重检查锁定 vs sync.Once | [golang/04](notes/golang/04-并发内存可见性与sync.Once.md) |
+| channel 的 hchan 结构 | [golang/05](notes/golang/05-channel内部与nil语义.md) |
+| nil channel 收发为什么永久阻塞？有什么用 | [golang/05](notes/golang/05-channel内部与nil语义.md) |
+| close 的底层语义与广播效应 | [golang/05](notes/golang/05-channel内部与nil语义.md) |
+| Mutex 的状态机与正常/饥饿两种模式 | [golang/06](notes/golang/06-sync并发原语.md) |
+| RWMutex 的真实成本，什么时候不该用 | [golang/06](notes/golang/06-sync并发原语.md) |
+| happens-before 与内存可见性（高频） | [golang/04](notes/golang/04-并发内存模型与可见性.md) |
+| 错误的双重检查锁定 vs sync.Once | [golang/06](notes/golang/06-sync并发原语.md) |
 | context 取消树的实现与传播规则 | [golang/09](notes/golang/09-context与错误处理.md) |
-| Background vs TODO？子超时能比父长吗 | [golang/09](notes/golang/09-context与错误处理.md) |
+| Background 和 TODO 有什么区别？为什么不能拿 Background 顶替父 ctx（高频） | [golang/09](notes/golang/09-context与错误处理.md) |
+| 子超时能比父长吗（Deadline 取更早者） | [golang/09](notes/golang/09-context与错误处理.md) |
+| context.Cause 和 Err 有什么不同？ | [golang/09](notes/golang/09-context与错误处理.md) |
+| 忘记 cancel 到底泄漏了什么 | [golang/09](notes/golang/09-context与错误处理.md) |
 | 并发模式：pipeline / fan-in / errgroup / semaphore | [design-pattern/06](notes/design-pattern/06-并发模式.md) |
 | goroutine 裸奔、锁粒度错配等反模式 | [design-pattern/08](notes/design-pattern/08-反模式清单.md) |
-| Goroutine 手写题与选择题 | [golang/11](notes/golang/11-Goroutine面试题集.md) |
+| 并发手写题（生产者-消费者 / 阻塞读 Map / IP 限流 / WaitTimeout / ctx 取消查找） | [golang/05](notes/golang/05-channel内部与nil语义.md)、[golang/06](notes/golang/06-sync并发原语.md)、[golang/09](notes/golang/09-context与错误处理.md) 各篇实验 |
 
 ## 3. Go 运行时与性能
 
@@ -61,12 +64,12 @@
 | 逃逸分析：什么情况下栈变量跑到堆上 | [golang/08](notes/golang/08-内存管理与GC.md) |
 | 分配器 mcache → mcentral → mheap（TCMalloc 思想） | [golang/08](notes/golang/08-内存管理与GC.md) |
 | 三色标记 + 混合写屏障（高频） | [golang/08](notes/golang/08-内存管理与GC.md) |
-| GOGC 与 GOMEMLIMIT 怎么配合 | [golang/08](notes/golang/08-内存管理与GC.md)、[golang/10](notes/golang/10-性能调优实战.md) |
+| GOGC 与 GOMEMLIMIT 怎么配合 | [golang/08](notes/golang/08-内存管理与GC.md) |
 | sync.Pool 每轮 GC 都清空，为什么还值得用 | [golang/08](notes/golang/08-内存管理与GC.md) |
 | benchmark 规范与优化性价比排序 | [golang/10](notes/golang/10-性能调优实战.md) |
 | pprof / trace 实战与线上排查标准路径（高频） | [golang/10](notes/golang/10-性能调优实战.md)、[demos/pprof-lab](demos/pprof-lab) |
 | 火焰图怎么看：根在顶、宽度 ∝ 占比、正当热点与病灶同图 | [demos/pprof-lab](demos/pprof-lab) |
-| Go 的正则会灾难性回溯吗（RE2 纠偏，高频陷阱题） | [golang/10](notes/golang/10-性能调优实战.md) 第 10 节、[demos/pprof-lab](demos/pprof-lab) |
+| Go 的正则会灾难性回溯吗（RE2 纠偏，高频陷阱题） | [golang/10](notes/golang/10-性能调优实战.md) 第 9 节、[demos/pprof-lab](demos/pprof-lab) |
 | goroutine 泄漏怎么用 pprof 定位到具体行 | [demos/pprof-lab](demos/pprof-lab) |
 
 ## 4. MySQL
@@ -209,11 +212,10 @@
 | 实体 vs 值对象判据（高频） | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
 | 聚合根三铁律、聚合怎么切（高频） | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
 | 领域事件 / 防腐层各解决什么 | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
-| TDD 循环是什么？为什么测试先行 | [golang/13](notes/golang/13-TDD测试驱动开发.md) |
-| 表驱动测试怎么写、错误用例怎么断言 | [golang/13](notes/golang/13-TDD测试驱动开发.md) |
-| Go 里怎么做 mock？要上框架吗 | [golang/13](notes/golang/13-TDD测试驱动开发.md)、[design-pattern/01](notes/design-pattern/01-设计原则的Go式解读.md) |
-| 集成测试依赖外部服务，CI 怎么处理 | [golang/13](notes/golang/13-TDD测试驱动开发.md)、[akafka/experiments](notes/akafka/experiments) |
-| 什么时候不该 TDD？覆盖率多少合格 | [golang/13](notes/golang/13-TDD测试驱动开发.md) |
+| TDD 循环是什么？什么时候不该 TDD | [golang/README](notes/golang/README.md) 测试与工程实践 |
+| 表驱动测试怎么写、错误用例怎么断言 | [golang/README](notes/golang/README.md) 测试与工程实践 |
+| Go 里怎么做 mock？要上框架吗 | [design-pattern/01](notes/design-pattern/01-设计原则的Go式解读.md)、[golang/README](notes/golang/README.md) 测试与工程实践 |
+| 集成测试依赖外部服务，CI 怎么处理 | [golang/README](notes/golang/README.md) 跑测试与写测试、[akafka/experiments](notes/akafka/experiments) |
 | CRUD 不该用 DDD，那用什么？——事务脚本（高频） | [design-pattern/09](notes/design-pattern/09-DDD领域驱动设计.md) |
 | 六边形/洋葱/整洁架构是什么关系（高频） | [design-pattern/10](notes/design-pattern/10-架构风格.md) |
 | CQRS 是什么、分几级落地、代价在哪 | [design-pattern/10](notes/design-pattern/10-架构风格.md)、[system-design/02](notes/system-design/02-秒杀系统.md) |

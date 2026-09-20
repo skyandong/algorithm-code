@@ -1,6 +1,6 @@
 # Exporter 速查：让不懂 Prometheus 的系统开口说话
 
-> **核心认知：** Exporter 是**适配器**——MySQL、Redis、nginx、操作系统都不会自己输出 Prometheus 文本格式，Exporter 替它们做翻译：**去问一次内部状态（`SHOW STATUS` / `/stub_status` / `/proc`），把结果变成 `/metrics` 文本**。理解这个定位后有两个推论：①Exporter 本身**不存数据**（它只是查询时的翻译层，每次抓取现问现答）；②**一个 Exporter 可以代理多个实例**（mysqld_exporter 连 10 个 MySQL，用 `instance` 参数区分）——这与"每个进程自己埋点"是不同的部署形态，别混淆。
+> **核心认知：** Exporter 是**适配器**——MySQL、Redis、nginx 都不会自己输出 Prometheus 文本格式，Exporter 替它们翻译：问一次内部状态，把结果变成 `/metrics`。由此有两个推论：它**不存数据**，且**一个进程可以代理多个实例**（用 `instance` 参数区分）。
 
 前置知识：[07](07-指标体系与数据模型.md)、[08](08-Prometheus架构与抓取.md)。联动：`notes/nginx`、`notes/redis`、`notes/mysql`、`notes/akafka`。
 
@@ -183,5 +183,10 @@ node_exporter 读本机 `/proc`，必须每机一个（DaemonSet）；mysqld_exp
 四条：`Collect()` 必须快且有超时（超时返回空不卡住）、目标不可用时只让该目标 `up=0` 不污染其他实例、集中式用 `?target=` + relabel 转 `instance` 标签、`Collect()` 里绝不创建新的指标元信息（每次抓取返回不同的指标名会让 Prometheus 报错）。
 
 ---
+## 实验
 
-本篇对应实验：experiments/13_exporter.go（手写 Collector 模式 Exporter：模拟一个内部系统的队列深度/吞吐指标，`Describe`/`Collect` 分离、目标不可用只让该实例 `up=0`、起 HTTP 端点供真实 Prometheus 抓取）
+对应代码：[experiments/13_exporter.go](experiments/13_exporter.go)（手写 Collector 模式 Exporter：模拟一个内部系统的队列深度/吞吐指标，`Describe`/`Collect` 分离、目标不可用只让该实例 `up=0`、起 HTTP 端点供真实 Prometheus 抓取）
+
+```bash
+cd notes/microservice && go run ./experiments/          # 全部实验
+```

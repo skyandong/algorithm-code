@@ -1,8 +1,6 @@
 # HTTPS 与 TLS 终止实战
 
-> **本篇设计基线（模块铁律）：TLS 终止只在 nginx 边缘做。证书、私钥、协议版本、密码套件全部属于 nginx 层；后端 web 服务只监听纯 HTTP，代码里没有任何加密解密。
-> 后端想知道"用户原始是不是 HTTPS"，只看 nginx 透传的 X-Forwarded-Proto 头。
-> 证书怎么来、握手怎么回事 → `notes/tls`（原理层）；本篇讲"证书怎么用、终止在哪"（实战层）。**
+> **核心认知：** 本篇的模块铁律是「**TLS 终止只在 nginx 边缘做**」——证书、私钥、协议版本、密码套件全部属于 nginx 层，后端只监听纯 HTTP，代码里没有任何加密解密；想知道「用户原始是不是 HTTPS」，只看 nginx 透传的 `X-Forwarded-Proto`。
 
 ---
 
@@ -119,6 +117,11 @@ srv.ListenAndServe()          // 没有 ListenAndServeTLS
 
 ---
 
-## 本篇对应实验
+## 实验
 
-`experiments/05_https_termination.go` —— TLS 握手成功 + 后端握手失败（证明终止点）+ X-Forwarded-Proto 验证
+对应代码：[experiments/05_https_termination.go](experiments/05_https_termination.go) —— TLS 握手成功 + 后端握手失败（证明终止点）+ X-Forwarded-Proto 验证
+
+```bash
+cd notes/nginx/experiments
+go run .                             # 全部实验（需先按 README「跑实验」起 nginx）
+```

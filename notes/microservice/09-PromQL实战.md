@@ -1,6 +1,6 @@
 # PromQL 实战：两种向量，一套组合拳
 
-> **核心认知：** PromQL 只有一个真正需要跨过去的心智门槛——**瞬时向量（instant vector）和区间向量（range vector）是两种东西**。瞬时向量是"此刻每一条 series 各有一个值"（图表上的一个点集）；区间向量是"过去一段时间里每一条 series 各有一串值"（只有它能喂给 `rate`/`increase` 这类**随时间变化**的函数）。绝大多数 PromQL 报错（"expected type range vector"）和绝大多数错误结果，都是把这两种向量弄混了。跨过去之后，剩下的就是十几个函数的排列组合。
+> **核心认知：** PromQL 只有一个真正需要跨过去的心智门槛——**瞬时向量和区间向量是两种东西**。前者是「此刻每条 series 各有一个值」，后者是「过去一段时间里每条 series 各有一串值」，只有后者能喂给 `rate` / `increase` 这类函数。多数报错和错误结果，都是把两者弄混了。
 
 前置知识：[07](07-指标体系与数据模型.md)（series、Counter、Histogram 桶）、[08](08-Prometheus架构与抓取.md)（scrape_interval 与窗口的关系）。
 
@@ -211,5 +211,10 @@ rate(node_cpu_seconds_total{mode="idle"}[5m])   # 反过来用: 1 - idle 即使�
 唯一理由是性能——高频访问且计算昂贵的聚合查询，预计算成新 series 供面板和告警复用。命名 `level:metric:operation`。不要过度使用，多一份配置且有一轮求值延迟。
 
 ---
+## 实验
 
-本篇对应实验：experiments/09_promql.go（手写 rate/increase/irate 与 counter 重置修正：对比朴素算法与修正算法在重启场景下的差异，验证窗口不足导致的失真）、experiments/08_histogram.go（手写分桶与 `histogram_quantile` 线性插值，并演示粗桶带来的误差量级）
+对应代码：[experiments/09_promql.go](experiments/09_promql.go)（手写 rate/increase/irate 与 counter 重置修正：对比朴素算法与修正算法在重启场景下的差异，验证窗口不足导致的失真）、[experiments/08_histogram.go](experiments/08_histogram.go)（手写分桶与 `histogram_quantile` 线性插值，并演示粗桶带来的误差量级）
+
+```bash
+cd notes/microservice && go run ./experiments/          # 全部实验
+```

@@ -1,8 +1,8 @@
-# Context 与错误处理
+# context 与错误处理
 
-> **核心认知：** context 是 Go 把「**取消、超时、截止、请求级元数据**」标准化成一棵树的方案——每个 With* 派生一个子节点，父节点取消沿着树**广播**给所有后代，任何一处阻塞在 IO/Channel 上的 goroutine 都能被及时释放。错误处理的对应认知是：**error 是值，比较的是树不是字符串**——`%w` 包一层形成错误链，`errors.Is/As` 沿链查找，于是「哨兵错误判断」和「结构化取值」都不再依赖脆弱的错误消息文本。这两件事共同构成 Go 服务端代码的骨架：**所有函数第一个参数是 ctx，所有返回以 error 结尾**。
+> **核心认知：** context 把「取消、超时、截止、请求级元数据」标准化成一棵树，父节点取消会沿树**广播**给所有后代，阻塞中的 goroutine 因此能被及时释放。错误处理对应的一句话是：**error 是值，比较的是链不是字符串**——`%w` 成链，`errors.Is/As` 沿链查。
 
-本文基于 Go 1.26 的实际行为编写。前置知识：channel 关闭广播语义见 `05-Channel内部与nil语义.md`，goroutine 泄漏见 `11`/`12`。
+本文基于 Go 1.26 的实际行为编写。前置知识：channel 关闭广播语义见 `05-channel内部与nil语义.md`，goroutine 泄漏见 `05-channel内部与nil语义.md` 第 13 节。
 
 ---
 
@@ -16,13 +16,13 @@
 6. [错误链：Is / As / Join](#6-错误链is--as--join)
 7. [panic 与 recover](#7-panic-与-recover)
 8. [defer 的四个陷阱](#8-defer-的四个陷阱)
-9. [面试高频](#9-面试高频)
 
 ---
 
 ## 1. context 的核心模型：一棵取消树
 
 ```go
+// src/context/context.go（节选）
 type Context interface {
     Deadline() (deadline time.Time, ok bool) // 截止时刻
     Done() <-chan struct{}                    // 取消信号：channel 关闭（不是发值！）
@@ -42,12 +42,12 @@ ctx (Background)
           └─ workerCtx
 ```
 
-reqCtx 超时（或客户端断开）→ Done channel 关闭 → dbCtx/rpcCtx/workerCtx 的 Done **同一时间**全部关闭。子节点的截止**只能比父更紧**：`WithTimeout(parent, 10s)` 而父还剩 3s 时，子实际 3s 后取消。
+reqCtx 超时（或客户端断开）→ Done channel 关闭 → dbCtx/rpcCtx/workerCtx 的 Done **同一时间**全部关闭。子节点的截止时间**只能比父更近**：`WithTimeout(parent, 10s)` 而父还剩 3s 时，子实际 3s 后取消。
 
 两个易错点：
 
 1. **Done() 是关闭 channel，不是发送值**。所以监听端标准写法永远是 `select { case <-ctx.Done(): return ctx.Err() ... }`——关闭对所有接收者同时可见（广播），这正是 `05` 篇「closed channel 永远可读」语义的应用；
-2. **ctx 取消不等于 goroutine 自动停止**。取消只是「信号已拉响」，阻塞在 `ctx.Done()`、`select`、或支持 ctx 的 IO（net/http、database/sql、grpc 调用）上的代码会被唤醒；**正在跑纯 CPU 循环的代码根本不知道取消发生**。context 是协作式取消，每个长循环都有义务主动检查。
+2. **ctx 取消不等于 goroutine 自动停止**。取消只是「信号已拉响」：那些正阻塞在 `ctx.Done()`、`select`，或者阻塞在支持 ctx 的 IO（net/http、database/sql、grpc 调用）上的代码会被唤醒；**而正在跑纯 CPU 循环的代码，根本不知道取消已经发生**。context 是协作式取消，每个长循环都有义务主动检查。
 
 ```go
 for {
@@ -60,6 +60,55 @@ for {
 }
 ```
 
+### 1.1 根节点：Background 与 TODO
+
+```go
+// src/context/context.go（节选）
+type emptyCtx struct{}                                     // 零大小，不分配堆内存
+
+func (emptyCtx) Deadline() (deadline time.Time, ok bool) { return } // 零值时间 + false
+func (emptyCtx) Done() <-chan struct{}                     { return nil }  // ★ nil，不是已关闭的 channel
+func (emptyCtx) Err() error                                { return nil }
+func (emptyCtx) Value(key any) any                         { return nil }
+
+type backgroundCtx struct{ emptyCtx }
+func (backgroundCtx) String() string { return "context.Background" }
+
+type todoCtx struct{ emptyCtx }
+func (todoCtx) String() string { return "context.TODO" }
+```
+
+四个方法全是空壳，结论就这四条：**永不取消、没有截止、没有值、`Err()` 永远为 nil**。
+
+`Background` 与 `TODO` 的实现**只差一个字节**——`String()` 的输出。行为完全一致，差别是**写给人看的意图**：
+
+| | 含义 | 用在哪 |
+|---|---|---|
+| `Background()` | **主动选择「我就是根」**：没有更上游的 ctx | `main`、`init`、测试、请求入口（HTTP / RPC handler 的顶层） |
+| `TODO()` | **还没想好 / 暂时拿不到**：占位符，等着被真正的 ctx 替换 | 函数签名还没加 ctx 参数时的过渡期 |
+
+四个容易答错的点：
+
+1. **`Done()` 返回 nil channel，不是已关闭的 channel**——这个区别决定语义。已关闭的 channel 会让所有 `<-ctx.Done()` 立刻返回（等于「已取消」），而 **nil channel 上的接收永远阻塞**（等于「永不取消」），`select` 里那个 case 相当于被永久禁用。所以「Background 永不取消」不是一条口头约定，是 nil channel 的语义直接实现的；
+2. **它不是单例**：`Background()` 每次返回一个新的零大小值（零大小不占堆内存，可放心在热路径调用）；
+3. **`Value()` 永远返回 nil**：`Background` 本身挂不了任何东西，要挂就 `WithValue(Background(), k, v)` 派生一个；
+4. **`WithoutCancel` 的 `Done()` 同样是 nil**，所以它和 `Background` 在「永不被取消」这一点上等价，区别是它还留着父链上的 Value。
+
+**最大的坑：中途拿 Background 换掉上游传下来的 ctx，等于切断取消链。**
+
+```go
+func handler(req *http.Request) {
+	ctx := req.Context()                      // 客户端断开 → 这个 ctx 会被取消
+	go audit(context.Background())            // ✗ 断链：请求结束、上游超时，审计还在跑
+	go audit(ctx)                             // ✓ 跟随请求生命周期，一起被取消
+	go audit(context.WithoutCancel(ctx))      // ✓ 要收尾就显式剥离取消，Value 仍然保留
+}
+```
+
+父取消后，用 `Background()` 起的那棵子树**一个信号都收不到**：上游已经超时、客户端已经断开，下游 goroutine 照样跑到底。这是 goroutine 泄漏最常见的来源之一。**不知道传什么就用 `TODO()` 占位**（它在提醒后来者「这里要补」），绝不要用 `Background()` 顶替一个已经存在的父 ctx。
+
+顺带：**直接传 `nil` 会 panic**。`WithCancel(nil)`、`WithValue(nil, k, v)`、`WithoutCancel(nil)` 全都 panic `cannot create context from nil parent`；`WithValue` 还多两条——`nil key`（key 为 nil）和 `key is not comparable`（拿 slice、map 这类不可比较类型当 key）。所以「不知道传什么」也不能传 nil，`TODO()` 就是官方给出的答案。
+
 ---
 
 ## 2. 四种 With* 与一个 Value
@@ -67,16 +116,45 @@ for {
 | 构造函数 | 作用 | 必须 defer cancel？ |
 |---|---|---|
 | `WithCancel(parent)` | 手动取消（`cancel()` 关闭整棵子树） | 是（释放资源） |
-| `WithTimeout(parent, d)` | 相对超时 | 是（同上，见下） |
+| `WithTimeout(parent, d)` | 相对超时 | 是（同上，见 2.2） |
 | `WithDeadline(parent, t)` | 绝对截止时刻 | 是 |
+| `WithCancelCause(parent)` | 手动取消 + 附带**原因** | 是 |
+| `WithTimeoutCause(p, d, c)` / `WithDeadlineCause(p, t, c)` | 超时 / 截止 + 附带原因 | 是 |
 | `WithValue(parent, k, v)` | 挂请求级 KV | —（无资源） |
 | `WithoutCancel(parent)` | 继承 Value 但**剥离取消** | — |
-| `AfterFunc(ctx, f)` | ctx 取消时异步执行 f | 返回 stop 函数 |
+| `AfterFunc(ctx, f)` | ctx 取消时**另起一个 goroutine** 执行 f | 返回的 stop 按需调用 |
 
-**为什么 WithTimeout/WithCancel 必须 `defer cancel()`，哪怕函数马上返回？** 两个原因：
+读取侧只有一个新函数：`context.Cause(ctx)` 取取消原因（没设过就回落到 `ctx.Err()`，未取消时返回 nil）。
 
-1. **timer 泄漏**：WithTimeout 注册了一个 runtime timer，不 cancel 它要到超时才释放；
-2. **整棵子树无法回收**：cancelCtx 会被挂在父节点的 children 集合里，直到取消或超时才摘除。调研/后台任务里「循环派生 ctx 但不 cancel」是 goroutine/内存缓慢增长的经典来源——父 ctx 活多久，泄露的链就活多久。
+### 2.1 取消原因：Cause 与 With*Cause
+
+`Err()` 只有两个取值（`Canceled` / `DeadlineExceeded`），说不清「**为什么**被取消」。带 Cause 的这一组就是补这个洞：
+
+```go
+ctx, cancel := context.WithCancelCause(parent)
+cancel(errUpstreamClosed)
+
+ctx.Err()          // context.Canceled —— Err 仍然是那两个哨兵之一
+context.Cause(ctx) // errUpstreamClosed —— 真正的原因
+```
+
+三条规则：
+
+1. **`Err()` 不变，`Cause()` 补细节**：判超时、判取消照旧用 `errors.Is(err, context.DeadlineExceeded)`，要写日志、要定位「是谁取消的」才用 `Cause`；
+2. **cause 沿树向下可见**：父设的 cause，在任意子 ctx 上调 `Cause` 都读得到（`Cause` 会顺着链找到内层的 `cancelCtx` 再取它的 `cause` 字段）；
+3. **先取消的赢**：父带 `cause1`、子带 `cause2`，谁先被取消谁的原因生效——子先取消时 `Cause(子)` 是 `cause2`、`Cause(父)` 仍是 `cause1`；父先取消则两者都是 `cause1`。
+
+`Cause` 在两处返回 nil：未取消的 ctx，以及 `WithoutCancel` 派生的 ctx——后者的定位本来就是跟取消这件事彻底脱钩。
+
+### 2.2 为什么必须 defer cancel
+
+**为什么 WithTimeout/WithCancel 必须 `defer cancel()`，哪怕函数马上返回？** 三条后果，按确定性排序：
+
+1. **定时器要活到超时点**：`WithTimeout` 内部注册了一个 `time.AfterFunc` 定时器，不 `cancel()` 它就一直挂在 runtime 的定时器堆里，直到超时才停（`cancel()` 会立刻 `Stop` 它）。循环里不断派生 `WithTimeout(ctx, 1*time.Hour)` 却从不 cancel，等于在定时器堆里持续堆积；
+2. **等在这个 ctx 上的 goroutine 不会自己醒**：下游若正阻塞在 `<-ctx.Done()`，只要没取消它就一直阻塞——这是 goroutine 泄漏最直接的来源；
+3. **挂树的那一份要等父取消**：子 ctx 只有在父**可取消**时才会被挂进父的 `children` 集合（父的 `Done()` 为 nil 时压根不挂，见 4.2 节），挂上了就要等父取消或自己 `cancel()` 才摘除。
+
+所以「父 ctx 活多久，泄漏的链就活多久」只对第 3 条成立——**父是 `Background` 时根本不挂树，代价落在前两条**。共同点是同一个：不 cancel，资源就一定要拖到超时点才释放。
 
 ```go
 // 标准姿势
@@ -94,7 +172,7 @@ defer cancel()
 
 1. **ctx 作为第一个参数**，命名 `ctx`；
 2. **不要把 ctx 存进结构体**——它是请求作用域的流水参数，存结构体会导致生命周期错配（例外：遵循「每个方法第一参数显式传 ctx」的大对象可以显式持有，如 http.Server 内部）；
-3. **不要传 nil**——不知道传什么就 `context.TODO()`；`context.Background()` 是「主动选择无父节点」（main/init/测试入口），`TODO` 是「还没想好」（占位）；
+3. **不要传 nil**——不知道传什么就 `context.TODO()`，`Background` 与 `TODO` 的取舍见 1.1 节（传 nil 会直接 panic）；
 4. **Value 只放请求级元数据**（trace ID、用户身份、鉴权 token），不放业务参数。
 
 三大反面教材：
@@ -125,7 +203,9 @@ var userKey ctxKey
 ctx = context.WithValue(ctx, userKey, uid)
 ```
 
-**反面教材三：忘记 cancel 导致子树滞留**（见上节）——压测工具长期跑会发现 RSS 缓慢上涨，pprof goroutine profile 里大量 `context.propagateCancel` 相关 goroutine/引用链。
+**反面教材三：忘记 cancel，资源拖到超时点才释放**（后果见 2.2 节）——循环派生 `WithTimeout(ctx, 1*time.Hour)` 却不 cancel，runtime 的定时器堆持续堆积；下游阻塞在 `Done()` 上的 goroutine 也一直不醒，压测长期跑能看到 goroutine 数与 RSS 缓慢上涨。
+
+`propagateCancel` 里那句「起一个 goroutine 干等」只在**父节点是外部实现的 `Context`** 时才走（4.2 节第三条路），所以 pprof 里看到 `context.propagateCancel` 相关 goroutine 堆积，通常意味着链上混进了自定义 `Context` 实现，而不是单纯的忘记 cancel。
 
 ---
 
@@ -133,25 +213,147 @@ ctx = context.WithValue(ctx, userKey, uid)
 
 面试能讲到这个深度就超过 90% 的候选人了。
 
+### 4.1 cancelCtx：四个字段，一把锁
+
 ```go
 // src/context/context.go（节选）
 type cancelCtx struct {
-    Context                          // 父节点
-    mu       sync.Mutex
-    done     atomic.Value          // chan struct{}，惰性创建
-    children map[canceler]struct{} // 活着的子节点
-    err      atomic.Value          // 非 nil 即已取消
-    cause    error                 // WithCancelCause 的细粒度取消原因
+	Context                          // 父节点（内嵌，因此 Deadline/Value 默认委托给父）
+
+	mu       sync.Mutex            // 保护下面三个字段
+	done     atomic.Value          // chan struct{}，惰性创建，cancel 时关闭
+	children map[canceler]struct{} // 活着的子节点，cancel 后置为 nil
+	err      atomic.Value          // 非 nil 即已取消
+	cause    error                 // Cause 拿到的原因，cancel 时顺带写入
 }
 ```
 
-**propagateCancel（挂树）**：With* 时，若父节点可取消，则把自己加进父的 children（父已取消则立刻取消自己）。为避免无限生长，父节点是 `background` 或 Value-only 链时跳过挂靠。
+只有 `done` 和 `err` 用了 `atomic.Value`（`Err()` 是热路径，源码注释写着「原子读比加锁快约五倍」），**`children` 仍是一把 Mutex 保护的普通 map**，没有所谓无锁状态机。
 
-**cancel（广播）**：`cancel()` 做三件事——关 done channel、递归 cancel 所有 children、把自己从父节点摘除。全是 O(子树大小) 一次完成，之后新派生的子节点在挂树时发现父已取消，立即自我了断。
+`timerCtx` 与 `afterFuncCtx` 都是内嵌一个 `cancelCtx` 再加自己的字段：
 
-**done 惰性创建**：`Done()` 第一次被调用才真正创建 channel——大量从不监听取消的 ctx（只用来传 Value/超时由调用方用 Deadline 自己判断）就完全不用付 channel 的钱。
+```go
+// src/context/context.go（节选）
+type timerCtx struct {
+	cancelCtx
+	timer    *time.Timer // 受 cancelCtx.mu 保护
+	deadline time.Time
+}
+```
 
-context 包内部还做了无锁化优化（done/children 用 atomic 状态机），取消百万级子树的成本大幅降低——但对外语义没有任何变化，这正是不依赖实现细节的反面教材（对比 `01` 篇 map 内部结构的告诫）。
+`timerCtx.cancel` 的顺序是先委托 `cancelCtx.cancel` 广播完子树，再 `Stop` 定时器、再从父的 children 里摘除自己——**先广播，再收尾**。
+
+还有一个零分配的细节：包级变量 `closedchan` 在 `init` 里就被关闭。若某个 ctx 从头到尾没人调过 `Done()`，cancel 时直接把 `closedchan` 存进 `done` 字段，连一个 channel 都不用造。
+
+### 4.2 propagateCancel：挂树的三条路
+
+每次 `With*` 都会走一遍它，决定「父被取消时怎么通知到我」：
+
+```go
+// src/context/context.go（简化）
+func (c *cancelCtx) propagateCancel(parent Context, child canceler) {
+	c.Context = parent
+
+	done := parent.Done()
+	if done == nil {
+		return // ★ 父永不取消（Background / TODO / WithoutCancel）：不挂树，也不起 goroutine
+	}
+	select {
+	case <-done: // 父已经取消了
+		child.cancel(false, parent.Err(), Cause(parent))
+		return
+	default:
+	}
+
+	if p, ok := parentCancelCtx(parent); ok { // 找到最近的内层 *cancelCtx
+		p.mu.Lock()
+		if err := p.err.Load(); err != nil {
+			child.cancel(false, err.(error), p.cause)
+		} else {
+			if p.children == nil {
+				p.children = make(map[canceler]struct{})
+			}
+			p.children[child] = struct{}{} // 主流路径：挂进父的 children
+		}
+		p.mu.Unlock()
+		return
+	}
+	// 父是外部实现的 Context（Done 是别人的 channel）：只能起一个 goroutine 干等
+	go func() {
+		select {
+		case <-parent.Done():
+			child.cancel(false, parent.Err(), Cause(parent))
+		case <-child.Done():
+		}
+	}()
+}
+```
+
+三条路：**能挂就挂进父的 `children`**、**父支持 `AfterFunc` 就注册回调**、**都不行才退化成起一个 goroutine 干等**。开头那个 `done == nil` 的短路，正是 `Background` 作根时零开销的原因——它连挂树的动作都不做，所以「以 Background 为父却忘记 cancel」并不会让子 ctx 一直挂在根上（2.2 节第 3 条就是这个意思）。
+
+`parentCancelCtx` 找父的那一下有点巧：它不做类型断言，而是用包内私有 key 调 `parent.Value(&cancelCtxKey)`，沿链问出最近的内层 `*cancelCtx`——**所以中间夹多少层 `WithValue` 都不影响挂树**；问到之后还要比对 `p.done` 与 `parent.Done()` 是不是同一个 channel，不一致说明链上有人自定义了 Done，那就不能绕过它。
+
+### 4.3 cancel：关、传、摘，一次持锁完成
+
+```go
+// src/context/context.go（简化）
+func (c *cancelCtx) cancel(removeFromParent bool, err, cause error) {
+	c.mu.Lock()
+	if c.err.Load() != nil {
+		c.mu.Unlock()
+		return // 已取消：幂等
+	}
+	c.err.Store(err)
+	c.cause = cause
+	if d, _ := c.done.Load().(chan struct{}); d == nil {
+		c.done.Store(closedchan) // 没人监听过：复用全局已关闭 channel
+	} else {
+		close(d)
+	}
+	for child := range c.children {
+		child.cancel(false, err, cause) // 持父锁递归（源码注释明确标注了这个取舍）
+	}
+	c.children = nil
+	c.mu.Unlock()
+
+	if removeFromParent {
+		removeChild(c.Context, c) // 把自己从父的 children 里摘掉
+	}
+}
+```
+
+四条要点：**幂等**（重复 `cancel()` 无副作用，所以 `defer cancel()` 可以随手写）、**关闭 done** 一次性广播给所有监听者、**递归 cancel 整棵子树**后清空 children、最后**把自己从父节点摘除**。整体 O(子树大小) 一次完成；之后才派生的子节点，会在 `propagateCancel` 开头发现父已取消而立刻自我了断。
+
+### 4.4 Err() 的保证：Err 非 nil 时 Done 一定已关闭
+
+```go
+// src/context/context.go（节选）
+func (c *cancelCtx) Err() error {
+	if err := c.err.Load(); err != nil {
+		<-c.Done() // ★ 先确保 done 已经关闭，再返回错误
+		return err.(error)
+	}
+	return nil
+}
+```
+
+那行 `<-c.Done()` 是在补一个 happens-before：并发下存在「err 已写入但 done 还没关闭」的瞬间，此时直接返回会让调用者看到 `Err() != nil` 却读不到 Done 关闭。`Err()` 宁可多一次接收也要保证——**`Err() != nil` 蕴含 `Done()` 已关闭**，这正是「先判 `Err()` 再 `<-Done()`」这类写法不会漏信号的根据。
+
+### 4.5 Value 是一条链，查找是 O(链长)
+
+`valueCtx` 就是带一对 key/val 的链表节点，每调一次 `WithValue` 就多一层：
+
+```go
+// src/context/context.go（节选）
+type valueCtx struct {
+	Context
+	key, val any
+}
+```
+
+`Value` 是一层一层往外问的（源码的 `value()` 对 `*valueCtx`、`*cancelCtx`、`*timerCtx`、`withoutCancelCtx` 分派，遇到 `backgroundCtx` / `todoCtx` 直接返回 nil）。两个推论：**查找成本随链长线性增长**，几百层的 Value 链不是免费的；**同一个 key 后挂的先被命中**（查找从最内层往外走，撞车时是内层悄悄覆盖外层）——这就是 key 必须用私有类型的真正原因。
+
+最后一句提醒：这一节讲的都是**实现**，不是契约。契约只有 `Context` 接口那四个方法。依赖「children 是 map」「cancel 持父锁递归」去写代码，实现一改就会跟着坏——与 `01` 篇对 map 内部结构的告诫是同一条。
 
 ---
 
@@ -315,46 +517,11 @@ for _, f := range files {
 
 **性能补丁**（面试加分）：开放编码 defer（open-coded defer，条件：非循环内、非动态嵌套）把 defer 成本降到 ~1ns，与手写调用序基本持平。「defer 很慢」是老黄历，可放心用于临界区收尾——但仍别在百万次循环里堆 defer。
 
----
+## 实验
 
-## 9. 面试高频
+对应代码：[experiments/09_context_error_test.go](experiments/09_context_error_test.go)（实现与断言同文件，无打印）
 
-**Q1：context 取消的传播机制？**
-With* 时子 ctx 挂进父的 children 集合；cancel() 关闭自身 done channel、递归 cancel 所有 children、从父节点摘除。Done() 返回的 channel 关闭（不是发值），对所有 select 监听者同时可见。父先取消则新子节点挂树时立即自取消。
-
-**Q2：为什么 WithTimeout 后必须 defer cancel？**
-两个资源：runtime timer 不 cancel 要到超时才释放；cancelCtx 挂在父 children 里，不摘除整条子树无法被 GC。高频派生不 cancel = 泄漏，goroutine/RSS 缓慢上涨。
-
-**Q3：子 ctx 的超时能比父长吗？**
-不能。Deadline 取更早者：WithTimeout(parent, 10s) 而父还剩 3s，子实际 3s 取消。Value 继承父全部；取消链单向（父到子），子取消不影响父。
-
-**Q4：ctx.Done() 是发送还是关闭？为什么重要？**
-关闭。关闭是广播——任意多个监听者同时解除阻塞且不消费数据；发送只能唤醒一个且可能丢。这正是 channel 关闭语义（05 篇）在标准库的最大应用。
-
-**Q5：context.Value 的适用边界？**
-只放请求级横切数据（traceID、用户身份），key 用私有类型；业务参数必须显式出现在函数签名。反面：三层以下偷偷读 Value、string key 撞车、强转 panic。
-
-**Q6：context.Background() 和 context.TODO() 的区别？**
-语义意图不同：Background = 主动选择「根/无父」（main、init、测试）；TODO = 占位「还没决定」（重构中途）。行为完全一致——区别是给人看的。
-
-**Q7：取消 ctx 后，正在跑 CPU 密集循环的 goroutine 会停吗？**
-不会。context 是协作式取消：只唤醒阻塞在 Done()/支持 ctx 的 IO 上的代码。CPU 循环必须自己周期性检查 Done()。这也是 Go 没有抢占式 kill goroutine 的原因（GMP 篇）。
-
-**Q8：errors.Is 和 errors.As 的区别？**
-Is 沿 Unwrap 树找「相等」的节点（哨兵：io.EOF、context.Canceled），或调用节点的 Is 方法；As 找「可赋值给目标类型」的节点，取结构化字段。共同前提：包装用 %w 而不是 %v（%v 断链）。支持多 %w 与 errors.Join，判定遍历整棵树。
-
-**Q9：为什么不能用 strings.Contains(err.Error(), "timeout") 判断超时？**
-依赖错误文本——消息重排/本地化/中间层改写即失效，且拼写错误编译期发现不了。正解：errors.Is(err, context.DeadlineExceeded) 或 errors.As(err, &netErr)+netErr.Timeout()。
-
-**Q10：子 goroutine panic，外层 defer recover 能救吗？**
-不能。recover 只作用于当前 goroutine 的栈展开；子 goroutine panic 没人接住就是进程退出。所以每个自己 go 出去的长生命周期 goroutine 入口都要包 defer+recover（net/http 的 handler 已内置）。
-
-**Q11：recover 的位置有什么限制？**
-必须在 defer 的函数里直接调用。defer func(){ recover() } 有效；func(){ defer recover() } 无效（recover 不在 defer 体内直接调用，返回 nil）。同理 recover() 直接写在函数体里也无效。
-
-**Q12：defer 的执行时机和参数求值？**
-return 赋值之后、真正返回之前，LIFO。参数在入 defer 链时立即求值拷贝（陷阱一）；命名返回值可被 defer 修改（recover 转 error 的标准姿势）；循环内 defer 累积到函数级（抽函数解决）。
-
----
-
-本篇对应实验：experiments/09_context_error_test.go（实现与断言同文件，无打印）
+```bash
+cd notes/golang
+go test ./experiments/          # 全部实验（约 4 秒）
+```

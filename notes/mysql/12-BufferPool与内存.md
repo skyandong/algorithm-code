@@ -1,6 +1,6 @@
 # Buffer Pool 与内存管理
 
-> **核心认知：磁盘是 10 万倍慢于内存的，InnoDB 的内存管理就是"用有限的内存尽量挡住磁盘 IO"。核心组件：Buffer Pool 缓存页 + 改进版 LRU 决定谁留下、Change Buffer 兜住二级索引写、Doublewrite 防页断裂。**
+> **核心认知：** 磁盘比内存慢几个数量级，InnoDB 的内存管理就是「**用有限的内存尽量挡住磁盘 IO**」：Buffer Pool 缓存页加改进版 LRU 决定谁留下，Change Buffer 兜住二级索引写，Doublewrite 防页断裂。
 
 ---
 

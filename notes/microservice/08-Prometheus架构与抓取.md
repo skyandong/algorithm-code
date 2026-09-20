@@ -1,6 +1,6 @@
 # Prometheus 架构与抓取：为什么是 pull
 
-> **核心认知：** Prometheus 最反直觉也最被追问的设计是**它主动去拉你的服务，而不是你的服务推给它**。这不是历史包袱——pull 让"监控目标是否活着"这个问题从"数据有没有到"降级成了"HTTP 探一下就知道"，让服务发现天然可做、让本地 `curl /metrics` 就能排障、让应用侧不需要知道监控系统的地址。**代价是它抓不了短命任务，于是有了 Pushgateway 这个有明确边界的补丁**（不是通用的 push 通道）。想清楚"pull 换来了什么、在哪种场景换不来"，这一节就成了。
+> **核心认知：** Prometheus 最反直觉的设计是**它主动来拉你的服务**，而不是服务推给它。pull 让「目标是否活着」从「数据有没有到」降级成「HTTP 探一下就知道」。代价是抓不了短命任务，于是补了个 Pushgateway——边界很明确，不是通用的 push 通道。
 
 前置知识：[07-指标体系与数据模型](07-指标体系与数据模型.md)（series、四类指标、exposition 格式）。
 
@@ -180,5 +180,6 @@ timeout 要小于 interval（通常 1/2~2/3）避免抓取堆积；evaluation_in
 告警的路由/抑制/静默是运营逻辑，变更频率远高于采集配置，且需要独立 HA。把运营逻辑塞进采集系统会互相拖累——把横切关注点剥离出去，与网关收敛治理逻辑同构。
 
 ---
+## 实验
 
-本篇对应实验：experiments/13_exporter.go（自定义 exporter：模拟把第三方系统的内部状态翻译成 `/metrics`，并起一个 HTTP 端点供本机 Prometheus 抓取）、[monitoring/](monitoring/)（真实 Prometheus + Grafana 的 docker 配置与抓取验证）
+对应代码：[experiments/13_exporter.go](experiments/13_exporter.go)（自定义 exporter：模拟把第三方系统的内部状态翻译成 `/metrics`，并起一个 HTTP 端点供本机 Prometheus 抓取）、[monitoring/](monitoring/)（真实 Prometheus + Grafana 的 docker 配置与抓取验证）

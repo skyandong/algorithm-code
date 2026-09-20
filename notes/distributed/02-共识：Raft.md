@@ -1,6 +1,6 @@
 # 共识：Raft 逐角色讲
 
-> **核心认知：** 共识协议解决的问题是「**让多台机器对一串日志的顺序达成一致，从而表现出像单机一样**」——它同时给你容错（少数节点挂了不影响）和线性一致（所有节点按同序执行）。Raft 把这个难题拆成三个几乎独立的子问题：**选主（Leader Election）**、**日志复制（Log Replication）**、**安全性（Safety）**，每个子问题单独可懂——这是它击败 Paxos 的原因（Paxos 数学上更早，但讲不清楚）。理解 Raft 不能停在「过半投票」：真正的灵魂是**任期（term）作为逻辑时钟** + **「过半」保证任意两个多数派必有交集**这两个工具。etcd/consul/nacos 的分布式能力全部建立在这上面。
+> **核心认知：** 共识协议解决的是「**让多台机器对一串日志的顺序达成一致，从而表现得像单机一样**」，它同时给你容错和线性一致。Raft 把难题拆成三个几乎独立的子问题——**选主、日志复制、安全性**，每个都单独可懂，这是它击败 Paxos 的原因。真正的灵魂是**任期（term）当逻辑时钟**，加上「任意两个多数派必有交集」。
 
 前置知识：CAP 的 C（`01-CAP-BASE-PACELC.md`）、MySQL 主从复制作为对照组（`notes/mysql/13`）。
 
@@ -158,5 +158,10 @@ AppendEntries 携带前一条日志的 (index, term)，Follower 对不上就拒�
 等价能力（都是非拜占庭共识），Raft 是 Paxos 的工程化重构：分解成选主/复制/安全三个独立子问题 + 强约束 Leader 日志（Paxos 允许乱序 accept，工程难做）。Raft 赢在可理解性和可验证性——工业实现几乎全用 Raft（etcd/consul/tidb/cockroachdb）。
 
 ---
+## 实验
 
-本篇对应实验：experiments/02_raft.go（选主的随机超时 + 任期 + 过半票模拟）
+对应代码：[experiments/02_raft.go](experiments/02_raft.go)（选主的随机超时 + 任期 + 过半票模拟）
+
+```bash
+cd notes/distributed && go run ./experiments/          # 全部实验
+```

@@ -1,7 +1,6 @@
 # design-pattern 学习笔记
 
-> 目标：以「Go 惯用形态」系统掌握设计模式——不是翻译 Java 23 种，而是回答「Go 里这个模式长什么样、标准库谁在用、什么时候不该用」。全部结论配可运行实验，**每个模式都能在仓库现有代码里指出实例**（rpc 的 interceptor、grpc 的 options、web 的中间件）。
-> **主线认知：** Go 砍掉继承和构造重载后，模式落在**接口、函数值、组合、channel** 四样东西上。判断模式好坏的唯一标准：加一个需求，你要改 0 处（组合）、加 1 处（扩展点），还是改 N 处（散弹修改）。
+> **主线认知：** Go 砍掉继承和构造重载后，模式落在**接口、函数值、组合、channel** 四样东西上。判断模式好坏的唯一标准：**加一个需求，你要改 0 处（组合）、加 1 处（扩展点），还是改 N 处（散弹修改）**。
 
 ## 目录
 
@@ -73,10 +72,10 @@ go run -race ./experiments/ concurrency
 
 ## 与其他模块的衔接
 
-- `notes/golang/03` — interface 二元组/方法集（本模块 03 实验里 *T 方法集陷阱现场重演）
-- `notes/golang/06` — channel 关闭广播（并发模式的取消原语）
-- `notes/golang/10` — %w/Is/As 机制细节（07 篇的模式化上层）
-- `notes/golang/14` — TDD 的「mock 免费」建立在 01 篇消费者侧接口上；领域层零依赖=可测试性验收标准
+- `notes/golang/02` — interface 二元组/方法集（本模块 03 实验里 *T 方法集陷阱现场重演）
+- `notes/golang/05` — channel 关闭广播（并发模式的取消原语）
+- `notes/golang/09` — %w/Is/As 机制细节（07 篇的模式化上层）
+- `notes/golang/面试一口答` — 「mock 免费」的问答口径（消费者侧最小接口 + 手写 stub）；领域层零依赖=可测试性验收标准
 - `rpc/grpcserver/interceptor.go` — UnaryInterceptor：中间件模式的 RPC 实例
 - `rpc/grpcclient` — options 模式的消费方视角
 - `notes/redis/08` — 分布式锁 + 幂等键：重试边界的生产版

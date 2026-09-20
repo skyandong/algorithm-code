@@ -1,8 +1,28 @@
-# Slice、string 与 Map 底层
+# slice、string 与 map 底层
 
-> **核心认知：** slice 和 map 都不是「容器」，而是指向底层存储的**视图句柄**——slice 是 (ptr, len, cap) 三字段头，string 是只读的 (ptr, len) 二字段头，map 是指向 runtime 哈希表的指针。它们的坑全部来自两件事：**共享底层状态**（多个头写同一块存储）和**运行时行为**（何时分配新数组、何时扩容搬迁）。工程口诀：slice/string 赋值/传参拷贝的是头不是数据；string 不可变是全局契约，拼接用 Builder + Grow、热路径互转单向设计、零拷贝只在边界库；map 的可见语义（无序、扩容、并发 fatal）由 runtime 保证，不要依赖任何实现细节。
+> **核心认知：** slice、string、map 都不是「容器」，而是指向底层存储的**视图句柄**——复制它们拷贝的是头，不是数据。坑只有两类：**多个头共享同一块存储**，以及**运行时什么时候替你换一块新存储**（扩容、搬迁）。
 
 本文基于 Go 1.26（本机 1.26.3）的实际行为编写，不涉及历史版本对比。
+
+---
+
+## 目录
+
+1. [slice 与 string 的头结构](#1-slice-与-string-的头结构)
+2. [共享底层数组：三个经典坑](#2-共享底层数组三个经典坑)
+3. [扩容：换数组 + 搬元素](#3-扩容换数组--搬元素)
+4. [切片的内存泄漏点](#4-切片的内存泄漏点)
+5. [string 不可变：契约与三个推论](#5-string-不可变契约与三个推论)
+6. [string ↔ []byte：拷贝的必然与例外](#6-string--byte拷贝的必然与例外)
+7. [string 拼接：+ / Builder / 预分配](#7-string-拼接--builder--预分配)
+8. [rune 与 UTF-8：len 的歧义](#8-rune-与-utf-8len-的歧义)
+9. [string 编译器优化清单](#9-string-编译器优化清单)
+10. [string 与 map：为什么是天生 key](#10-string-与-map为什么是天生-key)
+11. [map 底层：Swiss Table](#11-map-底层swiss-table)
+12. [map 无序与 for range 语义](#12-map-无序与-for-range-语义)
+13. [map 并发读写：fatal error，不可 recover](#13-map-并发读写fatal-error不可-recover)
+14. [空切片 vs nil 切片](#14-空切片-vs-nil-切片)
+15. [unsafe：零拷贝的桥梁与红线](#15-unsafe零拷贝的桥梁与红线)
 
 ---
 
@@ -29,7 +49,7 @@ type stringStruct struct {
 }
 ```
 
-差别就在这个 cap 上：slice 的元素可写、append 可能扩容，所以要记容量；string 是**不可变的 []byte 视图**——没有 `\0` 终止符、`len` 是字节数、任何「修改」都是新分配。
+差别就在这个 cap 上。slice 的元素可以改写、`append` 还可能扩容，所以它的头必须记住容量；string 头则没有容量字段——内容是**不可变的 `[]byte` 视图**，没有 `\0` 终止符，`len` 就是字节数，任何「修改」都是新分配。
 
 slice.go 这个文件就是 slice 的运行时中枢：`make` 分配（makeslice 系列）、`append` 扩容（growslice 系列，策略见第 3 节）、`copy`（slicecopy）全在这里。
 
@@ -42,7 +62,7 @@ sub[0] = 99
 fmt.Println(s)         // [10 99 30] ← s 被一起改了
 ```
 
-切片表达式的边界是 `0 <= low <= high <= cap(s)`（索引才看 len）；**上界默认取 `len(s)` 而非 cap**，所以 `s[1:]` 在 len=0 时 panic，想取到 cap 末尾要写 `s[1:cap(s)]`。结果切片的 **`len = high - low`、`cap = cap(s) - low`**。以 `s := make([]int, 0, 4)`（len=0 cap=4）为例：
+切片表达式的边界是 `0 <= low <= high <= cap(s)`（只有索引才看 len）；**上界默认取 `len(s)` 而不是 cap**，所以 `s[1:]` 在 len=0 时会 panic，想取到 cap 末尾得写 `s[1:cap(s)]`。切出来的结果是：**`len` 等于 high 减 low，`cap` 等于 cap(s) 减 low**。以 `s := make([]int, 0, 4)`（len=0 cap=4）为例：
 
 | 表达式 | len | cap |
 |--------|-----|-----|
@@ -110,35 +130,24 @@ WHY：参数 `s` 是 header 的值拷贝，append 改的是副本的 `len` 字�
 
 ---
 
-## 3. 扩容规则
+## 3. 扩容：换数组 + 搬元素
 
-`runtime.nextslicecap`（Go 1.26.3 源码）：
+底层数组**长度固定**，所以「扩容」这个名字本身就是误导——它做的不是把数组撑大，而是分配一块更大的新数组，把旧元素搬过去，再返回一个新 header。
+
+`runtime.growslice` 去掉容量策略后的三条主干：
 
 ```go
-const threshold = 256
-if newLen > 2*oldCap { return newLen } // 一次要很多，按需给
-if oldCap < threshold  { return 2*oldCap } // 小 slice 翻倍
-// 大 slice：从 2x 平滑过渡到 1.25x
-newcap += (newcap + 3*threshold) >> 2
+// src/runtime/slice.go
+p = mallocgc(capmem, et, ...)    // ① 新分配一块数组
+memmove(p, oldPtr, lenmem)       // ② 搬旧元素：lenmem = oldLen × 元素宽度
+return slice{p, newLen, newcap}  // ③ 返回新 header：新 ptr、新 cap
 ```
 
-- `cap < 256`：翻倍；
-- 之后：`newcap += (newcap + 768) / 4`，增长系数随容量增大从 2x **平滑滑向 1.25x**；
-- 最后还要过 `roundupsize` 按 **sizeclass 对齐**（分配器规格），观察值会进一步修正。
+由此得到三条**不随版本变**的结论：
 
-实测序列（Go 1.26.3，`[]int` 逐个 append）：
-
-```text
-cap: 1 2 4 8 16 32 64 128 256 512 848 1280 1792 2560 3408 5120 7168 9216 12288 ...
-                     ↑ 翻倍段结束   ↑ 1.5x 1.4x ...（sizeclass 对齐后的观察值）
-```
-
-两个补充事实：
-
-- **Go 1.26 新优化**：非逃逸的「append 到空 slice」且总字节数 ≤32 时，编译器直接分配**栈上背衬数组**（cap = 32/elemSize，如 `[]int` 得 4、`[]byte` 得 32），所以本地小 slice 首次 append 的 cap 可能是 4 而不是 1（实验里用包级变量强制逃逸规避了它）；
-- 含指针的元素（scan 对象）sizeclass 对齐还要多算 8 字节 malloc header，序列与 `[]int` 不同。
-
-**工程结论：不要依赖具体扩容倍数。** 它随版本、元素大小、是否逃逸而变。需要确定容量就 `make([]T, 0, n)` 预分配——这也是性能优化第一课（避免反复扩容拷贝）。
+- **是拷贝，不是原地扩张。** 新 slice 指向新数组，旧 slice 仍指向旧数组——扩容前建立的共享关系到此断开（第 2.2 节）。
+- **搬的是元素值，即浅拷贝。** `memmove` 只按元素宽度逐位拷贝 `len` 个元素：元素是 `int` 这类标量就彻底独立；元素是 `*T` / `map` / `slice` / `interface` 这类含指针的值，拷过来的是**指针本身**，指向的对象**仍然共享**——扩容不会替你深拷贝。
+- **容量给多少是实现细节，不保证。** 给少了要频繁拷贝（退化成 O(n²)），给多了浪费内存，所以策略永远在「摊销常数时间」和「空间浪费」之间权衡；而且分配器还会把字节数向上对齐到自己的规格，观察到的 cap 往往不是你能算出来的数——具体值随版本、元素大小、是否逃逸而变。**要确定容量就 `make([]T, 0, n)` 预分配，不要赌倍数。**
 
 ---
 
@@ -170,7 +179,7 @@ copy(fixed, tail)               // 修法：copy 出独立小数组；string 对
 
 ## 5. string 不可变：契约与三个推论
 
-`s[i] = 'x'` 直接编译错误。不可变不是「建议」，是**运行时全局契约**——编译器、GC、map 哈希、包级字面量驻留全部依赖它。
+`s[i] = 'x'` 会直接编译错误。不可变不是「建议」，而是**运行时全局契约**：编译器、GC、map 哈希、包级字面量驻留，全都依赖它。
 
 **推论一：零成本共享。** 同一个 string 值随便传、随便存，没有深拷贝的心智负担（对比 `[]byte` 传递时要担心谁改它）。
 
@@ -178,7 +187,7 @@ copy(fixed, tail)               // 修法：copy 出独立小数组；string 对
 
 **推论三：写 = 新分配。** 所有「修改」API（`strings.Replace`、`+`、`ToUpper`）都返回新串。循环里 `s += x` 是 O(n²) 事故的根源（第 7 节）。
 
-**零拷贝的边界（unsafe）**——`unsafe.String` 造出的 string 指向可变内存，**契约在你手里而非编译器手里**：改源 `[]byte` 会连带改 string（可能污染驻留字面量、破坏 map key 哈希一致性）；产物生命周期与源绑定，源被复用/回收后就是悬挂视图。写法与红线见第 16 节。
+**零拷贝的边界（unsafe）**——`unsafe.String` 造出的 string 指向可变内存，**契约在你手里而非编译器手里**：改源 `[]byte` 会连带改 string（可能污染驻留字面量、破坏 map key 哈希一致性）；产物生命周期与源绑定，源被复用/回收后就是悬挂视图。写法与红线见第 15 节。
 
 ---
 
@@ -202,7 +211,7 @@ s2 := string(b) // 拷贝（同上）
 
 1. **统一内部类型**——整个流水线全用 []byte（或全用 string），只在 API 边界转一次；
 2. 标准库已有 []byte 版 API 就别用 string 版：`bytes.Contains` vs `strings.Contains`、`bufio.Scanner` 的 `Bytes()`；
-3. 最后才是 unsafe 零拷贝（第 16 节红线全数适用）。
+3. 最后才是 unsafe 零拷贝（第 15 节红线全数适用）。
 
 ```go
 // 快速判断成员：map 索引免拷贝特例
@@ -291,7 +300,7 @@ rune 本质：`type rune = int32`（类型别名不是新类型），表示一�
 2. **`+` 多元拼接**：`a + b + c`（一个表达式）编译成 `runtime.concatstrings` 一次算总长、一次分配；
 3. **比较短路**：`==` 先比长度再比内容；`len` 不同立即 false；
 4. **map[string(b)] 免分配**（第 6 节）；
-5. **`[]byte(s)` 不逃逸时免拷贝**：只遍历不留存则借用原字节（`-m` 可见 `zero-copy string->[]byte conversion`），故 `for range []byte(s)` 也是 0 分配，与 `for i := range s` 的差异只在按字节还是按 rune 边界（第 8 节）；逃逸则退化为真拷贝（第 6 节）；
+5. **`[]byte(s)` 不逃逸时免拷贝**：只要只遍历、不把结果留存，编译器就让切片直接借用原字符串的字节（`-m` 会打印 `zero-copy string->[]byte conversion`）。所以 `for range []byte(s)` 也是 0 分配，它和 `for i := range s` 的唯一区别是按字节还是按 rune 边界（第 8 节）。一旦逃逸，就变回真拷贝（第 6 节）；
 6. **子串零拷贝**（第 1 节）；
 7. **switch string**：编译器按长度+首字符建跳转表，不是线性全比。
 
@@ -322,60 +331,43 @@ map key 的要求：**comparable**。string 完美满足且高效：
 
 ## 11. map 底层：Swiss Table
 
-三个核心类型：`Map`（顶层）→ `table`（单张表）→ `group`（一组 8 槽），全部在 `$GOROOT/src/internal/runtime/maps/`。
+三层结构，全部在 `src/internal/runtime/maps/`：
 
-### 11.1 三层结构
-
-```go
-// src/internal/runtime/maps/map.go（顶层，节选）
-type Map struct {
-	used        uint64         // 已用槽位数，len() 直接读它（必须放首字段，编译器依赖）
-	seed        uintptr        // hash 种子（每次创建随机）
-	dirPtr      unsafe.Pointer // 目录：正常为 *[dirLen]*table；小 map 直接指向单个 group
-	dirLen      int
-	globalDepth uint8          // 目录查找用的 hash 位数
-	globalShift uint8
-	// writing uint8 并发写标志（读写前检查，见第 13 节）
-}
-
-// src/internal/runtime/maps/table.go（单张表，节选）
-type table struct {
-	used       uint16 // 本表已用槽位
-	capacity   uint16 // 总槽位（恒为 2^N）
-	growthLeft uint16 // 距下次 rehash 还能填的空槽数（tombstone 也计入）
-	localDepth uint8
-	index      int    // 本表在目录中的首个索引（可连续占多个条目）
-	// groups 是定长的 group 数组
-}
-
-// src/internal/runtime/maps/group.go（一组 8 槽，key/elem 编译期按类型展开）
-type group struct {
-	ctrls ctrlGroup                // 8 个控制字：hash 低 7 位 H2 + 空闲/已删标记
-	slots [abi.MapGroupSlots]slot  // abi.MapGroupSlots = 8
-}
+```text
+Map ── 目录：按 hash 高位选表
+  └── table ── 定长 group 数组
+        └── group ── ctrls（控制字）+ slots（槽位）
 ```
 
-查找路径一句话：`hash(seed)` → **高 globalDepth 位**在 directory 里选 table → 表内按 hash 低位定 group → **SIMD 一次比对 8 个控制字（H2）** → 命中控制字再比 key。为什么快：控制字把「8 个槽谁可能命中」压缩成一次宽比较，无效 key 的比对几乎归零。
+### 11.1 查找路径
 
-小 map 优化：元素 ≤8 时整张 map 就一个 group——`dirLen == 0`，`dirPtr` 直接指向它，零间接层。
+`hash(key)` → 用 hash 高位在目录里选表 → 表内按低位定位 group → **一次定宽比较筛掉整组里不可能命中的槽** → 只在控制字对得上的槽上真正比 key。
 
-### 11.2 负载因子 7/8 触发 rehash
+为什么快：Swiss Table 的核心就是把「这一组里谁可能命中」压成一次定宽比较，无效 key 的逐槽比对几乎归零。控制字存的是 hash 的一小段，够筛即可，不必比全量 hash。
 
-单表 `used + tombstones > loadFactor × capacity`（`maxAvgGroupLoad = 7`，每 8 槽平均最多占 7）→ rehash：容量翻倍，或目录允许时**分裂成两张表**。WHY 7/8：每组平均留 1 槽空，是探测长度与空间浪费的折中。单表容量上限 1024 槽（`maxTableCapacity`），到顶只能分裂——单张表小，rehash 成本天然摊薄，没有一次性搬大表的尖刺。
+小 map 优化：元素少到只占一个 group 时，目录退化为直接指向它，没有间接层。
 
-### 11.3 删除打 tombstone
+### 11.2 负载因子：超了就 rehash
 
-删除不清槽位，控制字打成 `ctrlDeleted`（`0b11111110`）——不能直接清成 empty，否则打断探测序列；插入优先复用 tombstone 槽。`growthLeft` 把 tombstone 一并计入，防止表被删空槽塞满。**容量只增不减**：要真正释放内存，换新 map 重建（TestMapDeleteMemory 实测）。
+`已用槽位 + 墓碑数 > 负载因子 × 容量` → rehash：容量翻倍，或目录允许时分裂成两张表。
+
+**负载因子是「探测长度」与「空间浪费」的折中**：开放寻址靠连续探测，留一点空槽，探测链才不至于越拖越长；留多了白占内存。单张表容量有上限，到顶只能分裂——**表故意做小，rehash 的成本天然摊薄，不会出现一次性搬大表的尖刺**。
+
+### 11.3 删除打墓碑
+
+删除**不清空槽位**，只在控制字上打墓碑标记——直接清成空会打断探测序列，同组后面那些 key 就再也找不到了。墓碑也计入负载，否则表会被「删出来的空槽」塞满、提前 rehash。
+
+**容量只增不减**：删元素不释放内存，要真正释放只能换一个新 map 重建（TestMapDeleteMemory 实测）。
 
 ### 11.4 可见语义
 
-无序遍历（起点随机化）、for range 中删除安全、并发读写 fatal——全部由语言规范保证（第 12/13 节）。
+无序遍历（顺序被刻意随机化）、for range 中删除安全、并发读写 fatal——全部由语言规范保证（第 12/13 节）。
 
 ---
 
 ## 12. map 无序与 for range 语义
 
-**为什么每次 range 顺序都不一样**：遍历起点（起始桶/group 和槽位偏移）由随机数决定。WHY：官方有意为之，防止用户依赖顺序——一旦依赖，runtime 换实现就会炸你的代码。要顺序就显式排序 key。
+**为什么每次 range 顺序都不一样**：顺序被**刻意随机化**，语言不保证任何顺序。WHY：官方有意为之，防止用户依赖顺序——一旦依赖，runtime 换实现就会炸你的代码。要顺序就显式排序 key。
 
 range 中的修改语义（语言规范保证）：
 
@@ -392,6 +384,8 @@ for k := range m {
 }
 // len(visited) == 1：被删的确实不再产出
 ```
+
+**迭代变量每次迭代独立、且始终是值副本**：闭包与 `go` 捕获的是各自那一份，所以 `for _, v := range s { go f(v) }` 不必再写 `v := v`。但**副本这一层不会变**——对 `v` 取地址、或用指针接收者方法改它，都只改副本，原切片元素不动（实验 `TestRangeClosureValueCopy`）。
 
 ---
 
@@ -416,44 +410,11 @@ go func() { for { _ = m[1] } }()
 | --- | --- | --- |
 | `sync.Mutex` + map | 单锁 | 通用，竞争小时最简单 |
 | 分片锁（N 个 shard） | key hash 到 shard，锁冲突概率降 ~1/N | 高并发写、key 分布均匀；代价：遍历/动态扩容要自己实现 |
-| `sync.Map` | 见第 14 节 | 读多写少 |
+| `sync.Map` | 见 `06` 篇第 7 节 | 读多写少 |
 
 ---
 
-## 14. sync.Map：并发哈希 trie
-
-```go
-// src/sync/map.go（sync.Map 本体就是 HashTrieMap 的薄包装）
-type Map struct {
-	_ noCopy
-	m isync.HashTrieMap[any, any]
-}
-
-// src/internal/sync/hashtriemap.go（节选）
-type HashTrieMap[K comparable, V any] struct {
-	inited   atomic.Uint32
-	initMu   Mutex
-	root     atomic.Pointer[indirect[K, V]] // 根节点：按 hash 前缀逐层下行
-	keyHash  hashFunc
-	valEqual equalFunc
-	seed     uintptr
-}
-```
-
-内部是**并发哈希 trie（HAMT 变体）**：按 key hash 的前缀逐层定位子树，**读路径无锁**（沿 atomic 指针下行，不碰任何锁），**写锁粒度到子树级**——不相干的 key 各写各的子树，互不竞争。
-
-| 场景 | 表现 | WHY |
-| --- | --- | --- |
-| 读多写少、key 集合稳定 | 优于锁 + map | Load 无锁 |
-| 多 goroutine 写不相干的 key | 同样占优（实验有对照数据） | 锁在子树级，分片状写入无竞争 |
-| Range 遍历 | 无快照保证 | 最终一致遍历 |
-| 值类型是指针 | 需 LoadOrStore 等原子组合操作时注意竞态 | 读到的指针仍需原子更新（`atomic.Pointer[T]` 是常见搭档） |
-
-选型：**写同一批热点 key / 写读混合** → Mutex/分片；**key 写一次读多次、或多 goroutine 分片状写入** → sync.Map。没有 len()。
-
----
-
-## 15. 空切片 vs nil 切片
+## 14. 空切片 vs nil 切片
 
 ```go
 var nilSlice []int     // header: {nil, 0, 0}
@@ -471,7 +432,7 @@ JSON 差异是真实业务坑：API 响应的数组字段，nil 切片序列化�
 
 ---
 
-## 16. unsafe：零拷贝的桥梁与红线
+## 15. unsafe：零拷贝的桥梁与红线
 
 `unsafe.Pointer` 是编译器唯一认可的「任意指针 ↔ 具体指针类型」转换桥梁；`uintptr` 只是无 GC 语义的整数，**不能拿来暂存指针**。它关掉的是类型系统与 GC 语义，**合法出场只有两类**：
 
@@ -508,34 +469,11 @@ bs[0] = 'H'                                      // s 变成 "Hello"
 
 标准库正面示范：`strings.Builder.String()` 就是 `unsafe.String(unsafe.SliceData(b.buf), len(b.buf))`（`strings/builder.go`）；Builder 另用 `addr` 字段记住自己，防止按值拷贝后两个 Builder 写同一块 buf。
 
----
+## 实验
 
-## 17. 面试高频
+对应代码：[experiments/01_1_slice_test.go](experiments/01_1_slice_test.go)、[experiments/01_2_string_test.go](experiments/01_2_string_test.go)、[experiments/01_3_map_test.go](experiments/01_3_map_test.go)（均为断言式单测，无打印）
 
-**Q1：slice/string 的底层结构？**
-slice 是 (ptr, len, cap) 三字段头，string 是 (ptr, len) 二字段头（无 `\0`、长度显式存储）。子串/子切片 s[i:j] 零拷贝（只造新头）；string 可存任意二进制。
-
-**Q2：为什么 string 设计成不可变？**
-三个受益方：共享安全（传值零风险）、字面量驻留（相同字面量一份内存）、map key 哈希稳定（不可变→哈希值不变）。代价是所有修改操作都是新分配，循环拼接必须用 Builder。
-
-**Q3：string 和 []byte 怎么选？**
-要不可变/做 map key/读：string；要修改/流式处理：[]byte。互转默认拷贝（不可变契约）；例外：编译器证明不逃逸不改时 []byte(s) 免拷贝、m[string(b)] 索引免分配。热路径原则：流水线统一类型，只在边界转一次。
-
-**Q4：为什么循环里 s += x 是 O(n²)？**
-每次 + 分配新串并全量拷贝旧内容，n 次共拷贝 O(n²) 字节。正解 strings.Builder + Grow 预分配；String() 用 unsafe.String 零拷贝导出。
-
-**Q5：len(s) 返回什么？**
-字节数。字符（码点）数是 utf8.RuneCountInString(s)。for range string 按码点迭代、索引是字节偏移；s[0] 取的是字节。截断按字节会切碎多字节字符。
-
-**Q6：[]byte 为什么不能做 map key 而 string 可以？**
-slice 头不可比较（comparable 不满足）；string 不可变、== 是 memcmp、哈希稳定。[]byte 当 key 用 string(b) 转一次（map 索引处编译器免分配）。
-
-**Q7：unsafe.String 零拷贝什么时候能用？**
-标准库示范是 strings.Builder.String()。红线：绝不修改底层（污染驻留字面量/破坏哈希）；生命周期与源绑定（源回收即悬挂视图）；只集中在边界库少数文件。uintptr 运算必须单表达式内完成（第 16 节）。
-
-**Q8：持有大字符串/大数组的子串会有什么问题？**
-零拷贝共享整块底层内存——只要子串活着，整个大对象无法 GC。长生命周期持有时用 strings.Clone（string）/ copy（slice）拷出独立小对象。
-
----
-
-本篇对应实验：experiments/01_1_slice_test.go、01_2_string_test.go、01_3_map_test.go（均为断言式单测，无打印）
+```bash
+cd notes/golang
+go test ./experiments/          # 全部实验（约 4 秒）
+```

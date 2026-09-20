@@ -1,8 +1,6 @@
 # 七、用 nginx 拼一个最小 API 网关
 
-> 这一篇不是讲"网关理论"，是讲**用几条 nginx 指令把网关拼出来**，每条指令为什么这么写、踩过什么坑。
-> 配置在 `conf/gateway.conf`（本机）/ `conf/gateway-docker.conf`（Docker），实验在 `experiments/07_gateway.go`。
-> 全部结论都在本机 + nginx:1.27-alpine 容器上跑过，数据可直接复现。
+> **核心认知：** 这一篇不讲网关理论，讲**用几条 nginx 指令把网关拼出来**——每条指令为什么这么写、踩过什么坑。配置在 `conf/gateway.conf`，实验在 `experiments/07_gateway.go`，全部结论都在本机与 nginx:1.27-alpine 容器上跑过。
 
 ## 1. 网关在 nginx 上就是四条指令
 
@@ -145,7 +143,7 @@ nginx 改路由要动 conf + reload；网关能对接注册中心动态发现、
 **Q：网关挂了怎么办？**
 网关本身必须集群 + 健康检查，不能有单点。另外要设计降级：鉴权服务超时时是放行还是拒绝——`auth_request` 的子请求失败默认返回 500，生产上要显式决定这个分支。
 
-## 本篇对应实验
+## 实验
 
 ```bash
 cd notes/nginx/experiments

@@ -85,7 +85,7 @@ func (l loggingDeco) Get(ctx context.Context, k string) (string, error) {
 func s1Decorator() {
 	var svc KV = &memKV{m: map[string]string{"hit": "value"}}
 
-	// 叠罗汉：logging 包 retry 包 real（*T 方法集——golang 03 篇的方法集陷阱在此真实上演）
+	// 叠罗汉：logging 包 retry 包 real（*T 方法集——golang 02 篇的方法集陷阱在此真实上演）
 	svc = &retryDeco{svc, 3}
 	svc = loggingDeco{svc}
 

@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml/badge.svg)](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml)
 
-> **找答案先查 [INDEX.md](INDEX.md)** —— 107 篇笔记、约 2.8 万行，按「面试官会怎么问」组织的横向入口。
+> **找答案先查 [INDEX.md](INDEX.md)** —— 104 篇笔记、约 2.4 万行，按「面试官会怎么问」组织的横向入口。
 > **要背 / 要答案就看 [INTERVIEW.md](INTERVIEW.md)** —— 两部分：主干 12 条（只背这一页）+ 50 条考点答案库（每条含答案／问法／追问＋答案／🟢 及格线／🟡🔴／出处）。
 
 ## 目录分层
@@ -18,7 +18,7 @@ algorithm-code/
 │   └── stack/             # 栈
 ├── engineering/       # 手写工程件：一致性哈希、环形计数器（带 design.md）
 ├── notes/             # 学习笔记（每栈独立 go.mod，编号分册 + experiments 可运行实验）
-│   ├── golang/            # 13 篇：语言核心/并发/运行时/工程
+│   ├── golang/            # 10 篇：语言核心/并发/运行时/工程
 │   ├── design-pattern/    # 10 篇：设计原则/创建/结构/行为/接口/并发/错误/反模式/DDD/架构风格
 │   ├── distributed/       # 7 篇：CAP/Raft/事务/锁/分片/时钟/故障检测
 │   ├── system-design/     # 8 篇：方法论估算/秒杀/短链/Feed/IM/分布式ID/延迟任务/缓存

@@ -1,15 +1,27 @@
-# Interface 与反射
+# interface 与反射
 
-> **核心认知：** interface 变量是「**(动态类型, 动态值)**」的二元组——空接口 `any` 是 eface（类型指针+数据指针），非空接口是 iface（itab+数据指针）。所有经典事故都源于忘记这个二元组：`nil != nil` 的坑是「有类型无值」，方法集的坑是「T 与 *T 不同」，装箱的坑是「拷贝+逃逸」。反射则是把这个二元组及其类型信息暴露给运行时——**用运行时信息换取通用性，代价是失去编译期检查和优化**。
+> **核心认知：** interface 变量是「**(动态类型, 动态值)**」的二元组——`nil != nil`、方法集分 `T` 与 `*T`、装箱要拷贝，这些坑全都源于忘记它有两个字段。反射则把这二元组暴露给运行时：**用运行时信息换通用性，代价是丢掉编译期检查与优化**。
 
 按 Go 1.26 语义说明。
+
+---
+
+## 目录
+
+1. [iface / eface：接口的底层表示](#1-iface--eface接口的底层表示)
+2. [值接收者 vs 指针接收者：方法集](#2-值接收者-vs-指针接收者方法集)
+3. [nil 接口坑（线上事故经典）](#3-nil-接口坑线上事故经典)
+4. [接口装箱：值拷贝与逃逸](#4-接口装箱值拷贝与逃逸)
+5. [类型断言 / type switch 的开销](#5-类型断言--type-switch-的开销)
+6. [reflect：TypeOf / ValueOf 与 Value 的能力](#6-reflecttypeof--valueof-与-value-的能力)
+7. [reflect 的性能开销与工程应用](#7-reflect-的性能开销与工程应用)
 
 ---
 
 ## 1. iface / eface：接口的底层表示
 
 ```go
-// runtime/runtime2.go（Go 1.26）
+// src/runtime/runtime2.go
 type iface struct {          // 非空接口（有方法集的）
 	tab  *itab               // 类型 + 方法表
 	data unsafe.Pointer      // 指向动态值（或其副本）
@@ -78,7 +90,7 @@ WHY：装箱进接口的 `T` 值是**不可寻址的副本**，编译器无法�
 
 语法糖提示：可寻址变量调用指针接收者方法 `r.ByPointer()` 时，编译器自动 `(&r).ByPointer()`，所以**普通调用从不出错，只有接口赋值/断言时才暴露方法集差异**——这是坑的隐蔽之处。
 
-工程规则：实现了 `Error()/String()` 这类指针接收者方法的类型，返回值必须一直用 `*T`（标准库 `func (e *MyErr) Error()` → 永远 `return &MyErr{}` 或 `return nil`）。
+工程规则：如果一个类型把 `Error()` / `String()` 实现成了指针接收者方法，那么它的返回值就必须始终是 `*T`。标准库的 `func (e *MyErr) Error()` 就是例子——永远 `return &MyErr{}` 或者 `return nil`。
 
 ---
 
@@ -217,7 +229,7 @@ v.Field(0).SetString("x") // 成功，直接写回 u
 v.Field(1).SetInt(31)     // panic: using value obtained using unexported field
 ```
 
-WHY 非导出字段只读：reflect 是普通库，必须维持包级封装语义——否则任何外部代码都能改写私有字段。**绕过手段存在**：`UnsafeAddr()` 只检查可寻址性（`flagAddr`）、不检查只读标记（`flagRO`），所以 `(*int)(unsafe.Pointer(v.Field(1).UnsafeAddr()))` 能直接改写 `age`——这等于放弃语言保护，unsafe 的协议与红线见 `01` 篇第 16 节。
+WHY 非导出字段只读：reflect 只是一个普通库，它必须替 Go 守住包级封装——否则任何外部代码都能改写私有字段。**但绕过的手段确实存在**：`UnsafeAddr()` 只检查字段是否可寻址（`flagAddr`）、不检查只读标记（`flagRO`），所以 `(*int)(unsafe.Pointer(v.Field(1).UnsafeAddr()))` 能直接改写 `age`。这等于主动放弃语言保护，unsafe 的协议与红线见 `01` 篇第 15 节。
 
 另一个高频陷阱：`reflect.ValueOf(u)` 拿到的是 `u` 的**副本**，Set 的是副本——想改原值必须 `ValueOf(&u).Elem()`。
 
@@ -241,5 +253,11 @@ WHY 非导出字段只读：reflect 是普通库，必须维持包级封装语�
 一句话定位：**反射是用运行时信息换取通用性**。正确的性能姿势：反射只在初始化/边界做一次并缓存结果（字段 offset、方法表），热循环里全部走预编译的索引或闭包。
 
 ---
+## 实验
 
-本篇对应实验：experiments/02_interface_reflection_test.go（实现与断言同文件，无打印）
+对应代码：[experiments/02_interface_reflection_test.go](experiments/02_interface_reflection_test.go)（实现与断言同文件，无打印）
+
+```bash
+cd notes/golang
+go test ./experiments/          # 全部实验（约 4 秒）
+```

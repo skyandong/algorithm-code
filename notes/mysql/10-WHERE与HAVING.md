@@ -1,6 +1,6 @@
 # WHERE 与 HAVING
 
-> **核心认知：WHERE 过滤"行"(聚合前),HAVING 过滤"组"(聚合后)。执行顺序 FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT,所以 WHERE 里不能用聚合字段、HAVING 里能。**
+> **核心认知：** `WHERE` 过滤「行」（聚合前），`HAVING` 过滤「组」（聚合后）。执行顺序是 FROM → WHERE → GROUP BY → HAVING → SELECT，所以 WHERE 里不能写聚合字段，HAVING 里能。
 
 ---
 

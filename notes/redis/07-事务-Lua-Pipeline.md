@@ -1,10 +1,6 @@
 # 事务 / Lua / Pipeline
 
-> **核心认知：三者经常被混淆，一句话锚定：
-> Pipeline 省网络，不保证原子；
-> MULTI/EXEC 保顺序，不保回滚；
-> Lua 真原子，不省网络。
-> Redis 没有 MySQL 那样的 ACID 事务——"要不要原子性"决定了你该用哪个工具。**
+> **核心认知：** 三者经常被混淆，一句话锚定——**Pipeline 省网络，不保证原子；MULTI/EXEC 保顺序，不保回滚；Lua 真原子，不省网络**。Redis 没有 MySQL 那样的 ACID 事务，「要不要原子性」决定了你该用哪个工具。
 
 ---
 
@@ -135,7 +131,7 @@ MULTI：   服务端保证命令队列连续执行，不被穿插
 
 ---
 
-## 对应实验
+## 实验
 
 对应代码：[experiments/07_transaction_lua_pipeline.go](experiments/07_transaction_lua_pipeline.go)
 

@@ -1,6 +1,30 @@
-# Channel Internals and nil Channel Semantics
+# channel 内部与 nil 语义
 
-本文将 `hchan` 底层结构、nil channel、channel 关闭行为，以及在 `select` 中通过 nil 禁用和恢复分支的内容统一整理在一起。
+> **核心认知：** channel 的行为全由**状态**决定：`nil` 没有 `hchan`，收发永久阻塞；`open` 时看缓冲与等待队列，决定直接交接还是排队；`closed` 关掉发送、保留读取出口。多数 channel 面试题问的都是「此刻它是哪个状态」。
+
+---
+
+## 目录
+
+1. [四条基本规则](#1-四条基本规则)
+2. [`hchan` 结构](#2-hchan-结构)
+3. [nil channel 没有 `hchan`](#3-nil-channel-没有-hchan)
+4. [nil channel 为什么收发都永久阻塞？](#4-nil-channel-为什么收发都永久阻塞)
+5. [nil channel 在 `select` 中的作用](#5-nil-channel-在-select-中的作用)
+6. [通过 nil 动态禁用和恢复 `select` 分支](#6-通过-nil-动态禁用和恢复-select-分支)
+7. [正常 channel 的发送路径](#7-正常-channel-的发送路径)
+8. [无缓冲 channel：直接交接](#8-无缓冲-channel直接交接)
+9. [buffered channel：环形队列](#9-buffered-channel环形队列)
+10. [`close` 的底层语义](#10-close-的底层语义)
+11. [从已关闭 channel 接收](#11-从已关闭-channel-接收)
+12. [关闭时如何处理阻塞中的 goroutine？](#12-关闭时如何处理阻塞中的-goroutine)
+13. [nil channel 与 deadlock 的区别](#13-nil-channel-与-deadlock-的区别)
+14. [channel 状态转换](#14-channel-状态转换)
+15. [nil 禁用和 close 关闭的区别](#15-nil-禁用和-close-关闭的区别)
+16. [总结](#16-总结)
+
+---
+
 
 ## 1. 四条基本规则
 
@@ -25,6 +49,7 @@
 Go 的 channel 变量可以简化理解为一个指向 runtime 内部 `hchan` 的引用。
 
 ```go
+// src/runtime/chan.go（简化）
 type hchan struct {
 	qcount   uint           // 当前缓冲区中的元素数量
 	dataqsiz uint           // 缓冲区容量
@@ -78,23 +103,7 @@ channel
 
 ## 3. nil channel 没有 `hchan`
 
-```go
-var ch chan int
-```
-
-此时：
-
-```go
-ch == nil
-```
-
-它没有指向任何 `hchan`：
-
-```text
-ch ───> nil
-```
-
-因此不存在：
+`var ch chan int` 声明的变量没有初始化，此时 `ch == nil`——**它没有指向任何 `hchan`**，所以下面这些字段压根不存在：
 
 - 缓冲区 `buf`；
 - 发送等待队列 `sendq`；
@@ -102,13 +111,7 @@ ch ───> nil
 - channel 锁；
 - `closed` 状态。
 
-而正常创建 channel：
-
-```go
-ch := make(chan int, 2)
-```
-
-才会得到一个实际的 `hchan`：
+而 `ch := make(chan int, 2)` 才会得到一个实际的 `hchan`：
 
 ```text
 ch ───> hchan
@@ -135,6 +138,7 @@ ch <- 1
 runtime 发送路径会先检查 channel 指针，逻辑可以简化为：
 
 ```go
+// src/runtime/chan.go（简化）
 func chansend(c *hchan, elem unsafe.Pointer, block bool, pc uintptr) bool {
 	if c == nil {
 		if !block {
@@ -149,13 +153,7 @@ func chansend(c *hchan, elem unsafe.Pointer, block bool, pc uintptr) bool {
 }
 ```
 
-关键是：
-
-```go
-gopark(...)
-```
-
-`gopark` 会把当前 goroutine 挂起并让出线程，不是让线程执行忙等循环：
+关键是那句 `gopark(...)`：它会把当前 goroutine 挂起并让出线程，不是让线程执行忙等循环：
 
 ```text
 G1 执行 ch <- 1
@@ -193,6 +191,7 @@ v := <-ch
 接收路径也会检查 `c == nil`：
 
 ```go
+// src/runtime/chan.go（简化）
 if c == nil {
 	if !block {
 		return
@@ -210,6 +209,26 @@ if c == nil {
 nil channel 是合法的 channel 零值，不是非法对象。Go 将它定义成“永远不会就绪的通信端点”，这使它可以安全参与 `select`。
 
 如果发送 nil channel 直接 panic，就无法使用 nil channel 动态禁用某个 `select` case。
+
+### 4.4 nil channel 是怎么被意外造出来的
+
+```go
+var ch chan int
+
+go func() { ch = make(chan int, 1); ch <- 1 }()
+go func(ch chan int) { <-ch }(ch)   // ✗ 传进去的很可能还是 nil
+```
+
+`go f(x)` 的实参**在 go 语句执行时求值**，不等函数真正跑起来——所以第二个 goroutine 可能拿到 nil，`<-ch` 永久阻塞。同时第一个 goroutine 写 `ch` 与主 goroutine 读 `ch` 之间没有同步，这本身就是 data race。
+
+正解：**先建好 channel，再启动用它的 goroutine**。
+
+```go
+ch := make(chan int, 1)
+
+go func() { ch <- 1 }()
+go func(ch <-chan int) { <-ch }(ch)
+```
 
 ---
 
@@ -267,6 +286,7 @@ default:
 runtime 的 `block` 参数决定行为：
 
 ```go
+// src/runtime/chan.go（简化）
 if c == nil {
 	if !block {
 		return false
@@ -303,28 +323,16 @@ ch    ───> nil
 saved ───> 原来的 hchan
 ```
 
-原来的 channel 没有被关闭，也没有被销毁。重新赋值：
-
-```go
-ch = saved
-```
-
-之后：
+原来的 channel 没有被关闭，也没有被销毁。执行 `ch = saved` 之后：
 
 ```text
 ch    ───> 原来的 hchan
 saved ───> 原来的 hchan
 ```
 
-因此：
+因此 `ch = nil` 是暂时禁用这个变量对应的通信分支，不是关闭 channel。
 
-```go
-ch = nil
-```
-
-是暂时禁用这个变量对应的通信分支，不是关闭 channel。
-
-### 6.2 禁用一个 `select` 分支
+### 6.2 禁用与恢复一个 `select` 分支
 
 ```go
 package main
@@ -335,52 +343,7 @@ func main() {
 	ch := make(chan int, 1)
 	var input <-chan int = ch
 
-	select {
-	case v := <-input:
-		fmt.Println(v)
-	default:
-		fmt.Println("没有数据")
-	}
-
-	input = nil
-
-	select {
-	case v := <-input:
-		fmt.Println(v)
-	default:
-		fmt.Println("input 已禁用")
-	}
-}
-```
-
-当：
-
-```go
-input = nil
-```
-
-下面的 case：
-
-```go
-case v := <-input:
-```
-
-永远不会就绪。
-
-### 6.3 恢复被 nil 禁用的分支
-
-只要原 channel 仍然开放，并且还保存着它的引用，就可以重新赋值：
-
-```go
-package main
-
-import "fmt"
-
-func main() {
-	ch := make(chan int, 1)
-	var input <-chan int = ch
-
-	input = nil
+	input = nil // 禁用：这个 case 永远不会就绪
 
 	select {
 	case v := <-input:
@@ -389,7 +352,7 @@ func main() {
 		fmt.Println("input 已禁用")
 	}
 
-	input = ch
+	input = ch // 恢复：前提是原 channel 仍开放、引用还在
 	ch <- 42
 
 	select {
@@ -401,12 +364,12 @@ func main() {
 }
 ```
 
-输出：
-
 ```text
 input 已禁用
 42
 ```
+
+`input = nil` 只是让这个变量暂时不指向任何 `hchan`：它对应的 case 永不就绪，`select` 于是走 `default`（或去等别的 case）——**禁用的是分支，不是 channel**。恢复也只需重新赋回原 channel；但如果那个 channel 已经被 `close`，赋回去也不会变回可用（见第 15 节）。
 
 ### 6.4 循环中动态暂停和恢复
 
@@ -461,20 +424,7 @@ for ch1 != nil || ch2 != nil {
 }
 ```
 
-已关闭且排空的 channel 会立即返回：
-
-```text
-v  = 零值
-ok = false
-```
-
-如果不把它设置为 nil，这个 case 可能不断被选中，导致循环空转。设置：
-
-```go
-ch1 = nil
-```
-
-就是把已经结束的分支从 `select` 中移除。
+已关闭且排空的 channel 会立即返回**零值 + `ok = false`**。如果不把它置 `nil`，这个 case 可能不断被选中、循环空转——设置 `ch1 = nil` 就是把已经结束的分支从 `select` 中移除。
 
 ### 6.6 并发修改 channel 变量的注意事项
 
@@ -507,13 +457,7 @@ go func() {
 
 ## 7. 正常 channel 的发送路径
 
-创建 buffered channel：
-
-```go
-ch := make(chan int, 2)
-```
-
-初始状态可以简化为：
+创建 buffered channel（`ch := make(chan int, 2)`）后，初始状态可以简化为：
 
 ```text
 hchan:
@@ -528,6 +472,7 @@ hchan:
 发送时，runtime 大致按照以下顺序处理：
 
 ```go
+// src/runtime/chan.go（简化）
 lock(&c.lock)
 
 if c.closed != 0 {
@@ -565,17 +510,7 @@ if c.qcount < c.dataqsiz {
 
 ## 8. 无缓冲 channel：直接交接
 
-```go
-ch := make(chan int)
-```
-
-无缓冲 channel 的：
-
-```go
-dataqsiz = 0
-```
-
-它没有保存元素的缓冲区。如果接收者已经等待：
+无缓冲 channel 用 `ch := make(chan int)` 创建，`dataqsiz = 0`——它没有保存元素的缓冲区。如果接收者已经等待：
 
 ```go
 go func() {
@@ -589,6 +524,7 @@ ch <- 42
 发送者会从 `recvq` 中找到接收者：
 
 ```go
+// src/runtime/chan.go（简化）
 if sg := c.recvq.dequeue(); sg != nil {
 	send(c, sg, ep, ...)
 	return true
@@ -605,24 +541,13 @@ if sg := c.recvq.dequeue(); sg != nil {
 接收者栈上的 v
 ```
 
-因此无缓冲 channel 更像一次同步握手：
-
-```text
-发送者和接收者必须同时到场
-双方完成一次直接交接
-```
-
-如果发送者先到，它进入 `sendq`；如果接收者先到，它进入 `recvq`。另一方到达后，runtime 将二者配对并唤醒等待者。
+因此无缓冲 channel 更像一次同步握手：发送者和接收者必须同时到场、双方完成一次直接交接。如果发送者先到，它进入 `sendq`；如果接收者先到，它进入 `recvq`。另一方到达后，runtime 将二者配对并唤醒等待者。
 
 ---
 
 ## 9. buffered channel：环形队列
 
-```go
-ch := make(chan int, 3)
-```
-
-缓冲区可以表示为：
+`ch := make(chan int, 3)` 建出来的缓冲区可以表示为：
 
 ```text
 buf:
@@ -698,6 +623,7 @@ qcount = 3
 关闭 channel 的核心动作不是销毁对象，而是把 `hchan.closed` 设置为 1：
 
 ```go
+// src/runtime/chan.go（简化）
 func closechan(c *hchan) {
 	if c == nil {
 		panic("close of nil channel")
@@ -732,6 +658,7 @@ func closechan(c *hchan) {
 发送路径在真正发送前会检查：
 
 ```go
+// src/runtime/chan.go（简化）
 lock(&c.lock)
 
 if c.closed != 0 {
@@ -740,13 +667,7 @@ if c.closed != 0 {
 }
 ```
 
-只要：
-
-```go
-c.closed == 1
-```
-
-发送就会 panic，与下面这些因素无关：
+只要 `c.closed == 1`，发送就会 panic，与下面这些因素无关：
 
 - channel 是否有缓冲；
 - 缓冲区是否还有空间；
@@ -763,20 +684,7 @@ ch <- 1 // panic: send on closed channel
 
 ### 10.3 为什么 `close(nil)` 会 panic？
 
-发送和接收是等待通信完成：
-
-```text
-发送 nil channel → 等待不存在的接收者
-接收 nil channel → 等待不存在的发送者
-```
-
-而关闭是修改 channel 状态：
-
-```go
-c.closed = 1
-```
-
-nil channel 没有 `hchan`，没有 `closed` 字段可以修改，因此：
+发送和接收是在等通信完成（发送 nil channel → 等一个不存在的接收者，接收 nil channel → 等一个不存在的发送者），而关闭是修改 channel 状态（`c.closed = 1`）。nil channel 没有 `hchan`，没有 `closed` 字段可以修改，因此：
 
 ```go
 var ch chan int
@@ -804,16 +712,10 @@ ch <- 20
 close(ch)
 ```
 
-关闭时：
-
-```text
-closed = 1
-qcount = 2
-```
-
-`close` 不会清空 `buf`。接收路径会先判断是否还有缓冲数据：
+关闭时 `hchan` 的状态是 `closed = 1`、`qcount` 仍是 2——`close` 不会清空 `buf`。接收路径会先判断是否还有缓冲数据：
 
 ```go
+// src/runtime/chan.go（简化）
 if c.closed != 0 {
 	if c.qcount == 0 {
 		// 已关闭且已排空，返回零值和 false
@@ -855,6 +757,7 @@ fmt.Println(v, ok) // 0 false
 runtime 接收路径可以简化为：
 
 ```go
+// src/runtime/chan.go（简化）
 lock(&c.lock)
 
 if c.closed != 0 && c.qcount == 0 {
@@ -912,15 +815,10 @@ time.Sleep(time.Second)
 close(ch)
 ```
 
-接收者没有等到发送者，会被放入：
+接收者没有等到发送者，会被放入 `c.recvq` 并阻塞。关闭 channel 时，runtime 遍历接收队列，将等待者标记为失败并唤醒：
 
 ```go
-c.recvq
-```
-
-并阻塞。关闭 channel 时，runtime 遍历接收队列，将等待者标记为失败并唤醒：
-
-```go
+// src/runtime/chan.go（简化）
 for {
 	sg := c.recvq.dequeue()
 	if sg == nil {
@@ -939,12 +837,7 @@ for {
 }
 ```
 
-被唤醒的接收者得到：
-
-```text
-v  = 0
-ok = false
-```
+被唤醒的接收者得到 `v = 0`、`ok = false`。关闭不是唤醒一个等待者，而是**把整个 `recvq` 排空、逐个唤醒**（上面的 `for` 循环 + `glist.push`）。这就是「close 是广播」的底层来源：一次 `close` 让所有阻塞在 `<-ch` 上的 goroutine 同时解除阻塞，且谁也不消耗数据（全部拿到 `ok = false`）。对照发送：`ch <- v` 只唤醒一个接收者，数据被它取走。
 
 ### 12.2 阻塞中的发送者
 
@@ -961,21 +854,10 @@ time.Sleep(time.Second)
 close(ch)
 ```
 
-此时缓冲区已满，发送者进入：
+此时缓冲区已满，发送者进入 `c.sendq`。关闭 channel 时，runtime 会唤醒等待中的发送者，但把它标记为失败（`sg.success = false`）。发送者醒来后检查：
 
 ```go
-c.sendq
-```
-
-关闭 channel 时，runtime 会唤醒等待中的发送者，但将其标记为失败：
-
-```go
-sg.success = false
-```
-
-发送者醒来后检查：
-
-```go
+// src/runtime/chan.go（简化）
 closed := !mysg.success
 
 if closed {
@@ -1029,6 +911,14 @@ func main() {
 ```
 
 主 goroutine 会继续阻塞，但因为另一个 goroutine 仍然可运行，不会立即触发“所有 goroutine 都睡眠”的 deadlock 检测。
+
+**与「泄漏」的关系**：runtime 只会在「整个程序再也无法推进」时替你喊停；只要还有任意一个 goroutine 能跑，永久阻塞的那个就**一直挂着**——这就是 goroutine 泄漏。三大来源：
+
+1. **阻塞在再也无人配对的收发上**：没人再发的接收、没人再收的发送、被 `nil` 关掉的分支（本节与第 4 节）；
+2. **长任务不检查 `ctx.Done()`**：取消是协作式的，不主动看就永远不知道要退出（09 篇第 3 节）；
+3. **子 goroutine panic 未 recover**：整个进程直接退出（09 篇第 7 节）。
+
+排查：`runtime.NumGoroutine` 看数量是否随时间线性涨；`pprof` 的 goroutine profile 看卡在哪个 channel 收发（10 篇第 4 节）。
 
 ---
 
@@ -1097,131 +987,24 @@ oldCh := ch
 close(ch)
 
 ch = nil
-ch = oldCh
+ch = oldCh // 指向的还是原来那个已关闭的 hchan
 ```
 
-此时 `ch` 仍然指向原来的已关闭 `hchan`：
-
-```text
-hchan.closed = 1
-```
-
-重新设置变量不会把：
-
-```go
-hchan.closed = 1
-```
-
-恢复为：
-
-```go
-hchan.closed = 0
-```
-
-如果需要重新使用，必须创建新的 channel：
-
-```go
-ch = make(chan int)
-ch <- 1
-```
-
-这不是重新打开旧 channel，而是让变量指向一个新的 `hchan`。
+重新赋值改的是**变量**，不会把 `hchan.closed` 从 1 恢复成 0。要让这个分支重新可用，只能 `ch = make(chan int)`——那是换一个**新的 channel**，不是把旧的重开。
 
 ---
 
-## 16. 一份完整示例
+## 16. 总结
 
-```go
-package main
+channel 只有三种状态，记住它仨就够：
 
-import "fmt"
+- **`nil`**：它没有 `hchan`。收发都会永久阻塞，非阻塞收发则立即失败，`select` 里对应的 case 永远不会就绪，`close(nil)` 直接 panic。
+- **`open`**：runtime 看 `recvq`、`sendq`、`buf`、`qcount` 这几个字段，决定这次操作是直接交接、进缓冲区排队，还是让当前 goroutine 阻塞。
+- **`closed`**：发送入口被关掉，但接收出口保留——缓冲区还有数据就继续返回，排空之后才返回零值和 `ok=false`。
 
-func main() {
-	ch := make(chan int, 2)
+逐状态的展开见第 14 节。
 
-	ch <- 10
-	ch <- 20
-	close(ch)
-
-	v, ok := <-ch
-	fmt.Println(v, ok) // 10 true
-
-	v, ok = <-ch
-	fmt.Println(v, ok) // 20 true
-
-	v, ok = <-ch
-	fmt.Println(v, ok) // 0 false
-
-	v, ok = <-ch
-	fmt.Println(v, ok) // 0 false
-}
-```
-
-状态变化：
-
-```text
-创建：
-closed = 0
-qcount = 0
-
-发送 10：
-closed = 0
-qcount = 1
-
-发送 20：
-closed = 0
-qcount = 2
-
-关闭：
-closed = 1
-qcount = 2
-
-接收：
-closed = 1
-qcount = 1
-返回 10, true
-
-接收：
-closed = 1
-qcount = 0
-返回 20, true
-
-接收：
-closed = 1
-qcount = 0
-返回 0, false
-```
-
----
-
-## 17. 总结
-
-可以从 channel 的三个核心状态理解全部规则：
-
-```text
-nil：
-    没有 hchan
-    阻塞收发永久等待
-    非阻塞收发立即失败
-    select case 永远不会就绪
-    close(nil) panic
-
-open：
-    根据 recvq、sendq、buf 和 qcount
-    决定直接交接、入队、出队或阻塞
-
-closed：
-    关闭发送入口
-    保留接收出口和已有缓冲数据
-    缓冲区有数据就继续返回数据
-    缓冲区为空就返回零值和 ok=false
-```
-
-最准确的一句话是：
-
-> `close` 不是销毁 channel，而是把 `hchan.closed` 置为 1，并唤醒等待者；之后禁止发送，允许接收者把缓冲区中的数据排空，排空后接收零值。`ch = nil` 只是让某个变量暂时不再指向 channel，常用于动态禁用 `select` 分支；只要保存原 channel 引用，就可以重新启用该分支。
-
----
+> `close` 不是销毁 channel，而是把 `hchan.closed` 置为 1 并唤醒等待者；之后禁止发送，允许接收者排空缓冲区，排空后接收零值。`ch = nil` 只是让变量暂时不指向 channel，常用于动态禁用 `select` 分支；只要保存原 channel 引用，就能重新启用。
 
 ## 实验
 
@@ -1229,7 +1012,7 @@ closed：
 
 ```bash
 cd notes/golang
-go test -run 'TestNilChannel|TestNilDisables|TestClosedChannel|TestClose|TestUnbuffered|TestBuffered' ./experiments/
+go test ./experiments/          # 全部实验（约 4 秒）
 ```
 
 实验内容：
@@ -1239,3 +1022,8 @@ go test -run 'TestNilChannel|TestNilDisables|TestClosedChannel|TestClose|TestUnb
 4. 已关闭 channel 的接收：先排空缓冲区（ok=true），再返回零值（ok=false）
 5. 阻塞中的接收者被 `close` 唤醒：得到零值 + `ok=false`
 6. 阻塞中的发送者在 `close` 后 panic（recover 演示）
+7. `close` 的广播效应：一次关闭唤醒 `recvq` 里全部 100 个等待者
+8. 多路收口：已关闭且排空的分支置 `nil`，否则 `select` 反复命中它空转
+9. 生产者 `close` 后 `range` 收口：缓冲内元素不重不漏、不追读零值
+10. 结果靠 channel 传递：两个 goroutine 各写一次，无需加锁
+11. 阻塞读的并发安全 Map：key 已存在就立即返回；key 不存在时，等待者由 `close` 广播唤醒；超时返回前还要重新确认自己是否已被写入方移除（回收脏 waiter）

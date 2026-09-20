@@ -1,8 +1,8 @@
-# sync 锁与原子操作
+# sync 并发原语
 
-> **核心认知：** Go 的锁是「**信号量排队 + 双模式调度策略**」，不是操作系统教科书里的原始互斥量——Mutex 内部维护等待队列，但**让不让新来的插队**是一个调度策略问题（正常模式 vs 饥饿模式）。atomic 是 Lock-free 的地基（CAS 单条 CPU 指令），但只能保护单个机器字。选型口诀：**一个字用 atomic，一段临界区用 Mutex，读远多于写才考虑 RWMutex，跨 goroutine 传递数据/所有权用 channel**。锁保护的是「不变量」（invariant），不是「代码」——想清楚哪些数据在什么约束下必须一致，锁的边界自然就出来了。
+> **核心认知：** Go 的锁是「**信号量排队 + 双模式调度策略**」，不是操作系统教科书里的原始互斥量——让不让新来的插队，是一个调度策略问题。选型口诀：**一个字用 atomic，一段临界区用 Mutex，读远多于写才用 RWMutex，传数据或所有权用 channel**。
 
-本文基于 Go 1.26 的实际行为编写。前置知识：happens-before 与 data race 见 `04-并发内存可见性与sync.Once.md`，channel 与并发模式见 `05`/`12`。
+本文基于 Go 1.26 的实际行为编写。前置知识：happens-before 与 data race 见 `04-并发内存模型与可见性.md`，channel 与并发模式见 `05`/`12`。
 
 ---
 
@@ -15,8 +15,8 @@
 5. [atomic：CAS 与内存序](#5-atomiccas-与内存序)
 6. [sync.Pool：对象复用的正确姿势](#6-syncpool对象复用的正确姿势)
 7. [sync.Map：为读多写少而生](#7-syncmap为读多写少而生)
-8. [选型决策表](#8-选型决策表)
-9. [面试高频](#9-面试高频)
+8. [sync.Once：只执行一次的初始化](#8-synconce只执行一次的初始化)
+9. [选型决策表](#9-选型决策表)
 
 ---
 
@@ -46,8 +46,8 @@ Lock 的快路径就是一次 CAS：`CompareAndSwapInt32(&m.state, 0, mutexLocke
 | | 正常模式（默认） | 饥饿模式 |
 |---|---|---|
 | 新来者 | 可与被唤醒的 waiter **竞争**，甚至直接抢到（已在 CPU 上，占优） | 锁**直接交接**给队头 waiter，新来者不自旋也不抢，老实排队 |
-| 延迟 | 吞吐高，但 waiter 可能一直抢输（尾部延迟差） | waiter 最多等 1ms 就一定拿到 |
-| 切换条件 | waiter 等待 **超过 1ms** → 切饥饿 | waiter 拿到锁时发现等待 <1ms 或已是队尾 → 切回正常 |
+| 延迟 | 吞吐高，但 waiter 可能一直抢输（尾部延迟差） | waiter 等够一段时间后一定能拿到 |
+| 切换条件 | waiter 一直抢输、等待**超过阈值** → 切饥饿 | waiter 拿到锁时发现等待很短、或已是队尾 → 切回正常 |
 
 WHY：纯 FIFO 交接吞吐差（每次交接要完整走一遍调度器唤醒）；纯竞争则不公平（极端情况下队头饿死）。双模式是吞吐与公平的折中——**默认偏向吞吐，检测到饥饿时自动切公平**。这是面试里「Mutex 公平吗」的标准答案：非绝对公平，饥饿时退化为公平。
 
@@ -79,15 +79,15 @@ Mutex 是「带状态的协调原语」：复制那一刻锁的字段被快照�
 
 1. 多核机器（单核自旋是纯浪费——让出 CPU 才能让持锁者跑）；
 2. `GOMAXPROCS > 1` 且本 P 的本地队列为空（否则自旋反而挡住持锁者）；
-3. 自旋次数不超过 4 次；
+3. 自旋次数有上限（到上限就去睡）；
 4. 且仅正常模式（饥饿模式禁止自旋）。
 
 ```go
-// sync/mutex.go 的判定（简化）
+// src/runtime/proc.go 的判定（简化）
 func sync_runtime_canSpin(i int) bool {
     p := gomaxprocs
     if ncpu != p || ... { return false }  // 单 P 不自旋
-    if i >= active_spin { return false }  // 最多 4 次
+    if i >= active_spin { return false }  // 自旋次数上限
     if p := runtime.Gosched...            // 本地队列非空不自旋
 }
 ```
@@ -111,8 +111,9 @@ type RWMutex struct {
 }
 ```
 
-读锁：`readerCount.Add(1)`，若结果 <0（有写者在排队）→ 睡在 readerSem 上。
-写锁：`readerCount.Add(-rwmutexMaxReaders)` 把计数打为负——**这一刻起新读者全部入睡**；再等 `readerWait` 归零（存量读者全部退出）才真正拿到写锁。
+读锁（`RLock`）：它把 `readerCount` 加一。如果加完发现结果是负数（说明有写者正在排队），这个读者就阻塞在 `readerSem` 上等写者先走。
+
+写锁（`Lock`）：它先把 `readerCount` 减去一个很大的常数 `rwmutexMaxReaders`，让计数器直接变成负数——**从这一刻起，所有新来的读者都会被挡住**。然后写者还要等 `readerWait` 归零（存量读者全部退出），才真正拿到锁。
 
 三个常考推论：
 
@@ -156,7 +157,7 @@ WaitGroup 计数归零、Wait 返回后，可以重新 Add 复用。但「归零
 
 ### 4.3 WaitGroup 没有「带超时的 Wait」
 
-标准库故意不给。工程实现是 `context` + goroutine 竞速（见 `11-Goroutine面试题集.md` 题 5 的手写），或直接用 `golang.org/x/sync/errgroup` 的 `ctx` 版本——后者同时解决「错误收集 + 取消传播 + 并发上限」三件事，是生产代码的正解：
+标准库故意不给。工程实现是 `context` + goroutine 竞速（手写版见 [experiments/06_sync_atomic_test.go](experiments/06_sync_atomic_test.go) 的 `WaitTimeout`），或直接用 `golang.org/x/sync/errgroup` 的 `ctx` 版本——后者同时解决「错误收集 + 取消传播 + 并发上限」三件事，是生产代码的正解：
 
 ```go
 g, ctx := errgroup.WithContext(ctx)
@@ -209,7 +210,7 @@ atomic 变量只保证「正确」，不保证「快」。多个 CPU 核各自�
 
 C++/Java 有 acquire/release 等多种内存序，Go 故意只暴露一种：**Go 内存模型的同步语义**（本质是顺序一致的 happens-before）。`atomic` 操作之间、atomic 与 mutex/channel 之间都建立 happens-before。
 
-工程上记住推论就够：**一次 atomic.Store 发布数据 + 别的 goroutine atomic.Load 到同一位置后，Store 之前的所有普通写对新读者可见**（release/acquire 效应）。这也是 `04` 篇「用 atomic.Bool 替代裸 bool 做 ready 标志」能修复可见性问题的原因。
+工程上记住推论就够：**一次 atomic.Store 发布数据 + 别的 goroutine atomic.Load 到同一位置后，Store 之前的所有普通写对新读者可见**（release/acquire 效应）。这也是为什么把裸 `bool` 换成 `atomic.Bool` 当 ready 标志，那个循环就拿得到最新值。
 
 ```go
 var ready atomic.Bool
@@ -248,7 +249,7 @@ b.Write(...)
 三条必须刻在脑子里的语义：
 
 1. **Pool 里的对象可能在任意时刻被丢弃**（没有「一定命中」的保证）——Get 拿不到就 New，所以 New 必须提供；
-2. **每次 GC（STW 的两轮标记扫描）都会清空 Pool**（起分主/victim 两代：GC 后主代降级为 victim，再下次 GC 才真正丢弃——给对象两个 GC 周期的存活机会，减轻「GC 一来缓存全光」的抖动）；
+2. **每次 GC 都会清空 Pool**（实现上有一级 victim 缓冲，把清空摊到相邻两轮、缓解「GC 一来缓存全光」的抖动——但**别当成承诺**，池里的东西随时可能没）；
 3. **Put 之后再 Get 可能拿到同一个对象**——所以放回前必须 Reset，状态残留是最高频事故。
 
 ### 6.2 工程定位
@@ -260,6 +261,8 @@ sync.Pool 解决的是「**高频率、短生命周期、分配成本高**的对
 - free list（没有容量、没有淘汰策略）。
 
 一句话：Pool 换的是 **GC 压力**，不是「省一次分配」——先有 benchmark 证明分配是热点，再上 Pool（见 `10` 篇优化性价比排序：sync.Pool 排在逃逸治理之后）。
+
+> 它**为什么**能减 GC 压力（分配速率、存活堆与目标堆公式的关系）见 [08-内存管理与GC.md](08-内存管理与GC.md) 第 6 节。
 
 ---
 
@@ -281,18 +284,88 @@ type HashTrieMap[K comparable, V any] struct {
 
 内部是**哈希 trie（HAMT 变体）**：按 key hash 的前缀逐层定位子树，**读路径无锁**（沿 atomic 指针下行），**写锁粒度到子树级**——不相干 key 的写入互不竞争。key 集合持续增长的场景也不退化，整体内存平稳。没有对外 len()，Range 是最终一致遍历。
 
-### 7.3 适用场景（面试标准答案）
+### 7.2 适用场景（面试标准答案）
 
 两个官方推荐场景，背下来：
 
-1. **key 写一次、读多次，key 集合基本不变**（缓存类：连接池按 host 索引、路由表、单例注册表）；
+1. **key 写一次、读多次，key 集合基本不变**（缓存类：按 host 索引的连接池、路由表、单例注册表）；
 2. **多个 goroutine 读写、覆盖不同的 key**（分片状写入，key 之间不相干）。
 
-反场景（用普通 map + Mutex 更好）：**持续写同一批 key、写读混合、需要 Range 快照语义精确一致、需要 len()**——sync.Map 没有对外 len()，Range 是最终一致遍历。数字记忆：写多读少时 sync.Map 可能比 mutex+map **慢数倍**。
+反场景（这些情况用普通 map + Mutex 更好）：**持续写同一批 key**、**读写混合**、**要求 Range 拿到精确一致的快照**、**需要 len()**。最后一条要特别注意：sync.Map 根本没有对外的 `len()`，它的 `Range` 也只是最终一致遍历。数字记忆：写多读少时，sync.Map 可能比 mutex+map **慢数倍**。
+
+## 8. sync.Once：只执行一次的初始化
+
+### 8.1 标准用法与四条保证
+
+```go
+var once sync.Once
+var singleton *Service
+
+func service() *Service {
+	once.Do(func() { singleton = &Service{} })
+	return singleton
+}
+```
+
+`sync.Once` 保证：
+
+1. 并发调用时初始化函数**只执行一次**；
+2. 其他 goroutine 会**等**正在执行初始化的那个返回，而不是直接返回；
+3. 初始化返回后，后续调用者必然**看到初始化结果**（`Do` 的返回建立 happens-before）；
+4. **初始化函数 panic 后，`Once` 仍算已执行过** —— 后续 `Do` 直接返回，不重试。
+
+两条红线：不要复制已用过的 `sync.Once`，也不要复制内嵌它的结构体 —— 等于把「已执行」状态一起复制走了。
+
+### 8.2 手写双重检查会踩的两个坑
+
+```go
+// 错误示范：看着能省锁，实际两个地方都不对
+func (o *Once) Do(f func()) {
+	if o.done == 1 { // 坑 1
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.done == 0 {
+		o.done = 1 // 坑 2
+		f()
+	}
+}
+```
+
+- **坑 1：外层无锁读 `done` 就是 data race**。锁只护住了内层临界区，这次读既没锁也没 atomic，而别的 goroutine 正在写它。
+- **坑 2：完成标志设得太早**。`done = 1` 写在 `f()` **之前**，别的 goroutine 看到 `done == 1` 就返回了，可 `f` 还没跑完。标志的语义必须是「**初始化已完成**」，不是「准备开始初始化」。
+
+别把这两个坑简单归因于 CPU 缓存或指令重排 —— 根本原因是**程序违反了并发访问规则**，表现成 race，结果不可依赖。
+
+### 8.3 教学版：atomic + mutex
+
+```go
+type Once struct {
+	mu   sync.Mutex
+	done atomic.Uint32
+}
+
+func (o *Once) Do(f func()) {
+	if o.done.Load() == 1 {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.done.Load() == 0 {
+		f()
+		o.done.Store(1) // 放在 f 返回之后
+	}
+}
+```
+
+两处对照修法：外层改用 atomic 读写消掉 race；`Store(1)` 挪到 `f()` **返回之后**。
+
+**但它不该替代标准库**：panic 行为、等待语义、内部同步细节标准库都处理了，手写版容易漏边界 —— 理解用，别生产用。
 
 ---
 
-## 8. 选型决策表
+## 9. 选型决策表
 
 | 需求 | 用什么 | 备注 |
 |---|---|---|
@@ -302,49 +375,18 @@ type HashTrieMap[K comparable, V any] struct {
 | 一批子任务等齐 / 带错误收集 | errgroup > WaitGroup | errgroup 顺便解决取消传播 |
 | 高频短命对象减 GC | sync.Pool | Put 前 Reset；不是缓存不是连接池 |
 | 读多写少共享 map | sync.Map | key 稳定 / 分片写入两个场景 |
+| 只执行一次的初始化（单例 / 懒加载） | sync.Once | Do 里 panic 也算执行过、不重试；别复制已用过的 Once |
 | 跨 goroutine 传数据/所有权/事件 | channel | 见 `05`/`12`；锁保护状态，channel 传递数据 |
 
 最后的选型元规则：**锁保护的是不变量，不是代码行**。先写出「任何时候必须为真的约束」（如 `m 里的 item 和磁盘上的文件必须一致`），每条不变量对应一把锁、明确谁加谁解，比背十种锁的 API 更能避免死锁。
 
-死锁排查速记：`go test -race` 抓 race；死锁时 `kill -QUIT`（SIGQUIT）dump 全部 goroutine 栈，卡在 `semacquire` 的链条就是等待链；`GODEBUG=schedtrace=1000` 看调度概览。
+死锁排查速记：先用 `go test -race` 抓 race；确认是真死锁，就 `kill -QUIT`（SIGQUIT）把全部 goroutine 栈 dump 出来，卡在 `semacquire` 上的那条链条就是等待链；想看调度全景，用 `GODEBUG=schedtrace=1000`。
 
----
+## 实验
 
-## 9. 面试高频
+对应代码：[experiments/06_sync_atomic_test.go](experiments/06_sync_atomic_test.go)（断言式单测，无打印；含子进程 fatal 验证）
 
-**Q1：Mutex 是公平锁吗？**
-非绝对公平。默认正常模式：被唤醒的 waiter 和新来的竞争，新来的（已在 CPU 上）常赢，吞吐高但可能饿死 waiter。waiter 等待超 1ms 切饥饿模式：锁直接交接队头，新来者不自旋不抢。拿到锁时若等待不足 1ms 或是队尾，切回正常。双模式是吞吐与公平的折中。
-
-**Q2：Mutex 正常/饥饿模式切换的条件？**
-见 Q1：>1ms 进饥饿，<1ms 或队尾出饥饿。饥饿模式还禁用自旋。
-
-**Q3：为什么 Unlock 可以由非加锁者调用？**
-Mutex 不记属主，Unlock 只是清 locked 位 + 发信号量。合法但不推荐——错误率指数上升，review 打回。反过来「未锁定就 Unlock」直接 fatal panic，不可 recover。
-
-**Q4：自旋的条件？**
-多核 && GOMAXPROCS>1 && 本 P 本地队列为空 && 自旋 <4 次 && 非饥饿模式。本质是赌持锁者马上释放，用几十 ns 空转换微秒级的调度唤醒成本。
-
-**Q5：RWMutex 写锁等待时新读者会怎样？被阻塞。**
-写者 Lock 时把 readerCount 减一个大常数打成负数，之后所有 RLock 看到负数就睡 readerSem。所以写者不会饿死。推论：读锁不能升级（持读锁再 Lock 死锁），能降级（Lock→RLock→RUnlock→Unlock）。
-
-**Q6：RWMutex 一定比 Mutex 快吗？**
-不一定。RWMutex 单次操作成本更高（多两个信号量 + atomic 计数），读临界区极短（百 ns 级）时是负优化。读临界区微秒级 + 读写比 >10:1 才明显赚。先 benchmark。
-
-**Q7：WaitGroup 的 Add 为什么要在 goroutine 外调用？**
-Wait 返回发生在计数归零时；若在子 goroutine 里才 Add，主流程可能已经 Wait 返回甚至重用 wg，触发 misuse panic（Add 与 Wait 并发）。协议：先 Add 后 go，子 goroutine 里 defer Done。
-
-**Q8：atomic 能保护两个变量的一致性吗？**
-不能。两个 atomic 字之间没有原子性，读者能观察到中间态。合成一个字（位打包/atomic.Pointer 换整个结构体快照）或上锁。另记：没有原子浮点 Add；atomic.Value 必须同类型，泛型时代用 atomic.Pointer[T]。
-
-**Q9：sync.Pool 什么时候清空？放回前要做什么？**
-每次 GC 周期清理（主/victim 两级，对象活两个 GC 周期）。放回前必须 Reset 清状态，否则下个使用者拿到脏数据。定位：减 GC 压力，不是缓存/连接池/free list。
-
-**Q10：sync.Map 的适用场景？**
-① key 写一次读多次且集合稳定（注册表/路由）；② 多 goroutine 写不相干的 key。内部：HashTrieMap 哈希 trie（写锁子树级）。写多场景用 map+Mutex 更快；没有 len()。
-
-**Q11：锁和 channel 怎么选？**
-锁保护**共享状态的不变量**（「任何时候 m 与磁盘一致」）；channel **传递数据/所有权/事件**（「这个数据现在归你」）。官方口诀：share memory by communicating。混用判断：如果 goroutine 之间是「围绕一份数据反复读写」，锁；如果是「流水线生产-消费」，channel。
-
----
-
-本篇对应实验：experiments/06_sync_atomic_test.go（断言式单测，无打印；含子进程 fatal 验证）
+```bash
+cd notes/golang
+go test ./experiments/          # 全部实验（约 4 秒）
+```

@@ -1,8 +1,8 @@
 # 创建型：functional options、Builder、Once 单例
 
-> **核心认知：** Go 没有构造函数重载，一个类型只有一种 `New(...)` 签名——**参数膨胀**（10 个参数、一半要默认值）是必然遭遇的问题。三个惯用解法按规模递进：**配置结构体**（5 个以内直传）、**functional options**（可选参数多、需要校验和文档）、**Builder**（多步构建有依赖关系）。而 Java 的 singleton 在 Go 里的正解是「包级变量 + sync.Once」——包本身就是单例容器，不需要一个 singleton 类。判断标准：**调用方代码是否自文档**（`WithTimeout(3s)` 一眼懂，`New(s, 5, nil, true, 3)` 是天书）。
+> **核心认知：** Go 没有构造函数重载，一个类型只有一种 `New(...)` 签名——**参数膨胀**是必然遭遇的问题。三个解法按规模递进：**配置结构体**（5 个以内直传）、**functional options**（可选参数多、要校验和文档）、**Builder**（多步构建有依赖）。判断标准：**调用方代码是否自文档**。
 
-按 Go 1.26 语义说明。前置知识：sync.Once 双检查的内存语义见 `notes/golang/04-并发内存可见性与sync.Once.md`。
+按 Go 1.26 语义说明。前置知识：sync.Once 双检查的内存语义见 `notes/golang/06-sync并发原语.md` 第 8 节。
 
 ---
 
@@ -62,7 +62,7 @@ NewServer(ServerConfig{Addr: "localhost", Port: 8080})
 
 1. **零值即默认**——但你想要的默认往往不是零值（Timeout 默认 30s，零值是 0）；要么导出 `DefaultServerConfig()` 让调用方覆写，要么 New 内部逐字段判零；
 2. **判零有歧义**：调用方真的想要 `Timeout: 0`（永不超时）时，无法和「没填」区分；
-3. **可变配置**：config 结构体一旦被并发读写（热更新场景），要么加锁要么整体换（对照 golang 07 篇 atomic.Pointer 快照）。
+3. **可变配置**：config 结构体一旦被并发读写（热更新场景），要么加锁要么整体换（对照 golang 06 篇 atomic.Pointer 快照）。
 
 **适用**：参数 ≤ 5 个、零值默认可接受、构建一步完成。**过此线就该上 options。**
 
@@ -185,7 +185,7 @@ func Get() *Config {
 三个工程细节：
 
 1. **为什么不用 init()**：init 在 main 之前跑，无法传参、无法失败重试、错误只能 panic。`sync.Once` 惰性初始化把「何时加载」交给第一次使用者，测试里还能注入（换掉 loadFromFile 的实现）；
-2. **Once 的正确性**：golang 05 篇讲过——Once.Do 内部是 atomic 快路径 + mutex 慢路径 + 双检查，且「Do 返回时 f 一定已执行完」是 happens-before 保证，所有 goroutine 看到完整初始化的 cfg；
+2. **Once 的正确性**：golang 06 篇讲过——Once.Do 内部是 atomic 快路径 + mutex 慢路径 + 双检查，且「Do 返回时 f 一定已执行完」是 happens-before 保证，所有 goroutine 看到完整初始化的 cfg；
 3. **何时真需要单例 vs 包变量**：无状态（logger 级别）→ 包变量直接赋值即可；初始化昂贵/依赖外部（配置、连接池）→ Once 惰性；需要按参数多份实例 → 那就不是单例，是工厂，别硬套。
 
 **单例的代价照旧存在**：全局状态难测试（测试间泄漏）、隐藏依赖（谁用了 config 编译期看不出来）。Go 的缓解：包级变量至少让依赖在 import 图上可见，测试里用 `swap` 函数或接口注入替代。
@@ -224,5 +224,10 @@ func Get() *Config {
 `type Option func(*opts) error`，构造循环短路返回第一个错误；或校验统一放 New 末尾。带 IO 的校验（读证书文件）必须用带 error 的版本。
 
 ---
+## 实验
 
-本篇对应实验：experiments/02_creational.go
+对应代码：[experiments/02_creational.go](experiments/02_creational.go)
+
+```bash
+cd notes/design-pattern && go run ./experiments/          # 全部实验
+```
