@@ -192,7 +192,7 @@ func TestGOGCPercentToggle(t *testing.T) {
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
 
-	for i := 0; i < 4; i++ { // 128MB 大对象（>32KB 直接走 mheap 页堆）
+	for i := 0; i < 4; i++ { // 128MB 大对象（超出 sizeclass 档位，直接走 mheap 页堆）
 		b := make([]byte, 32<<20)
 		b[0] = byte(i)
 		_ = b

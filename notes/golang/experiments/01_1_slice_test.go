@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
 	"unsafe"
 
@@ -15,9 +16,6 @@ import (
 func dataPtr[T any](s []T) uintptr {
 	return uintptr(unsafe.Pointer(unsafe.SliceData(s)))
 }
-
-// 包级变量：强制逃逸，走 runtime.growslice 真实路径（栈上小 append 观察不到扩容规律）
-var growthSink []int
 
 // TestSliceHeader 第 1 节：slice 头就是 ptr/len/cap 三个字段
 func TestSliceHeader(t *testing.T) {
@@ -74,25 +72,22 @@ func TestAppendAcrossCall(t *testing.T) {
 	assert.Equal(t, []int{7}, appendAndReturn(make([]int, 0, 4)), "对外返回的新头带着追加的元素")
 }
 
-// TestGrowthCapSequence 第 3 节：growslice 的 cap 增长序列
-func TestGrowthCapSequence(t *testing.T) {
-	growthSink = make([]int, 0)
-	growthSink = append(growthSink, 1) // 首跳 cap 0→1 是 newLen > 2*oldCap 的按需分配分支，不属翻倍段
-	prev := cap(growthSink)
-	for i := 2; i <= 10000; i++ {
-		growthSink = append(growthSink, i)
-		if cap(growthSink) == prev {
-			continue
-		}
-		if prev < 256 {
-			assert.Equal(t, 2*prev, cap(growthSink), "翻倍段")
-		} else {
-			ratio := float64(cap(growthSink)) / float64(prev)
-			assert.GreaterOrEqual(t, ratio, 1.25, "平滑公式下限")
-			assert.LessOrEqual(t, ratio, 2.0, "sizeclass 对齐只往上修")
-		}
-		prev = cap(growthSink)
-	}
+// TestGrowCopiesElementValuesNotPointees 第 3 节：扩容搬的是元素值（浅拷贝）
+// 元素是指针时只拷指针本身，指向的对象仍是同一份——扩容不会深拷贝
+func TestGrowCopiesElementValuesNotPointees(t *testing.T) {
+	type payload struct{ n int }
+	p := &payload{n: 1}
+
+	s := make([]*payload, 0, 1)
+	s = append(s, p) // 还在 cap 内，不换数组
+	oldArr := dataPtr(s)
+
+	s = append(s, &payload{n: 2}) // len 越过 cap=1 → growslice：新数组 + memmove 元素值
+	assert.NotEqual(t, oldArr, dataPtr(s), "越过 cap：底层数组换成新分配的一块")
+
+	assert.Same(t, p, s[0], "元素值是指针，扩容搬的就是这个指针：指向的 payload 还是同一份")
+	s[0].n = 99
+	assert.Equal(t, 99, p.n, "透过新 slice 改元素指向的对象，原指针看得到变化——证明没被深拷贝")
 }
 
 // TestSubsliceLeak 第 4 节：子切片扣住整块底层数组
@@ -111,7 +106,7 @@ func TestSubsliceLeak(t *testing.T) {
 	assert.NotEqual(t, dataPtr(big), dataPtr(fixed), "fixed 是独立分配，与 big 无关")
 }
 
-// TestNilEmptySlice 第 15 节：nil 切片与空切片的分工
+// TestNilEmptySlice 第 14 节：nil 切片与空切片的分工
 func TestNilEmptySlice(t *testing.T) {
 	var nilSlice []int
 	emptySlice := []int{}
@@ -135,4 +130,28 @@ func TestNilEmptySlice(t *testing.T) {
 	eb, err := json.Marshal(emptySlice)
 	assert.NoError(t, err, "空切片可序列化")
 	assert.Equal(t, "[]", string(eb), "空切片序列化成 []")
+}
+
+// TestRangeClosureValueCopy 第 12 节：range 值副本自增不影响原 slice。
+func TestRangeClosureValueCopy(t *testing.T) {
+	type rngT struct{ V int }
+	incr := func(t *rngT, wg *sync.WaitGroup) {
+		defer wg.Done()
+		t.V++
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(10)
+	ts := make([]rngT, 10)
+	for i := 0; i < 10; i++ {
+		ts[i] = rngT{i}
+	}
+	for _, tr := range ts {
+		go incr(&tr, &wg) // 值副本自增，不影响 ts
+	}
+	wg.Wait()
+
+	for i := range ts {
+		assert.Equal(t, i, ts[i].V, "range 值副本自增不改原 slice 元素")
+	}
 }

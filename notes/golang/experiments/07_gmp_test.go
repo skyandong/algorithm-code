@@ -1,7 +1,7 @@
 // 实验 07（运行时调度器 GMP），断言验证
 // 对应笔记：notes/golang/07-运行时调度器GMP.md
 // 源码对照：src/runtime/runtime2.go（g 结构）、src/runtime/proc.go（sysmon → preemptM → SIGURG）
-// 调度顺序本身不确定，这里只钉住可确定的行为边界
+// 调度顺序大多不确定，这里只钉住可确定的行为边界（runnext 的先后在非 -race 下确定）
 package main
 
 import (
@@ -35,7 +35,7 @@ func TestGoroutineGrowthAndFallback(t *testing.T) {
 	}
 
 	waitUntil(t, 2*time.Second, func() bool { return runtime.NumGoroutine() >= base+900 })
-	assert.GreaterOrEqual(t, runtime.NumGoroutine(), base+900, "千级 goroutine 秒建（2KB 栈 + 用户态调度）")
+	assert.GreaterOrEqual(t, runtime.NumGoroutine(), base+900, "千级 goroutine 秒建（初始栈只有 KB 级 + 用户态调度）")
 
 	close(done)
 	waitUntil(t, 2*time.Second, func() bool { return runtime.NumGoroutine() <= base+100 })
@@ -69,6 +69,35 @@ func TestGoschedBothGoroutinesFinish(t *testing.T) {
 
 	assert.Equal(t, int64(6), a.Load(), "单 P 下 a 也跑满 6 次，没被饿死")
 	assert.Equal(t, int64(6), b.Load(), "Gosched 让出后另一个 G 能推进，双方都不饿死")
+}
+
+// TestRunnextLastGoRunsFirst 第 2 节：连续两条 go，后创建者覆盖 runnext，单 P 下先运行
+// -race 下 randomizeScheduler = raceenabled（src/runtime/proc.go），runnext 有 1/2 概率被丢弃
+func TestRunnextLastGoRunsFirst(t *testing.T) {
+	if raceEnabled {
+		t.Skip("-race 下 randomizeScheduler 为 true，runnext 可能被丢弃，先后不再确定")
+	}
+
+	prev := runtime.GOMAXPROCS(1) // 单 P 且双方都不让出：谁在 runnext 谁先跑
+	defer runtime.GOMAXPROCS(prev)
+
+	var mu sync.Mutex
+	var order []string
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	track := func(name string) {
+		defer wg.Done()
+		mu.Lock()
+		order = append(order, name)
+		mu.Unlock()
+	}
+	go track("先创建")
+	go track("后创建") // 后创建 → 覆盖 runnext → 先被调度
+	wg.Wait()
+
+	assert.Equal(t, []string{"后创建", "先创建"}, order,
+		"单 P 下后创建的 G 占住 runnext，先于先创建的 G 运行——顺序由创建顺序决定，不是随机")
 }
 
 // TestAsyncPreemptKeepsTicksAlive 第 5 节：纯 CPU 循环被 SIGURG 异步抢占

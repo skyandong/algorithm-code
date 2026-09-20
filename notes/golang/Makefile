@@ -1,4 +1,5 @@
-GO := /Users/tal/sdk/go1.26.3/bin/go
+# 本机 Go 不在 PATH（工具链在 /Users/tal/sdk/），故给默认值；可用 make GO=go 覆盖
+GO ?= /Users/tal/sdk/go1.26.3/bin/go
 
 .PHONY: test test-unit
 

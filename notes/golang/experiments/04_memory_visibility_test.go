@@ -1,7 +1,7 @@
 // 实验 04（并发内存可见性），断言验证
-// 对应笔记：notes/golang/04-并发内存可见性与sync.Once.md
-// 源码对照：src/sync/once.go、src/sync/mutex.go
-// 竞态检测：go test -race ./experiments/（无同步的 race 演示见笔记第 1 节，不进常规用例）
+// 对应笔记：notes/golang/04-并发内存模型与可见性.md
+// 源码对照：src/sync/mutex.go
+// 竞态检测：go test -race ./experiments/（无同步的 race 演示见笔记第 1、3 节，不进常规用例）
 package main
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestAtomicPublish 第 4 节：atomic Store/Load 发布状态
+// TestAtomicPublish 第 2 节：atomic 的内存顺序建立 happens-before
 func TestAtomicPublish(t *testing.T) {
 	var data atomic.Int64
 	var ready atomic.Bool
@@ -33,25 +33,6 @@ func TestAtomicPublish(t *testing.T) {
 	assert.Equal(t, int64(42), data.Load(), "顺序一致：见到 ready 就能见到 data")
 }
 
-// TestAtomicCounterKeepsAllUpdates 第 4 节：并发累加不丢更新
-func TestAtomicCounterKeepsAllUpdates(t *testing.T) {
-	var counter atomic.Int64
-	var wg sync.WaitGroup
-
-	for w := 0; w < 8; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 1000; i++ {
-				counter.Add(1)
-			}
-		}()
-	}
-	wg.Wait()
-
-	assert.Equal(t, int64(8000), counter.Load(), "atomic 不丢更新")
-}
-
 // TestChannelPublish 第 2 节：close 通知建立 happens-before
 func TestChannelPublish(t *testing.T) {
 	done := make(chan struct{})
@@ -66,7 +47,7 @@ func TestChannelPublish(t *testing.T) {
 	assert.Equal(t, 42, data, "close 前的写入 happens-before 收到通知")
 }
 
-// TestMutexPublish 第 5 节：mutex 同时保证互斥与可见性
+// TestMutexPublish 第 4 节：mutex 同时保证互斥与可见性
 func TestMutexPublish(t *testing.T) {
 	var mu sync.Mutex
 	var data int
@@ -88,25 +69,4 @@ func TestMutexPublish(t *testing.T) {
 
 	assert.True(t, ready, "Unlock 前的写入对后续 Lock 者可见")
 	assert.Equal(t, 42, data, "Unlock happens-before 之后的 Lock")
-}
-
-// TestOnceRunsExactlyOnce 第 7 节：sync.Once 只执行一次
-func TestOnceRunsExactlyOnce(t *testing.T) {
-	var once sync.Once
-	var executed atomic.Int64
-
-	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			once.Do(func() {
-				executed.Add(1)
-				time.Sleep(50 * time.Millisecond)
-			})
-		}()
-	}
-	wg.Wait()
-
-	assert.Equal(t, int64(1), executed.Load(), "sync.Once 只执行一次，完成后对所有人可见")
 }

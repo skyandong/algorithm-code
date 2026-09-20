@@ -24,6 +24,12 @@ import (
 // errConnRefused 哨兵错误：判定用 errors.Is，禁止比字符串。
 var errConnRefused = errors.New("connection refused")
 
+// errUpstreamForCause 取消原因：配合 WithCancelCause / Cause 使用。
+var errUpstreamForCause = errors.New("upstream closed")
+
+// heldCancel 承接 panic 用例里拿不到手的 cancel（那些用例在 With* 里就 panic 了），避免 vet 的 lostcancel 报警。
+var heldCancel context.CancelFunc
+
 // validationError 结构化错误：用 errors.As 取字段。
 type validationError struct{ Field, Msg string }
 
@@ -124,11 +130,16 @@ func TestWithoutCancelStripsCancelKeepsValue(t *testing.T) {
 	parent, pcancel := context.WithTimeout(
 		context.WithValue(context.Background(), ctxKey{}, "trace-42"), 50*time.Millisecond)
 	defer pcancel()
-	time.Sleep(80 * time.Millisecond) // 让父超时
+
+	select { // 等父真的超时：靠 sleep 猜时长，机器一忙 timer 晚点就假红
+	case <-parent.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("父 ctx 未在预期时间内超时")
+	}
+	assert.ErrorIs(t, parent.Err(), context.DeadlineExceeded, "父确已超时，作为 WithoutCancel 的对照基线")
 
 	child := context.WithoutCancel(parent)
 	assert.Nil(t, child.Done(), "WithoutCancel：Done()==nil，永不取消")
-	assert.ErrorIs(t, parent.Err(), context.DeadlineExceeded, "父确已超时，作为 WithoutCancel 的对照基线")
 	assert.Equal(t, "trace-42", child.Value(ctxKey{}), "只剥离取消，Value 照常继承")
 }
 
@@ -145,6 +156,143 @@ func TestUncanceledChildDiesWithParent(t *testing.T) {
 		"未摘除的子 ctx 挂在父上：父活多久它活多久，父取消则一起死")
 
 	leakedCancel() // 收尾
+}
+
+// TestBackgroundIsEmptyRoot 第 1.1 节：Background/TODO 四个方法全是空壳，永不取消
+func TestBackgroundIsEmptyRoot(t *testing.T) {
+	bg := context.Background()
+
+	assert.Nil(t, bg.Done(), "Background 的 Done() 是 nil channel（nil 上的接收永远阻塞 = 永不取消）")
+	assert.NoError(t, bg.Err(), "Background 永不取消，Err() 恒为 nil")
+
+	deadline, ok := bg.Deadline()
+	assert.False(t, ok, "Background 没有截止时间")
+	assert.True(t, deadline.IsZero(), "Background 的 Deadline 返回零值时间")
+
+	assert.Nil(t, bg.Value(struct{}{}), "Background 挂不了值，Value() 恒为 nil")
+	assert.NoError(t, context.Cause(bg), "未取消的 ctx，Cause 返回 nil")
+
+	// String() 不在 Context 接口上（是具体类型的方法），靠 fmt 的 Stringer 分派取到
+	assert.Equal(t, "context.Background", fmt.Sprintf("%v", bg), "Background 与 TODO 的唯一区别就是 String()")
+	assert.Equal(t, "context.TODO", fmt.Sprintf("%v", context.TODO()), "两者行为完全一致，差别只是写给人看的意图")
+}
+
+// TestBackgroundBreaksCancelChain 第 1.1 节：拿 Background 顶替父 ctx 会切断取消链
+func TestBackgroundBreaksCancelChain(t *testing.T) {
+	parent, pcancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer pcancel()
+
+	detached, dcancel := context.WithCancel(context.Background()) // ✗ 断链
+	defer dcancel()
+	attached, acancel := context.WithCancel(parent) // ✓ 挂父
+	defer acancel()
+
+	select { // 等父真的超时：不猜时长
+	case <-parent.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("父 ctx 未在预期时间内超时")
+	}
+
+	assert.NoError(t, detached.Err(), "用 Background 起的子树收不到任何信号：父已超时，它仍认为未取消")
+	assert.ErrorIs(t, attached.Err(), context.DeadlineExceeded, "挂父的子树被连坐，跟着超时")
+}
+
+// TestNilParentAndBadKeyPanic 第 1.1 节：不知道传什么也不能传 nil，会 panic
+func TestNilParentAndBadKeyPanic(t *testing.T) {
+	const nilParent = "cannot create context from nil parent"
+	bg := context.Background()
+
+	assert.PanicsWithValue(t, nilParent, func() { _, heldCancel = context.WithCancel(nil) }, "WithCancel(nil) panic")
+	assert.PanicsWithValue(t, nilParent, func() { _ = context.WithoutCancel(nil) }, "WithoutCancel(nil) panic")
+	assert.PanicsWithValue(t, nilParent, func() { _ = context.WithValue(nil, "k", 1) }, "WithValue(nil, ..) panic")
+
+	assert.PanicsWithValue(t, "nil key", func() { _ = context.WithValue(bg, nil, 1) }, "key 为 nil 时 panic")
+	assert.PanicsWithValue(t, "key is not comparable",
+		func() { _ = context.WithValue(bg, []int{1}, 1) }, "key 不可比较（slice/map）时 panic")
+}
+
+// TestCauseCarriesReason 第 2.1 节：Err 只有两个哨兵，Cause 补「为什么被取消」
+func TestCauseCarriesReason(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	child, childCancel := context.WithCancel(ctx)
+	defer childCancel()
+
+	cancel(errUpstreamForCause)
+
+	assert.ErrorIs(t, ctx.Err(), context.Canceled, "Err() 仍是那两个哨兵之一，不受 cause 影响")
+	assert.Equal(t, errUpstreamForCause, context.Cause(ctx), "Cause 拿到真正的原因")
+	assert.Equal(t, errUpstreamForCause, context.Cause(child), "cause 沿树向下可见：子也能读到父的原因")
+}
+
+// TestCauseFirstCancelWins 第 2.1 节：父子各有 cause 时，先取消的那个生效
+func TestCauseFirstCancelWins(t *testing.T) {
+	errParent := errors.New("parent-cause")
+	errChild := errors.New("child-cause")
+
+	parent, pcancel := context.WithCancelCause(context.Background())
+	child, ccancel := context.WithCancelCause(parent)
+
+	ccancel(errChild) // 子先取消
+	pcancel(errParent)
+
+	assert.Equal(t, errChild, context.Cause(child), "子先被取消：子的 cause 是自己的")
+	assert.Equal(t, errParent, context.Cause(parent), "父后取消：父的 cause 不受子影响")
+
+	// WithoutCancel 与取消彻底脱钩，Cause 恒为 nil
+	root, rootCancel := context.WithCancelCause(context.Background())
+	rootCancel(errUpstreamForCause)
+	assert.NoError(t, context.Cause(context.WithoutCancel(root)), "WithoutCancel 的 Cause 恒为 nil")
+}
+
+// TestCauseChildOnlyAfterParent 第 2.1 节：父先取消时，子的 Cause 跟随父
+func TestCauseChildOnlyAfterParent(t *testing.T) {
+	parent, pcancel := context.WithCancelCause(context.Background())
+	child, ccancel := context.WithCancelCause(parent)
+	defer ccancel(nil) // CancelCauseFunc 的签名是 func(cause error)，不设原因就传 nil
+
+	pcancel(errUpstreamForCause) // 父先取消
+
+	assert.Equal(t, errUpstreamForCause, context.Cause(child), "父先取消：子沿链读到父的 cause")
+}
+
+// TestErrNonNilImpliesDoneClosed 第 4.4 节：Err() 非 nil 时 Done() 必已关闭（源码内部先 <-Done()）
+func TestErrNonNilImpliesDoneClosed(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.Error(t, ctx.Err(), "cancel 后 Err 非 nil")
+	select {
+	case <-ctx.Done():
+	default:
+		t.Fatal("Err() 非 nil 但 Done() 未关闭：违反 Err 的 happens-before 保证")
+	}
+}
+
+// TestAfterFuncStopCancelsCallback 第 2 节：AfterFunc 的 stop 能阻止回调，且 f 在自己的 goroutine 里跑
+func TestAfterFuncStopCancelsCallback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ran := make(chan struct{}, 1)
+	stop := context.AfterFunc(ctx, func() { ran <- struct{}{} })
+
+	assert.True(t, stop(), "stop 返回 true：阻止了 f 运行")
+
+	cancel()
+	select {
+	case <-ran:
+		t.Fatal("stop 之后再 cancel，f 不应运行")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	ran2 := make(chan struct{}, 1)
+	context.AfterFunc(ctx2, func() { ran2 <- struct{}{} })
+	cancel2()
+
+	select {
+	case <-ran2:
+	case <-time.After(5 * time.Second):
+		t.Fatal("AfterFunc 的 f 未在预期时间内执行")
+	}
 }
 
 // TestErrorWrappingWAndV 第 6 节：%w 保留错误链，%v 断链
@@ -294,4 +442,113 @@ func waitGroup(t *testing.T, wg *sync.WaitGroup, timeout time.Duration) {
 	case <-time.After(timeout):
 		t.Fatal("等待超时")
 	}
+}
+
+// ===== 实验实现：多 worker 查找 + context 取消（第 3 节）=====
+
+// findWithTimeout 多协程查找目标值，找到即取消其余 worker，返回 "found"/"notfound"/"timeout"。
+func findWithTimeout(values []int, target, workers int, timeout time.Duration) string {
+	return searchValues(values, target, workers, timeout, 0)
+}
+
+// findSlowWithTimeout 同 findWithTimeout，但每元素检查前加微小延时，确定性触发超时取消路径。
+func findSlowWithTimeout(values []int, target, workers int, timeout time.Duration) string {
+	return searchValues(values, target, workers, timeout, 2*time.Microsecond)
+}
+
+// searchValues 多 worker 并发查找，带超时提前返回
+func searchValues(values []int, target, workers int, timeout, perElem time.Duration) string {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	found := make(chan struct{}, 1)
+	var wg sync.WaitGroup
+
+	if workers > len(values) {
+		workers = len(values)
+	}
+	if workers == 0 {
+		return "timeout"
+	}
+
+	for i := 0; i < workers; i++ {
+		start := len(values) * i / workers
+		end := len(values) * (i + 1) / workers
+		part := values[start:end]
+
+		wg.Go(func() {
+			for _, value := range part {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				if perElem > 0 {
+					time.Sleep(perElem) // 模拟慢查询，确定性拉长扫描
+				}
+
+				if value == target {
+					select {
+					case found <- struct{}{}:
+						cancel()
+					default:
+					}
+					return
+				}
+			}
+		})
+	}
+
+	finished := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(finished)
+	}()
+
+	select {
+	case <-found:
+		cancel()
+		<-finished
+		return "found"
+	case <-finished:
+		select {
+		case <-found:
+			return "found"
+		default:
+			if ctx.Err() == context.DeadlineExceeded {
+				return "timeout"
+			}
+			return "notfound"
+		}
+	}
+}
+
+// ===== 断言用例 =====
+
+// TestFindWithTimeoutFound 第 3 节：目标存在 → 找到即取消其余 worker。
+func TestFindWithTimeoutFound(t *testing.T) {
+	big := make([]int, 1_000_000)
+	for i := range big {
+		big[i] = i
+	}
+	assert.Equal(t, "found", findWithTimeout(big, 777777, 8, 5*time.Second), "目标存在：找到即返回 found")
+}
+
+// TestFindWithTimeoutNotFound 第 3 节：目标不存在且扫描很快完成 → notfound（未超时）。
+func TestFindWithTimeoutNotFound(t *testing.T) {
+	big := make([]int, 1_000_000)
+	for i := range big {
+		big[i] = i
+	}
+	assert.Equal(t, "notfound", findWithTimeout(big, -1, 8, 5*time.Second), "目标不存在且扫描完成：返回 notfound")
+}
+
+// TestFindSlowWithTimeout 第 3 节：目标不存在 + 慢查询 → 超时取消 → timeout。
+func TestFindSlowWithTimeout(t *testing.T) {
+	big := make([]int, 1_000_000)
+	for i := range big {
+		big[i] = i
+	}
+	assert.Equal(t, "timeout", findSlowWithTimeout(big, -1, 2, 300*time.Millisecond), "目标不存在加慢查询：超时返回 timeout")
 }

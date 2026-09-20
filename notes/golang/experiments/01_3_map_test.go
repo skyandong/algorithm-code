@@ -1,5 +1,5 @@
 // 实验 01_3（map 部分），断言验证；slice 部分见 01_1_slice_test.go，string 部分见 01_2_string_test.go
-// 对应笔记：notes/golang/01-slice、string与map底层.md 第 11~14 节
+// 对应笔记：notes/golang/01-slice、string与map底层.md 第 11~13 节（sync.Map 归 06 篇第 7 节）
 // 源码对照：src/internal/runtime/maps/{map,table,group}.go
 package main
 
@@ -178,59 +178,4 @@ func TestConcurrentMapWriteFatalChild(t *testing.T) {
 	}
 	close(start)
 	wg.Wait()
-}
-
-// TestSyncMapSemantics 第 14 节：sync.Map 的读写与 Range
-func TestSyncMapSemantics(t *testing.T) {
-	var sm sync.Map
-
-	_, ok := sm.Load("k")
-	assert.False(t, ok, "未写入的 key：ok=false（与「值为零值」区分开）")
-	sm.Store("k", 1)
-	v, ok := sm.Load("k")
-	assert.True(t, ok, "Store 之后 Load 命中")
-	assert.Equal(t, 1, v, "取回的就是写进去的值")
-
-	// 并发读写块本身没有可确定的断言（谁最后写不可知），价值在 -race 下验证无数据竞争
-	var wg sync.WaitGroup
-	for w := 0; w < 4; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 1000; i++ {
-				sm.Store(i%16, i)
-				sm.Load(i % 16)
-			}
-		}()
-	}
-	wg.Wait()
-
-	_, ok = sm.Load(15)
-	assert.True(t, ok, "并发写过的 16 个 key 都能查到")
-}
-
-// BenchmarkSyncMapRead 对比 RWMutex 版：读多写少场景 sync.Map 胜出
-func BenchmarkSyncMapRead(b *testing.B) {
-	var sm sync.Map
-	for i := 0; i < 16; i++ {
-		sm.Store(i, i)
-	}
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			sm.Load(1)
-		}
-	})
-}
-
-// BenchmarkRWMutexMapRead 读路径对照基准：map + RWMutex
-func BenchmarkRWMutexMapRead(b *testing.B) {
-	m := map[int]int{1: 1}
-	var mu sync.RWMutex
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			mu.RLock()
-			_ = m[1]
-			mu.RUnlock()
-		}
-	})
 }
