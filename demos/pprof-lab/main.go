@@ -1,17 +1,17 @@
-// pprof-lab: 一个故意带病的 Go 服务，供 pprof 排障练习（配套 notes/golang/11）。
+// pprof-lab: 一个故意带病的 Go 服务，供 pprof 排障练习（配套 notes/golang/10）。
 //
 // 四种"病灶"，对应面试与线上的高频根因：
 //
-//	① 正则回溯   GET /cpu    —— (a+)+$ 对长串是指数级回溯，CPU 杀手（11 篇第 8 节 排查路径的靶子）
+//	① 正则回溯   GET /cpu    —— (a+)+$ 对长串是指数级回溯，CPU 杀手（10 篇第 8 节 排查路径的靶子）
 //	② 锁竞争     GET /lock   —— 全局 mutex 内做耗时操作，block profile 能看到等待
 //	③ 协程泄漏   GET /leak   —— 无缓冲 channel 发送后无人接收，goroutine 数只涨不跌
-//	④ 内存泄漏   GET /mem    —— slice 截取持有整个底层数组（11 篇/01 篇讲过的经典坑）
+//	④ 内存泄漏   GET /mem    —— slice 截取持有整个底层数组（10 篇/01 篇讲过的经典坑）
 //
 // 另有 /hash 作为"正常热点"对照：烧 CPU 但确实在做该做的事。
 //
 // 用法（完整工作流见 README.md）：
 //
-//	go run .                # 起服务：业务 :8081，pprof :6060（仅 localhost，见 11 篇第 4.1 节）
+//	go run .                # 起服务：业务 :8081，pprof :6060（仅 localhost，见 10 篇第 4.1 节）
 //	go tool pprof -http=:8083 http://localhost:6060/debug/pprof/profile?seconds=30
 //	                        # 工程标准姿势：抓 30s CPU 并打开 Web UI，VIEW → Flame Graph 看火焰图
 //
@@ -146,7 +146,7 @@ func leakMemory(id int) {
 // ---- 业务路由与自动负载 ----
 
 func startSickServer() {
-	// block / mutex profile 默认关闭, 必须显式开采样（11 篇第 4.2 节）:
+	// block / mutex profile 默认关闭, 必须显式开采样（10 篇第 4.2 节）:
 	// block: 每次阻塞事件等待超过 10µs 就记录; mutex: 按 1/5 比例记录争用
 	runtime.SetBlockProfileRate(10_000)
 	runtime.SetMutexProfileFraction(5)
@@ -191,7 +191,7 @@ func startSickServer() {
 	go autoLoad()
 
 	go func() {
-		// pprof 只绑 localhost（11 篇第 4.1 节: 无鉴权, 不能直接暴露公网）
+		// pprof 只绑 localhost（10 篇第 4.1 节: 无鉴权, 不能直接暴露公网）
 		if err := http.ListenAndServe("localhost:6060", nil); err != nil {
 			log.Printf("pprof 端口退出: %v", err)
 		}

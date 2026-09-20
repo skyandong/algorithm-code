@@ -1,4 +1,4 @@
-# pprof-lab：Go 排障实战场（配套 notes/golang/11）
+# pprof-lab：Go 排障实战场（配套 notes/golang/10）
 
 一个**故意带病**的服务 + 工程标准姿势的 pprof 工作流。所有工具都是 Go 自带的，不引入任何第三方——
 这就是线上排查时你真正会用的那套东西。
