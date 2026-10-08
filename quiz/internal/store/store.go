@@ -19,6 +19,9 @@ import (
 // 调用方收到它应如实告诉用户「没有新题了」，而不是拿旧题或少量题凑数。
 var ErrNotEnoughQuestions = errors.New("该知识点剩余未做的题目不足")
 
+// ErrNoWrongQuestions 表示某个知识点还没有做错过的题，错题重练无从出题。
+var ErrNoWrongQuestions = errors.New("该知识点还没有错题")
+
 // Store 持有一个数据库连接池，并发安全。
 type Store struct {
 	db *sql.DB
@@ -154,11 +157,14 @@ func (s *Store) CountQuestions(ctx context.Context) (int, error) {
 const topicColumns = `module, topic_slug, topic_name, source, stem, options, answer, explanation, difficulty`
 
 // ListTopics 汇总每个知识点的题量与作答进度。
+// 做过的题按最后一次的对错拆成 correct 与 wrong 两列，wrong 就是错题重练的题库。
 func (s *Store) ListTopics(ctx context.Context, userID string) ([]model.Topic, error) {
 	const query = `
 		SELECT q.module, q.topic_slug, MIN(q.topic_name), MIN(q.source),
 		       COUNT(*) AS total,
-		       SUM(CASE WHEN a.question_id IS NULL THEN 0 ELSE 1 END) AS done
+		       SUM(CASE WHEN a.question_id IS NULL THEN 0 ELSE 1 END) AS done,
+		       SUM(CASE WHEN a.question_id IS NOT NULL AND a.last_correct = 1 THEN 1 ELSE 0 END) AS correct,
+		       SUM(CASE WHEN a.question_id IS NOT NULL AND a.last_correct = 0 THEN 1 ELSE 0 END) AS wrong
 		FROM questions q
 		LEFT JOIN answered a ON a.question_id = q.id AND a.user_id = ?
 		GROUP BY q.module, q.topic_slug
@@ -173,7 +179,8 @@ func (s *Store) ListTopics(ctx context.Context, userID string) ([]model.Topic, e
 	var topics []model.Topic
 	for rows.Next() {
 		var t model.Topic
-		if err := rows.Scan(&t.Module, &t.Slug, &t.Name, &t.Source, &t.Total, &t.Done); err != nil {
+		if err := rows.Scan(&t.Module, &t.Slug, &t.Name, &t.Source,
+			&t.Total, &t.Done, &t.Correct, &t.Wrong); err != nil {
 			return nil, err
 		}
 		t.Remaining = t.Total - t.Done
@@ -182,36 +189,83 @@ func (s *Store) ListTopics(ctx context.Context, userID string) ([]model.Topic, e
 	return topics, rows.Err()
 }
 
-// PendingCount 返回该知识点尚未做过的题目数量。
-func (s *Store) PendingCount(ctx context.Context, userID, topicSlug string) (int, error) {
+// CountPending 返回指定模式下这个知识点还能抽多少题。
+func (s *Store) CountPending(ctx context.Context, userID, topicSlug string, mode model.DrawMode) (int, error) {
 	var n int
-	const query = `
-		SELECT COUNT(*) FROM questions q
-		WHERE q.topic_slug = ?
-		  AND NOT EXISTS (SELECT 1 FROM answered a WHERE a.user_id = ? AND a.question_id = q.id)`
+	var query string
+	if mode == model.ModeWrong {
+		query = `
+			SELECT COUNT(*) FROM questions q
+			JOIN answered a ON a.question_id = q.id
+			WHERE q.topic_slug = ? AND a.user_id = ? AND a.last_correct = 0`
+	} else {
+		query = `
+			SELECT COUNT(*) FROM questions q
+			WHERE q.topic_slug = ?
+			  AND NOT EXISTS (SELECT 1 FROM answered a WHERE a.user_id = ? AND a.question_id = q.id)`
+	}
 	err := s.db.QueryRowContext(ctx, query, topicSlug, userID).Scan(&n)
 	return n, err
 }
 
-// DrawQuestions 从指定知识点的未做题里随机抽 n 道。
-// 题量不足时返回 ErrNotEnoughQuestions，绝不重复出已做过的题、也绝不返回空卷。
-func (s *Store) DrawQuestions(ctx context.Context, userID, topicSlug string, n int) ([]model.Question, error) {
-	pending, err := s.PendingCount(ctx, userID, topicSlug)
+// LastAttempt 返回该知识点上最近一次的成绩，供结果页做对比。
+// 没有历史记录时返回 nil，这不算错误。
+func (s *Store) LastAttempt(ctx context.Context, userID, topicSlug string) (*model.AttemptScore, error) {
+	var score model.AttemptScore
+	const query = `
+		SELECT correct, total FROM attempts
+		WHERE user_id = ? AND topic_slug = ?
+		ORDER BY finished_at DESC, id DESC
+		LIMIT 1`
+	err := s.db.QueryRowContext(ctx, query, userID, topicSlug).Scan(&score.Correct, &score.Total)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	if pending < n {
+	return &score, nil
+}
+
+// DrawQuestions 从指定知识点按 mode 随机抽 n 道。
+// 新题模式下不足 n 道直接报错，不拿少量题凑数；
+// 错题模式下有多少抽多少（错题池随作答动态变化），一道都没有才报错。
+func (s *Store) DrawQuestions(ctx context.Context, userID, topicSlug string, n int, mode model.DrawMode) ([]model.Question, error) {
+	pending, err := s.CountPending(ctx, userID, topicSlug, mode)
+	if err != nil {
+		return nil, err
+	}
+	if mode == model.ModeWrong {
+		if pending == 0 {
+			return nil, ErrNoWrongQuestions
+		}
+		if pending < n {
+			n = pending
+		}
+	} else if pending < n {
 		return nil, fmt.Errorf("%w：需要 %d 道，仅剩 %d 道新题", ErrNotEnoughQuestions, n, pending)
 	}
 
 	// ORDER BY RAND() 在几千行的题库上足够快，不必为此引入额外的随机列。
-	query := `
-		SELECT qid, ` + topicColumns + `
-		FROM questions q
-		WHERE q.topic_slug = ?
-		  AND NOT EXISTS (SELECT 1 FROM answered a WHERE a.user_id = ? AND a.question_id = q.id)
-		ORDER BY RAND()
-		LIMIT ` + itoa(n)
+	// 错题模式按抽题时刻的 last_correct 判定，做对之后自然退出错题池。
+	var query string
+	if mode == model.ModeWrong {
+		query = `
+			SELECT qid, ` + topicColumns + `
+			FROM questions q
+			JOIN answered a ON a.question_id = q.id
+			WHERE q.topic_slug = ? AND a.user_id = ? AND a.last_correct = 0
+			ORDER BY RAND()
+			LIMIT ` + itoa(n)
+	} else {
+		query = `
+			SELECT qid, ` + topicColumns + `
+			FROM questions q
+			WHERE q.topic_slug = ?
+			  AND NOT EXISTS (SELECT 1 FROM answered a WHERE a.user_id = ? AND a.question_id = q.id)
+			ORDER BY RAND()
+			LIMIT ` + itoa(n)
+	}
 
 	return s.queryQuestions(ctx, query, topicSlug, userID)
 }
@@ -290,13 +344,11 @@ func (s *Store) Submit(ctx context.Context, req model.SubmitRequest, questions m
 	}
 	result.AttemptID = attemptID
 
-	var topicName string
 	for _, item := range req.Items {
 		q, ok := questions[item.QID]
 		if !ok {
 			return result, fmt.Errorf("题目 %s 不属于知识点 %s", item.QID, req.Topic)
 		}
-		topicName = q.TopicName
 
 		answered := item.Choice >= 0 && item.Choice < len(q.Options)
 		correct := answered && item.Choice == q.Answer
@@ -347,20 +399,20 @@ func (s *Store) Submit(ctx context.Context, req model.SubmitRequest, questions m
 	if err := tx.Commit(); err != nil {
 		return result, err
 	}
-	_ = topicName
 	return result, nil
 }
 
 // History 返回最近的作答记录，用于页面上的历史列表。
+// 知识点名与模块名用子查询取：JOIN 之后再聚合会被 only_full_group_by 拦下。
 func (s *Store) History(ctx context.Context, userID string, limit int) ([]model.AttemptSummary, error) {
 	query := `
-		SELECT at.id, COALESCE(q.module, '') AS module, at.topic_slug,
-		       COALESCE(MIN(q.topic_name), at.topic_slug) AS topic_name,
+		SELECT at.id,
+		       COALESCE((SELECT q.module FROM questions q WHERE q.topic_slug = at.topic_slug LIMIT 1), '') AS module,
+		       at.topic_slug,
+		       COALESCE((SELECT q.topic_name FROM questions q WHERE q.topic_slug = at.topic_slug LIMIT 1), at.topic_slug) AS topic_name,
 		       at.total, at.correct, at.finished_at
 		FROM attempts at
-		LEFT JOIN questions q ON q.topic_slug = at.topic_slug
 		WHERE at.user_id = ?
-		GROUP BY at.id, at.topic_slug, at.total, at.correct, at.finished_at
 		ORDER BY at.finished_at DESC
 		LIMIT ` + itoa(limit)
 

@@ -42,18 +42,19 @@ func (t topic) builder() func(stem string, options []string, answer int, explana
 
 // providers 登记已经写好题目的知识点。新增一个知识点时，写好对应文件后在这里追加一行。
 var providers = []func() []model.Question{
-	// golangDataStructure：01 slice、string 与 map 底层
-	// golangInterface：02 interface 与反射
-	// golangGenerics：03 泛型
-	// golangMemoryModel：04 并发内存模型与可见性
-	// golangChannel：05 channel 内部与 nil 语义
-	// golangSync：06 sync 并发原语
-	// golangGMP：07 运行时调度器 GMP
-	// golangGC：08 内存管理与 GC
-	// golangContext：09 context 与错误处理
-	// golangPerf：10 性能调优实战
-	// redisCache：redis 05 缓存常见问题
-	// redisLock：redis 08 分布式锁
+	golangDataStructure, // 01 slice、string 与 map 底层
+	golangInterface,     // 02 interface 与反射
+	golangGenerics,      // 03 泛型
+	golangMemoryModel,   // 04 并发内存模型与可见性
+	golangChannel,       // 05 channel 内部与 nil 语义
+	golangSync,          // 06 sync 并发原语
+	golangGMP,           // 07 运行时调度器 GMP
+	golangGC,            // 08 内存管理与 GC
+	golangContext,       // 09 context 与错误处理
+	golangPerf,          // 10 性能调优实战
+	redisCache,          // redis 05 缓存穿透、击穿与雪崩
+	redisLock,           // redis 08 Redis 分布式锁
+	// 其余模块的知识点按同样方式补充：写好题目文件后在上面追加一行。
 }
 
 // Bank 汇总全部知识点下的题目。

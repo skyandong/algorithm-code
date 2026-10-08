@@ -40,6 +40,7 @@ func (q Question) View() QuestionView {
 }
 
 // Topic 汇总一个知识点的题量与作答进度。
+// Done 恒等于 Correct + Wrong：做过的题按最后一次的对错二分。
 type Topic struct {
 	Module    string `json:"module"`
 	Slug      string `json:"slug"`
@@ -47,7 +48,25 @@ type Topic struct {
 	Source    string `json:"source"`
 	Total     int    `json:"total"`
 	Done      int    `json:"done"`
+	Correct   int    `json:"correct"`
+	Wrong     int    `json:"wrong"`
 	Remaining int    `json:"remaining"`
+}
+
+// DrawMode 决定一轮抽题的范围。
+// 新题只取从未做过的，错题只取上次做错的，两者互不重叠。
+type DrawMode string
+
+const (
+	// ModeNew 抽取从未做过的题。
+	ModeNew DrawMode = "new"
+	// ModeWrong 抽取上次做错的题，用于错题重练。
+	ModeWrong DrawMode = "wrong"
+)
+
+// Valid 判断模式取值是否受支持。
+func (m DrawMode) Valid() bool {
+	return m == ModeNew || m == ModeWrong
 }
 
 // AnswerPayload 是用户对一道题的选择。Choice 为 -1 表示未作答。
@@ -83,6 +102,14 @@ type SubmitResult struct {
 	Total     int          `json:"total"`
 	Correct   int          `json:"correct"`
 	Items     []GradedItem `json:"items"`
+	// Previous 是该知识点上一次的成绩，用于结果页对比。没有历史时为 nil。
+	Previous *AttemptScore `json:"previous,omitempty"`
+}
+
+// AttemptScore 是一次作答的成绩，只在对比上次时使用。
+type AttemptScore struct {
+	Correct int `json:"correct"`
+	Total   int `json:"total"`
 }
 
 // AttemptSummary 是历史记录里的一次作答摘要。

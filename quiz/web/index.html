@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>答题评测 · 笔记知识点</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-inner">
+      <div>
+        <h1>答题评测</h1>
+        <p class="sub">从项目笔记的知识点出题，一次 5 道，提交后逐题批改并给出解析</p>
+      </div>
+      <div class="top-meta">
+        <span id="bank-summary" class="chip">题库加载中…</span>
+        <button id="reset-btn" class="ghost" type="button">清空进度</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="topics-section" class="panel">
+      <div id="resume-bar" class="notice" hidden></div>
+      <div class="panel-head">
+        <h2>选择知识点</h2>
+        <span class="hint">点卡片出 5 道新题；有错题时卡片底部会给出重练入口</span>
+      </div>
+      <div id="topics"></div>
+    </section>
+
+    <section id="quiz-section" class="panel" hidden>
+      <div class="panel-head">
+        <div class="head-left">
+          <button id="back-top-btn" class="ghost back-btn" type="button" title="返回知识点（Esc）">←</button>
+          <h2 id="quiz-title">答题</h2>
+        </div>
+        <span id="quiz-progress" class="hint"></span>
+      </div>
+      <p id="kbd-hint" class="kbd-hint"></p>
+      <div id="quiz-warning" class="notice warn" hidden></div>
+      <div id="questions"></div>
+      <div class="actions">
+        <button id="submit-btn" class="primary" type="button">提交答卷</button>
+        <button id="back-btn" class="ghost" type="button">返回知识点</button>
+      </div>
+    </section>
+
+    <section id="result-section" class="panel" hidden>
+      <div class="panel-head">
+        <div class="head-left">
+          <button id="result-back-top-btn" class="ghost back-btn" type="button" title="返回知识点（Esc）">←</button>
+          <h2 id="result-title">批改结果</h2>
+        </div>
+        <span id="result-score" class="chip"></span>
+      </div>
+      <div id="result-compare" class="notice" hidden></div>
+      <div id="result-filters" class="filters"></div>
+      <div id="results"></div>
+      <div class="actions">
+        <button id="again-btn" class="primary" type="button">再出一轮新题</button>
+        <button id="wrong-btn" class="primary" type="button" hidden>重练错题</button>
+        <button id="result-back-btn" class="ghost" type="button">返回知识点</button>
+      </div>
+    </section>
+
+    <section id="history-section" class="panel">
+      <div class="panel-head">
+        <h2>最近的作答记录</h2>
+      </div>
+      <div id="history" class="history"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
