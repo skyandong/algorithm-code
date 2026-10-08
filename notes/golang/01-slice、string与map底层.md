@@ -62,7 +62,13 @@ sub[0] = 99
 fmt.Println(s)         // [10 99 30] ← s 被一起改了
 ```
 
-切片表达式的边界是 `0 <= low <= high <= cap(s)`（只有索引才看 len）；**上界默认取 `len(s)` 而不是 cap**，所以 `s[1:]` 在 len=0 时会 panic，想取到 cap 末尾得写 `s[1:cap(s)]`。切出来的结果是：**`len` 等于 high 减 low，`cap` 等于 cap(s) 减 low**。以 `s := make([]int, 0, 4)`（len=0 cap=4）为例：
+两索引 `s[low:high]` 的规则只有三条：
+
+1. **边界**：`0 <= low <= high <= cap(s)`，上界看 cap 不看 len（len=0 cap=4 时 `s[3:4]` 合法）；
+2. **省略**：low 默认 0；high 默认 `len(s)` 而不是 cap——所以 len=0 时 `s[1:]` 会 panic，想取到 cap 末尾得写 `s[1:cap(s)]`；
+3. **结果**：len = high − low，cap = cap(s) − low。
+
+以 `s := make([]int, 0, 4)`（len=0 cap=4）为例：
 
 | 表达式 | len | cap |
 |--------|-----|-----|
@@ -70,6 +76,13 @@ fmt.Println(s)         // [10 99 30] ← s 被一起改了
 | `s[1:2]` | 1 | 3 |
 | `s[1:1]` | 0 | 3 |
 | `s[3:4]` | 1 | 1 |
+| `s[1:3:3]` | 2 | 2 |
+
+**三索引 `s[low:high:max]`：把 cap 钉死为 `max - low`。**
+
+- 目的只有一个：后续 `append` 必然超 cap、分配新数组，不写原数组——交出子切片又不许对方误伤时，比完整 `copy` 更省（零拷贝，只改头）；
+- 约束 `high <= max <= cap(s)`，**只有 low 可省**：`s[1::4]` 直接编译错误（`middle index required`）；
+- 第三个索引只管 cap，读写越界与否仍由 len 决定。
 
 string 的子串同理零拷贝：
 
