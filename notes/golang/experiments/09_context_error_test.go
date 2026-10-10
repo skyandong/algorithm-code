@@ -193,6 +193,14 @@ func TestBackgroundBreaksCancelChain(t *testing.T) {
 		t.Fatal("父 ctx 未在预期时间内超时")
 	}
 
+	// 父的 done 先关闭，遍历 children 逐个 cancel 发生在之后（见 context.go 的 cancelCtx.cancel），
+	// 所以父超时这一刻 attached 还没被 cancel，直接断言 Err() 会偶发拿到 nil
+	select {
+	case <-attached.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("挂父的子树未收到取消信号")
+	}
+
 	assert.NoError(t, detached.Err(), "用 Background 起的子树收不到任何信号：父已超时，它仍认为未取消")
 	assert.ErrorIs(t, attached.Err(), context.DeadlineExceeded, "挂父的子树被连坐，跟着超时")
 }
