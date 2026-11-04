@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml/badge.svg)](https://github.com/skyandong/algorithm-code/actions/workflows/ci.yml)
 
-> **找答案先查 [INDEX.md](INDEX.md)** —— 104 篇笔记、约 2.4 万行，按「面试官会怎么问」组织的横向入口。
+> **找答案先查 [INDEX.md](INDEX.md)** —— 117 篇笔记、约 2.6 万行，按「面试官会怎么问」组织的横向入口。
 > **要背 / 要答案就看 [INTERVIEW.md](INTERVIEW.md)** —— 两部分：主干 12 条（只背这一页）+ 50 条考点答案库（每条含答案／问法／追问＋答案／🟢 及格线／🟡🔴／出处）。
 
 ## 目录分层
@@ -29,6 +29,8 @@ algorithm-code/
 │   ├── elasticsearch/     # 5 篇：检索
 │   ├── tls/               # 8 篇：TLS 深入（自签证书产物给 nginx 用）
 │   ├── nginx/             # 7 篇：架构/反代/限流/TLS 终止/调优/场景题/最小 API 网关
+│   ├── network/           # 7 篇：TCP 握手与挥手/可靠传输/HTTP 1.1·2·3/排查实战
+│   ├── os/                # 6 篇：进程线程/CPU 调度与 cgroup/IO 模型与 epoll/零拷贝/虚拟内存/内存回收
 │   └── interview/         # 讲项目：STAR 模板 + 素材重组 + 追问预演
 ├── rpc/               # RPC 框架实验（各为独立 go module）
 │   ├── grpcserver/        # gRPC 服务端：四种流 + 拦截器 + metadata/deadline + TLS
@@ -51,14 +53,14 @@ algorithm-code/
 - 主模块只包含 `algorithms/` 和 `engineering/`，其余目录均为独立 go module，单独构建
 - 验证主模块用 `go vet ./...`（部分子目录包名与目录名冲突，`go build` 会误报）
 - 笔记新增遵循体例：`NN-主题.md` 分册 + README 索引（含数据锚点表）+ experiments 实验
-- 笔记体系的学习主线：golang（语言）→ design-pattern（范式）→ distributed（理论）→ system-design/microservice（应用设计）→ 各中间件（组件深度）→ interview（输出表达）
+- 笔记体系的学习主线：golang（语言）→ os/network（原理底座）→ design-pattern（范式）→ distributed（理论）→ system-design/microservice（应用设计）→ 各中间件（组件深度）→ interview（输出表达）
 
 ## CI
 
 `.github/workflows/ci.yml` 在 push / PR 时自动发现所有 go module 并执行：
 
 - `gofmt` 全仓格式检查
-- `noteslint` 笔记结构检查（`go run ./tools/noteslint`）：索引数字、文件引用、README 覆盖、实验编号、章节连续性、断言消息、禁用符号
+- `noteslint` 笔记结构检查（`go run ./tools/noteslint`）：索引数字、面试手册数字、各模块速查表题数、文件引用、README 覆盖、实验编号、章节连续性、断言消息、禁用符号
 - `go vet` 遍历每个 module（新增 module 无需改配置）
 - `go test` 只跑不依赖外部服务的部分：主模块全量 + `demos/trtc-demo` 的 `./sig/` + `notes/golang` 与 `notes/akafka` 的 `./experiments/`
 

@@ -2,7 +2,7 @@
 
 按**面试官会怎么问**组织，而不是按文件罗列。所有路径相对仓库根目录。
 
-笔记正文共 104 篇（编号分册）、md 文件 126 个、约 2.4 万行，散在 12 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
+笔记正文共 117 篇（编号分册）、md 文件 142 个、约 2.6 万行，散在 14 个模块里。本文件是唯一的横向入口：想定位一个知识点，先来这里。
 
 ## 怎么用
 
@@ -156,7 +156,48 @@
 | 延迟任务：时间轮原理（现场画图级） | [system-design/07](notes/system-design/07-延迟任务系统.md)、[engineering/ringcounter](engineering/ringcounter) |
 | 三级缓存与热点 key（高频） | [system-design/08](notes/system-design/08-缓存体系设计.md) |
 
-## 8. 网络与中间件
+## 8. 网络、操作系统与中间件
+
+**传输层与 HTTP**（[network](notes/network/README.md)）
+
+| 问题 | 位置 |
+| --- | --- |
+| 三次握手为什么不是两次？两个队列满了分别什么现象（高频） | [network/01](notes/network/01-TCP报文与三次握手.md) |
+| 握手失败一个 refused 一个 timeout，怎么归因 | [network/01](notes/network/01-TCP报文与三次握手.md) |
+| 为什么四次挥手？TIME_WAIT 的两个作用（高频） | [network/02](notes/network/02-四次挥手与连接状态.md) |
+| CLOSE_WAIT 只增不减说明什么？RST 的几种触发 | [network/02](notes/network/02-四次挥手与连接状态.md) |
+| RTO 怎么算？Karn 算法与快速重传 | [network/03](notes/network/03-可靠传输与拥塞控制.md) |
+| 流控与拥塞控制两个窗口，谁决定发送窗口（高频） | [network/03](notes/network/03-可靠传输与拥塞控制.md) |
+| Nagle 配延迟 ACK 为什么造成 40ms 毛刺 | [network/03](notes/network/03-可靠传输与拥塞控制.md) |
+| HTTP/1.1 复用的前提？队头阻塞是怎么来的（高频） | [network/04](notes/network/04-HTTP1.1与连接复用.md) |
+| HTTP/2 解决了什么、没解决什么（高频） | [network/05](notes/network/05-HTTP2多路复用.md) |
+| HPACK 为什么不用 gzip | [network/05](notes/network/05-HTTP2多路复用.md) |
+| HTTP/3/QUIC 三个卖点；为什么必须基于 UDP（高频） | [network/06](notes/network/06-HTTP3与QUIC.md) |
+| 0-RTT 的代价；连接迁移靠什么标识连接 | [network/06](notes/network/06-HTTP3与QUIC.md) |
+| 一次请求慢，怎么快速定位到段（高频） | [network/07](notes/network/07-排查实战.md) |
+
+**操作系统**（[os](notes/os/README.md)）
+
+| 问题 | 位置 |
+| --- | --- |
+| 进程与线程共享什么、独有什么？clone 的标志位（高频） | [os/01](notes/os/01-进程与线程.md) |
+| 线程切换为什么比进程切换便宜？goroutine 为什么不陷内核 | [os/01](notes/os/01-进程与线程.md) |
+| Go 的 M 是内核线程；阻塞系统调用为什么会新建 M | [os/01](notes/os/01-进程与线程.md) |
+| CFS 怎么分配 CPU？nice 与权重的对应（高频） | [os/02](notes/os/02-CPU调度与cgroup.md) |
+| 自愿/非自愿上下文切换分别说明什么 | [os/02](notes/os/02-CPU调度与cgroup.md) |
+| 容器里 CPU 打满为什么表现为延迟毛刺（高频） | [os/02](notes/os/02-CPU调度与cgroup.md) |
+| 五种 IO 模型的两个阶段；epoll 为什么是 O(就绪数)（高频） | [os/03](notes/os/03-IO模型与epoll.md) |
+| epoll 内核结构？LT 与 ET 的编程约束（高频） | [os/03](notes/os/03-IO模型与epoll.md) |
+| Go 的 netpoller 怎么把同步写法变成异步性能 | [os/03](notes/os/03-IO模型与epoll.md) |
+| 一次 read+write 拷贝几次？sendfile 省掉哪两次（高频） | [os/04](notes/os/04-零拷贝与页缓存.md) |
+| mmap 为什么不一定比 read 快？Direct IO 什么时候用 | [os/04](notes/os/04-零拷贝与页缓存.md) |
+| minor 与 major 缺页的区别；COW 何时触发（高频） | [os/05](notes/os/05-虚拟内存与缺页.md) |
+| RSS 与 PSS 差在哪？为什么 RSS 会虚高 | [os/05](notes/os/05-虚拟内存与缺页.md) |
+| kswapd 与直接回收；si/so 非零意味着什么（高频） | [os/06](notes/os/06-内存回收与OOM.md) |
+| OOM 杀谁？怎么确认进程是被 OOM 杀的 | [os/06](notes/os/06-内存回收与OOM.md) |
+| GOGC 与 GOMEMLIMIT 怎么配合 | [os/06](notes/os/06-内存回收与OOM.md) |
+
+**代理与中间件**
 
 | 问题 | 位置 |
 | --- | --- |
@@ -221,6 +262,7 @@
 | CQRS 是什么、分几级落地、代价在哪 | [design-pattern/10](notes/design-pattern/10-架构风格.md)、[system-design/02](notes/system-design/02-秒杀系统.md) |
 | 事件溯源优缺点、和审计日志的区别 | [design-pattern/10](notes/design-pattern/10-架构风格.md)、[akafka/05](notes/akafka/05-存储与读路径.md) |
 | 把学习项目讲成工程能力：STAR 模板 | [interview/讲项目](notes/interview/讲项目.md) |
+| 社招 Go 现在的行情、真题与取材流程（2026-11 调研） | [interview/2026-11](notes/interview/2026-11-面试市场与一手面经.md) |
 | 「这是学习项目吧？」怎么接 | [interview/讲项目](notes/interview/讲项目.md) |
 | 60 秒自我介绍口述脚本与反问清单 | [interview/讲项目](notes/interview/讲项目.md) |
 
@@ -242,7 +284,7 @@
 | nginx | [nginx/面试一口答](notes/nginx/面试一口答.md) |
 | Kafka | [akafka/面试一口答](notes/akafka/面试一口答.md) |
 
-> elasticsearch、tls 两个模块暂无速查表，正文也不厚，直接看分册即可。
+> elasticsearch、tls、network、os 四个模块暂无速查表，正文也不厚，直接看分册即可。
 
 ## 11. 手写代码与实验
 
@@ -268,6 +310,8 @@
 | ES | [notes/elasticsearch/experiments](notes/elasticsearch/experiments) |
 | TLS | [notes/tls/experiments](notes/tls/experiments) |
 | nginx | [notes/nginx/experiments](notes/nginx/experiments) |
+| 网络 | [notes/network/experiments](notes/network/experiments) |
+| 操作系统 | [notes/os/experiments](notes/os/experiments) |
 
 > Kafka 实验需要真实 broker：`cd notes/akafka/docker && docker compose up -d`，否则测试会挂起到超时。
 
