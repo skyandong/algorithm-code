@@ -1,5 +1,5 @@
-// noteslint 守住笔记仓库的结构一致：索引数字、文件引用、README 覆盖、
-// 实验编号、章节连续性、断言消息、禁用符号
+// noteslint 守住笔记仓库的结构一致：索引数字、面试手册数字、速查表题数、文件引用、
+// README 覆盖、实验编号、章节连续性、断言消息、禁用符号
 package main
 
 import (
@@ -41,6 +41,8 @@ func main() {
 	var vs []violation
 	vs = append(vs, checkIndexCounts(abs)...)
 	vs = append(vs, checkReadmeCounts(abs)...)
+	vs = append(vs, checkInterviewCounts(abs)...)
+	vs = append(vs, checkModuleQuestionCounts(abs)...)
 	vs = append(vs, checkBrokenRefs(abs)...)
 	vs = append(vs, checkReadmeCoverage(abs)...)
 	vs = append(vs, checkBannedSymbols(abs)...)
@@ -257,6 +259,95 @@ func checkReadmeCounts(root string) []violation {
 		if declared, _ := strconv.Atoi(text[m[2]:m[3]]); declared != countGoFiles(filepath.Join(root, c.dir)) {
 			vs = append(vs, violation{file: "README.md", line: lineAt(text, m[0]),
 				msg: fmt.Sprintf("声明 %s %d 道，实际 %d 道", c.dir, declared, countGoFiles(filepath.Join(root, c.dir)))})
+		}
+	}
+	return vs
+}
+
+var declaredInterviewNotesRe = regexp.MustCompile(`(\d+) 篇正文`)
+
+// checkInterviewCounts 核对 INTERVIEW.md 声明的正文篇数同实际一致。
+// 手册开头的篇数最容易随笔记增删悄悄过期（曾经写 107 而实际 104），所以单独守一条。
+func checkInterviewCounts(root string) []violation {
+	path := filepath.Join(root, "INTERVIEW.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []violation{{file: "INTERVIEW.md", msg: "读不到面试手册：" + err.Error()}}
+	}
+	text := string(data)
+	m := declaredInterviewNotesRe.FindStringSubmatchIndex(text)
+	if m == nil {
+		return []violation{{file: "INTERVIEW.md", msg: "缺少「N 篇正文」的声明"}}
+	}
+	declared, _ := strconv.Atoi(text[m[2]:m[3]])
+	actual := len(noteFiles(root))
+	if declared != actual {
+		return []violation{{file: "INTERVIEW.md", line: lineAt(text, m[0]),
+			msg: fmt.Sprintf("声明正文 %d 篇，实际 %d 篇", declared, actual)}}
+	}
+	return nil
+}
+
+var (
+	quickAnswerName     = "面试一口答.md"
+	declaredQuestionsRe = regexp.MustCompile(`(\d+) 题`)
+	questionHeadingRe   = regexp.MustCompile(`^### \d+\.`)
+)
+
+// countQuickAnswers 数速查表里的编号题数（形如「### 12. xxx」）。
+func countQuickAnswers(text string) int {
+	n := 0
+	for _, ln := range mdLines(text) {
+		if questionHeadingRe.MatchString(ln.text) {
+			n++
+		}
+	}
+	return n
+}
+
+// checkModuleQuestionCounts 核对各模块 README 声明的速查表题数同实际一致。
+// 规则：有 面试一口答.md 的模块，其 README 里链接它的那一行必须写「N 题」。
+// 没写也算不一致——否则数字漂了也没人发现（曾出现声明 66 题、实际 73 题）。
+func checkModuleQuestionCounts(root string) []violation {
+	var vs []violation
+	for _, mod := range moduleDirs(root) {
+		answers, err := os.ReadFile(filepath.Join(mod, quickAnswerName))
+		if err != nil {
+			continue // 没有速查表的模块不参与
+		}
+		actual := countQuickAnswers(string(answers))
+
+		readmePath := filepath.Join(mod, "README.md")
+		rdata, err := os.ReadFile(readmePath)
+		if err != nil {
+			vs = append(vs, violation{file: rel(root, readmePath),
+				msg: "有面试一口答但缺少 README，无法声明题数"})
+			continue
+		}
+		rtext := string(rdata)
+
+		declared, declLine, found := 0, 0, false
+		for _, ln := range mdLines(rtext) {
+			if !strings.Contains(ln.text, "面试一口答") {
+				continue
+			}
+			m := declaredQuestionsRe.FindStringSubmatchIndex(ln.text)
+			if m == nil {
+				continue
+			}
+			declared, _ = strconv.Atoi(ln.text[m[2]:m[3]])
+			declLine = lineAt(rtext, ln.off)
+			found = true
+			break
+		}
+
+		switch {
+		case !found:
+			vs = append(vs, violation{file: rel(root, readmePath),
+				msg: "README 未在「面试一口答」所在行声明题数（写成「N 题」后才会被校验）"})
+		case declared != actual:
+			vs = append(vs, violation{file: rel(root, readmePath), line: declLine,
+				msg: fmt.Sprintf("声明速查表 %d 题，实际 %d 题", declared, actual)})
 		}
 	}
 	return vs

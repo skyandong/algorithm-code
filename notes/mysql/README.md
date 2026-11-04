@@ -18,7 +18,7 @@
 12. [Buffer Pool 与内存](12-BufferPool与内存.md) — 改进版 LRU、脏页刷新、Change Buffer、Doublewrite、AHI
 13. [主从复制与高可用](13-主从复制与高可用.md) — 复制流程、异步/半同步/MGR、GTID、并行复制、读写分离
 14. [SQL 优化实战](14-SQL优化实战.md) — 深分页、COUNT、大表 DML、批量写入、IN vs EXISTS、optimizer_trace
-15. [面试一口答](面试一口答.md) — 考前速刷：40+ 条必须"张口就来"的核心点、高频三连问
+15. [面试一口答](面试一口答.md) — 考前速刷：46 题必须"张口就来"的核心点、高频三连问
 
 ---
 
